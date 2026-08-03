@@ -1,0 +1,254 @@
+"""Grounded answering — where the three mechanisms of Section 7 compose.
+
+The order is not arbitrary, and each step can only end the pipeline in the
+direction of *less* confidence:
+
+1. **No context → refuse without calling anything.** If retrieval found nothing,
+   there is no possible grounded answer, and asking the model anyway would spend
+   money to obtain a guess.
+2. **Generate** under the strict prompt, as structured JSON.
+3. **Bind citations.** Quotes that do not appear in the chunks they name are
+   dropped. If every citation on a positive answer is dropped, the answer is
+   suppressed — a caught hallucination.
+4. **Verify.** Claims are scored against the excerpts, and a low score suppresses
+   the answer even when its citations were individually valid. Citations can all
+   be real while the sentence built around them is not.
+
+Nothing downstream can upgrade an answer. A refusal never becomes an answer, and
+a suppressed answer is never revived.
+
+## Each mechanism is switchable
+
+`enable_citation_binding` and `enable_verification` exist so the evaluation
+harness can run the same golden dataset with the layers off, then on, and
+publish the difference. They are configuration for measurement, not feature
+flags to be left half-on in production.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from api.generation import prompts
+from api.generation.citations import bind
+from api.generation.llm import (
+    LLMProvider,
+    MalformedResponseError,
+    ProviderError,
+    Turn,
+    UsageRecord,
+    extract_json,
+)
+from api.generation.schemas import (
+    AnswerPayload,
+    BoundCitation,
+    DroppedCitation,
+    GroundedAnswer,
+)
+from api.generation.verifier import Verifier, classify
+from api.logging_config import get_logger
+from api.retrieval.context import AssembledContext
+
+log = get_logger(__name__)
+
+ANSWER_MAX_TOKENS = 1200
+
+# Shown when an answer is withheld, or when there is nothing to answer from.
+#
+# WHY fixed strings rather than asking the model to write the refusal: a
+# suppressed answer means the model has already demonstrated it will assert
+# things the document does not support. Asking that same model to explain itself
+# invites a fluent apology containing yet another unsupported claim. And when
+# the reason is a provider outage there is no model available to ask.
+REFUSALS: dict[str, dict[str, str]] = {
+    "tr": {
+        "no_context": (
+            "Bu soruyla ilgili bir bölüm belgede bulunamadı. Soruyu belgede geçen "
+            "terimlerle yeniden ifade etmeyi deneyebilirsiniz."
+        ),
+        "no_valid_citations": (
+            "Bu soruya bir yanıt taslağı oluşturuldu, ancak dayandığı alıntılar belgede "
+            "doğrulanamadı. Doğrulanamayan bir yanıtı göstermemeyi tercih ediyoruz."
+        ),
+        "low_groundedness": (
+            "Oluşturulan yanıtın belgedeki metinle yeterince desteklendiği doğrulanamadı, "
+            "bu nedenle gösterilmiyor."
+        ),
+        "unavailable": ("Yanıt şu anda oluşturulamıyor. Lütfen biraz sonra tekrar deneyin."),
+    },
+    "en": {
+        "no_context": (
+            "No passage in this document appears to address that question. You could try "
+            "rephrasing it using wording that appears in the document."
+        ),
+        "no_valid_citations": (
+            "An answer was drafted, but the passages it relied on could not be verified "
+            "against the document. We would rather show you nothing than something "
+            "unverified."
+        ),
+        "low_groundedness": (
+            "The drafted answer could not be confirmed as sufficiently supported by the "
+            "document, so it is not being shown."
+        ),
+        "unavailable": "An answer cannot be produced right now. Please try again shortly.",
+    },
+}
+
+
+def refusal_text(language: str, key: str) -> str:
+    return REFUSALS.get(language, REFUSALS["en"]).get(key, REFUSALS["en"][key])
+
+
+@dataclass(slots=True)
+class AnswerOutcome:
+    """The answer plus everything the caller must record about producing it."""
+
+    answer: GroundedAnswer
+    usage: list[UsageRecord] = field(default_factory=list)
+    prompt_version: str = prompts.ANSWER
+    model: str = ""
+
+    @property
+    def cost_relevant_tokens(self) -> int:
+        return sum(u.input_tokens + u.output_tokens for u in self.usage)
+
+
+class Answerer:
+    def __init__(
+        self,
+        llm: LLMProvider,
+        *,
+        verifier: Verifier | None = None,
+        enable_citation_binding: bool = True,
+        enable_verification: bool = True,
+        max_tokens: int = ANSWER_MAX_TOKENS,
+    ) -> None:
+        self._llm = llm
+        self._verifier = verifier
+        self._bind = enable_citation_binding
+        self._verify = enable_verification and verifier is not None
+        self._max_tokens = max_tokens
+
+    async def answer(
+        self,
+        *,
+        question: str,
+        context: AssembledContext,
+        language: str = "tr",
+    ) -> AnswerOutcome:
+        usage: list[UsageRecord] = []
+
+        # 1. Nothing retrieved. Refuse without spending anything.
+        if context.is_empty:
+            log.info("refused_no_context")
+            return AnswerOutcome(
+                answer=_refusal(language, "no_context", reason=None), model=self._llm.model
+            )
+
+        # 2. Generate.
+        try:
+            response = await self._llm.complete(
+                system=prompts.render(prompts.ANSWER, reply_language=_language_name(language)),
+                turns=[Turn(role="user", content=_user_turn(question, context))],
+                max_tokens=self._max_tokens,
+                temperature=0.0,
+            )
+        except ProviderError as exc:
+            log.error("answer_unavailable", error=str(exc))
+            return AnswerOutcome(
+                answer=_refusal(language, "unavailable", reason=None), model=self._llm.model
+            )
+
+        usage.append(UsageRecord.from_response("answer", response))
+
+        try:
+            payload = AnswerPayload.model_validate(extract_json(response.text))
+        except (MalformedResponseError, ValueError) as exc:
+            log.error("answer_unreadable", error=str(exc))
+            return AnswerOutcome(
+                answer=_refusal(language, "unavailable", reason=None),
+                usage=usage,
+                model=response.model,
+            )
+
+        # 3. An honest refusal from the model. This is a correct outcome and is
+        #    passed through unchanged — it is not suppression.
+        if not payload.answer_found:
+            log.info("model_refused", confidence=payload.confidence)
+            return AnswerOutcome(
+                answer=GroundedAnswer(
+                    answer=payload.answer or refusal_text(language, "no_context"),
+                    refused=True,
+                    confidence=payload.confidence,
+                    caveats=payload.caveats,
+                ),
+                usage=usage,
+                model=response.model,
+            )
+
+        # 4. Citation binding.
+        kept: list[BoundCitation] = []
+        dropped: list[DroppedCitation] = []
+        if self._bind:
+            outcome = bind(payload, context)
+            kept, dropped = outcome.kept, outcome.dropped
+            if outcome.suppressed:
+                return AnswerOutcome(
+                    answer=_refusal(language, "no_valid_citations", reason="no_valid_citations"),
+                    usage=usage,
+                    model=response.model,
+                )
+        else:
+            # Binding disabled for an ablation run. Citations pass through
+            # unchecked, which is the point of the comparison.
+            outcome = bind(payload, context)
+            kept = outcome.kept
+
+        # 5. Verification.
+        groundedness: float | None = None
+        verified = False
+        if self._verify and self._verifier is not None:
+            result = await self._verifier.verify(draft=payload.answer, context=context)
+            if result is not None:
+                groundedness = result.groundedness
+                verified = True
+
+            if classify(groundedness) == "suppress":
+                return AnswerOutcome(
+                    answer=_refusal(language, "low_groundedness", reason="low_groundedness"),
+                    usage=usage,
+                    model=response.model,
+                )
+
+        return AnswerOutcome(
+            answer=GroundedAnswer(
+                answer=payload.answer,
+                refused=False,
+                citations=kept,
+                dropped_citations=dropped,
+                confidence=payload.confidence,
+                caveats=payload.caveats,
+                groundedness=groundedness,
+                verified=verified,
+            ),
+            usage=usage,
+            model=response.model,
+        )
+
+
+def _refusal(language: str, key: str, *, reason: str | None) -> GroundedAnswer:
+    return GroundedAnswer(
+        answer=refusal_text(language, key),
+        refused=True,
+        confidence="low",
+        suppressed=reason is not None,
+        suppression_reason=reason,
+    )
+
+
+def _user_turn(question: str, context: AssembledContext) -> str:
+    return f"# Excerpts from the document\n\n{context.text}\n\n# Question\n\n{question}"
+
+
+def _language_name(code: str) -> str:
+    return {"tr": "Turkish", "en": "English"}.get(code, "English")

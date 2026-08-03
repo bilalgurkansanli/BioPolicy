@@ -52,6 +52,31 @@ class LLMResponse:
         return self.input_tokens + self.output_tokens
 
 
+@dataclass(frozen=True, slots=True)
+class UsageRecord:
+    """One billable call, ready to be written to `usage_events`.
+
+    Token counts come from the provider's own response, never from a local
+    tokenizer. The tokenizer used for chunk budgeting is a different vendor's
+    and is only a yardstick; the budget circuit breaker has to be fed real
+    numbers or it is measuring something other than the bill.
+    """
+
+    operation: str  # 'answer' | 'verify' | 'rewrite' | 'embed' | 'ocr'
+    model: str
+    input_tokens: int
+    output_tokens: int
+
+    @classmethod
+    def from_response(cls, operation: str, response: LLMResponse) -> UsageRecord:
+        return cls(
+            operation=operation,
+            model=response.model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+        )
+
+
 class ProviderError(RuntimeError):
     """The provider failed to produce a response. Failover-eligible."""
 
