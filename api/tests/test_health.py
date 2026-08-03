@@ -1,4 +1,4 @@
-﻿"""Phase 0 smoke tests.
+"""Phase 0 smoke tests.
 
 These assert the two things that must be true before anything else is worth
 building: the app boots, and configuration is validated rather than assumed.

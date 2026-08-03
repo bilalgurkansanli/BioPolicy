@@ -74,6 +74,14 @@ select = [
 ignore = [
     "E501",   # line length is handled by the formatter
     "S101",   # assert is fine in tests
+    # RUF001-003 flag "ambiguous" Unicode — characters that resemble ASCII.
+    # This is a Turkish/English codebase: `ı` (dotless i), `ş`, `ğ` and `×` are
+    # correct spellings of real words, not homoglyph attacks. Left enabled, the
+    # rule fires on every Turkish identifier, comment and test fixture, and the
+    # only way to satisfy it is to misspell the language.
+    "RUF001",
+    "RUF002",
+    "RUF003",
 ]
 
 [tool.ruff.lint.per-file-ignores]

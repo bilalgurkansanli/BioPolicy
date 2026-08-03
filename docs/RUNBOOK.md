@@ -141,6 +141,29 @@ scheduled job. A mismatch means the purge silently 401s, which means documents
 outlive their 24 hours. **Check that a purge ran after rotating**, in the audit
 table.
 
+The scheduled jobs read their configuration from the `app_settings` table, not
+from the cron command text, so rotating is an `UPDATE` rather than a migration:
+
+```sql
+update app_settings set value = 'NEW_SECRET', updated_at = now() where key = 'purge_job_secret';
+```
+
+Both rows must exist before any scheduled job does anything. On a fresh project:
+
+```sql
+insert into app_settings (key, value) values
+  ('api_base_url', 'https://biopolicy.bilalgurkansanli.com'),
+  ('purge_job_secret', 'PASTE_THE_SECRET_HERE');
+```
+
+Until they are set, the jobs log a warning and no-op — deliberately, so that
+migrations apply cleanly to an unconfigured project. **A silent no-op means the
+retention promise is not being kept**, so verify after first deploy:
+
+```sql
+select * from retention_audit order by purged_at desc limit 5;
+```
+
 ---
 
 ## Restoring from a failed migration
