@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same PR cancels the previous run — CI minutes are not free
+# and a superseded run tells you nothing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Never let CI pick up a real .env or a real credential. Every job here must
+  # pass without touching a provider; anything that can't is an integration test
+  # and is marked as such.
+  APP_ENV: development
+
+jobs:
+  api:
+    name: API — lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.11.32"
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen --extra dev
+
+      - name: Lint
+        run: uv run ruff check api eval
+
+      - name: Format check
+        run: uv run ruff format --check api eval
+
+      - name: Type check
+        run: uv run mypy api
+
+      - name: Tests
+        # Integration tests need live Supabase and provider credentials, and the
+        # eval harness costs money. Neither belongs in per-commit CI.
+        run: uv run pytest api/tests -q -m "not integration and not eval"
+
+  web:
+    name: Web — lint, types, build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          # Build-time placeholders. Real values are injected by Vercel; these
+          # only need to be well-formed enough for Next to finish a build.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
+
+  docker:
+    name: API image builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.vercel
+          push: false
+          load: true
+          tags: biopolicy-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Container boots and serves health
+        # A green build that dies on startup is not a green build.
+        run: |
+          docker run -d --name api -p 8000:8000 -e PORT=8000 -e APP_ENV=development biopolicy-api:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/api/health/live; then
+              echo "" && echo "container healthy after ${i}s" && exit 0
+            fi
+            sleep 1
+          done
+          echo "container failed to become healthy" >&2
+          docker logs api >&2
+          exit 1
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

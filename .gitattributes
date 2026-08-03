@@ -1,0 +1,16 @@
+# Normalise to LF in the repository. Development happens on Windows; the API
+# runs in a Linux container. A CRLF line ending inside a shell script or a
+# Dockerfile CMD produces errors that look like missing binaries.
+* text=auto eol=lf
+
+# Never touch these.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+
+# Generated; collapse in diffs and exclude from language statistics.
+uv.lock linguist-generated=true
+web/package-lock.json linguist-generated=true

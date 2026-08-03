@@ -1,0 +1,33 @@
+# Keep the build context small — everything here would otherwise be uploaded to
+# the builder on every deploy.
+
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# The frontend is a separate deployment; it has no business in the API image.
+web/
+
+# Neither do the docs, the eval harness, or the migrations.
+docs/
+eval/
+supabase/
+api/tests/
+
+# Secrets — belt and braces with .gitignore.
+.env
+.env.*
+!.env.example
+
+.vercel/
+*.md
+!README.md
