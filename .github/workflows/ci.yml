@@ -44,7 +44,9 @@ jobs:
         run: uv run ruff format --check api eval
 
       - name: Type check
-        run: uv run mypy api
+        # `eval` is checked too: the golden dataset loader and the harness are
+        # real code, and a break there silently corrupts published numbers.
+        run: uv run mypy api eval
 
       - name: Tests
         # Integration tests need live Supabase and provider credentials, and the

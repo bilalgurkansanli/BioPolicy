@@ -108,6 +108,7 @@ module = [
     "gotrue.*",
     "storage3.*",
     "asyncpg.*",
+    "reportlab.*",
 ]
 ignore_missing_imports = true
 

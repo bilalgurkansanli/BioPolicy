@@ -1,0 +1,625 @@
+{
+  "$schema_notes": {
+    "purpose": "Golden evaluation dataset. Every metric in eval/report.md is computed from this file.",
+    "id": "Stable identifier. Never reuse one for a different question.",
+    "document": "Sample slug, without the .pdf extension.",
+    "lang": "Language the QUESTION is written in. May differ from the document's language.",
+    "category": "factual | table | multi_clause | negative | cross_lingual",
+    "expected_answer_found": "What the system SHOULD decide. false means the document genuinely does not answer it.",
+    "expected_evidence": [
+      "Substrings that must appear in at least one retrieved chunk for retrieval to count as a hit.",
+      "WHY text rather than chunk ids: chunk UUIDs are regenerated on every ingest, so a golden set keyed on them breaks the first time you re-ingest or retune chunk size. Evidence text is stable across both."
+    ],
+    "expected_answer_summary": "What a correct answer says. Used for manual review, not for automatic scoring.",
+    "notes": "Why this question is here, when that is not obvious."
+  },
+
+  "questions": [
+    {
+      "id": "knt-001",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "table",
+      "question": "Deprem teminatının limiti nedir?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Deprem ve Yanardağ Püskürmesi", "1.800.000"],
+      "expected_answer_summary": "1.800.000 TL, %2 muafiyetle (asgari 5.000 TL)."
+    },
+    {
+      "id": "knt-002",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "table",
+      "question": "Deprem hasarında muafiyet ne kadar uygulanır?",
+      "expected_answer_found": true,
+      "expected_evidence": ["%2 (asgari 5.000 TL)"],
+      "expected_answer_summary": "%2, asgari 5.000 TL.",
+      "notes": "The deductible appears only in the third column of the table. A parser that collapses columns loses this while still looking correct."
+    },
+    {
+      "id": "knt-003",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "table",
+      "question": "Cam kırılması için muafiyet var mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Cam Kırılması", "Muafiyet yok"],
+      "expected_answer_summary": "Hayır, muafiyet yok. Limit 25.000 TL."
+    },
+    {
+      "id": "knt-004",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "table",
+      "question": "Hırsızlık teminatının limiti ve muafiyeti nedir?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Hırsızlık ve Hırsızlığa Teşebbüs", "300.000", "1.000 TL"],
+      "expected_answer_summary": "300.000 TL limit, 1.000 TL muafiyet."
+    },
+    {
+      "id": "knt-005",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "table",
+      "question": "Kira kaybı teminatı kaç ay ve ne kadar?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Kira Kaybı", "90.000"],
+      "expected_answer_summary": "Azami 6 ay, 90.000 TL limitle."
+    },
+    {
+      "id": "knt-006",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Hasarı kaç gün içinde bildirmem gerekiyor?",
+      "expected_answer_found": true,
+      "expected_evidence": ["beş iş günü"],
+      "expected_answer_summary": "Beş iş günü içinde yazılı bildirim. Hırsızlıkta ayrıca 24 saat içinde kolluk kuvvetlerine başvuru."
+    },
+    {
+      "id": "knt-007",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Hırsızlık durumunda polise ne kadar sürede başvurmalıyım?",
+      "expected_answer_found": true,
+      "expected_evidence": ["yirmi dört saat", "kolluk"],
+      "expected_answer_summary": "En geç 24 saat içinde."
+    },
+    {
+      "id": "knt-008",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Tazminat ne kadar sürede ödenir?",
+      "expected_answer_found": true,
+      "expected_evidence": ["otuz gün"],
+      "expected_answer_summary": "Hasar dosyasının tamamlanmasını takip eden 30 gün içinde."
+    },
+    {
+      "id": "knt-009",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Deprem teminatı DASK ile nasıl ilişkilendiriliyor?",
+      "expected_answer_found": true,
+      "expected_evidence": ["DASK", "aşan kısım"],
+      "expected_answer_summary": "Bu poliçe DASK limitini aşan kısım için geçerli."
+    },
+    {
+      "id": "knt-010",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Bodrum katımdaki eşyalar sel basarsa karşılanır mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["bodrum katlarda", "Sel ve Su Baskını"],
+      "expected_answer_summary": "Hayır. Sel teminatı var ancak Madde 4.7 zemin altı bodrum katlardaki EŞYAYI istisna ediyor; sınırlama bina yapı unsurlarına uygulanmıyor.",
+      "notes": "The most important question in the set. Cover is granted in the schedule and withdrawn in Article 4.7. A system that retrieves only the granting clause answers 'yes' with a perfectly valid citation and is wrong."
+    },
+    {
+      "id": "knt-011",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Evimi iki ay boş bıraktım ve hırsızlık oldu, teminat geçerli mi?",
+      "expected_answer_found": true,
+      "expected_evidence": ["otuz günden fazla boş"],
+      "expected_answer_summary": "Hayır. Madde 4.8, 30 günden fazla kesintisiz boş bırakma halinde hırsızlık zararlarını istisna ediyor."
+    },
+    {
+      "id": "knt-012",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Evcil hayvanımın verdiği zarar karşılanır mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Evcil hayvanların"],
+      "expected_answer_summary": "Hayır, Madde 4.5 ile istisna edilmiş."
+    },
+    {
+      "id": "knt-013",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Evde tuttuğum nakit para ve altın teminat kapsamında mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["nakit para", "külçe altın"],
+      "expected_answer_summary": "Hayır, Madde 4.9 ile istisna."
+    },
+    {
+      "id": "knt-014",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Poliçeyi nasıl feshedebilirim?",
+      "expected_answer_found": true,
+      "expected_evidence": ["otuz gün önceden"],
+      "expected_answer_summary": "30 gün önceden yazılı bildirimle. İşlememiş prim gün esasına göre iade edilir."
+    },
+    {
+      "id": "knt-015",
+      "document": "konut-sigortasi-tr",
+      "lang": "en",
+      "category": "cross_lingual",
+      "question": "What is the earthquake coverage limit in this policy?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Deprem ve Yanardağ Püskürmesi", "1.800.000"],
+      "expected_answer_summary": "1.800.000 TL, answered in English with the clause reference kept in Turkish."
+    },
+    {
+      "id": "knt-016",
+      "document": "konut-sigortasi-tr",
+      "lang": "en",
+      "category": "cross_lingual",
+      "question": "Is flood damage to belongings in a basement covered?",
+      "expected_answer_found": true,
+      "expected_evidence": ["bodrum katlarda"],
+      "expected_answer_summary": "No — granted in the schedule, excluded by Madde 4.7 for below-ground basements."
+    },
+    {
+      "id": "knt-017",
+      "document": "konut-sigortasi-tr",
+      "lang": "en",
+      "category": "cross_lingual",
+      "question": "How many days do I have to notify a claim?",
+      "expected_answer_found": true,
+      "expected_evidence": ["beş iş günü"],
+      "expected_answer_summary": "Five business days."
+    },
+    {
+      "id": "knt-neg-001",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "İş yeri iş kesintisi teminatı kaç TL?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belge iş kesintisi teminatından söz etmiyor. Kapsanan teminatlar sayılmalı."
+    },
+    {
+      "id": "knt-neg-002",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Siber saldırı sonucu veri kaybı teminat kapsamında mı?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belgede siber teminata dair bir hüküm yok.",
+      "notes": "Plausible because the commercial policy in this same eval set DOES have a cyber clause. Tests whether knowledge leaks across documents."
+    },
+    {
+      "id": "knt-neg-003",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Üçüncü şahıs mali sorumluluk limiti nedir?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belgede üçüncü şahıs mali sorumluluk teminatı yok. Ferdi kaza teminatı var ama farklı bir şey."
+    },
+    {
+      "id": "knt-neg-004",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Poliçe yenilemesinde prim ne oranda artar?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belge yenileme primi artışına dair bir oran içermiyor; yalnızca fesih ve prim iadesi düzenlenmiş.",
+      "notes": "Adjacent to Madde 6, which is about cancellation and pro-rata refunds. Tests whether nearby-but-different content gets stretched into an answer."
+    },
+    {
+      "id": "knt-neg-005",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Hukuksal koruma teminatı var mı, avukat masrafları karşılanıyor mu?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belgede hukuksal koruma teminatı yok."
+    },
+    {
+      "id": "knt-neg-006",
+      "document": "konut-sigortasi-tr",
+      "lang": "en",
+      "category": "negative",
+      "question": "What is the terrorism cover limit?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "The document does not address terrorism. War and civil war are excluded under 4.1, which is related but not the same.",
+      "notes": "Cross-lingual negative. 4.1 excludes war, which a careless system will offer as if it answered the question."
+    },
+    {
+      "id": "knt-neg-007",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Aracım çalınırsa bu poliçe öder mi?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Bu bir konut poliçesi; araç teminatı içermiyor. Hırsızlık teminatı risk adresindeki eşya için."
+    },
+
+    {
+      "id": "com-001",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "table",
+      "question": "What is the business interruption limit?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Business Interruption", "750,000"],
+      "expected_answer_summary": "GBP 750,000 over a 12-month indemnity period, with a 72-hour time deductible."
+    },
+    {
+      "id": "com-002",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "table",
+      "question": "What deductible applies to business interruption?",
+      "expected_answer_found": true,
+      "expected_evidence": ["72 hours"],
+      "expected_answer_summary": "72 hours — a time deductible, not a monetary one.",
+      "notes": "The deductible column holds a duration where every other row holds money. A system that assumes the column is numeric produces a confident wrong figure."
+    },
+    {
+      "id": "com-003",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "table",
+      "question": "What is the buildings limit and its deductible?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Property — Buildings", "5,000,000", "10,000"],
+      "expected_answer_summary": "GBP 5,000,000 with a GBP 10,000 deductible."
+    },
+    {
+      "id": "com-004",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "table",
+      "question": "What is the public liability aggregate limit?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Public Liability — aggregate", "2,000,000"],
+      "expected_answer_summary": "GBP 2,000,000 aggregate; GBP 1,000,000 each occurrence."
+    },
+    {
+      "id": "com-005",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "table",
+      "question": "Is there any cover for glass, and is there a deductible?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Glass — external", "15,000", "Nil"],
+      "expected_answer_summary": "GBP 15,000 for external glass, no deductible."
+    },
+    {
+      "id": "com-006",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "multi_clause",
+      "question": "Our unit is in Flood Zone 3. Are we covered for flood damage?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Flood Zone 3"],
+      "expected_answer_summary": "No. Section 5.9 excludes flood entirely in Flood Zone 3, notwithstanding any figure in the Schedule.",
+      "notes": "The document says the exclusion applies 'notwithstanding any figure shown in the Schedule'. Retrieving only the schedule gives the wrong answer with a valid citation."
+    },
+    {
+      "id": "com-007",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "multi_clause",
+      "question": "Our property claim was declined. Can we still claim business interruption?",
+      "expected_answer_found": true,
+      "expected_evidence": ["property claim is declined"],
+      "expected_answer_summary": "No. Section 3 makes BI conditional on the underlying property damage claim being admitted."
+    },
+    {
+      "id": "com-008",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "factual",
+      "question": "Is ransomware or a hacking incident covered?",
+      "expected_answer_found": true,
+      "expected_evidence": ["cyber act or cyber incident"],
+      "expected_answer_summary": "No. Section 5.5 excludes loss arising from any cyber act or incident."
+    },
+    {
+      "id": "com-009",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "factual",
+      "question": "How long do we have to notify a claim?",
+      "expected_answer_found": true,
+      "expected_evidence": ["thirty days"],
+      "expected_answer_summary": "Within 30 days of becoming aware of the event."
+    },
+    {
+      "id": "com-010",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "factual",
+      "question": "Are legal costs paid on top of the limit of indemnity?",
+      "expected_answer_found": true,
+      "expected_evidence": ["in addition to the limit of indemnity"],
+      "expected_answer_summary": "Yes, with the Insurer's written consent — except for Products Liability, where costs sit inside the aggregate.",
+      "notes": "A partial answer. Saying only 'yes' is wrong; the products carve-out is in the same sentence."
+    },
+    {
+      "id": "com-011",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "factual",
+      "question": "We were burgled but there was no sign of forced entry. Are we covered?",
+      "expected_answer_found": true,
+      "expected_evidence": ["forcible and violent entry"],
+      "expected_answer_summary": "No. Section 5.10 excludes theft not accompanied by forcible and violent entry or exit."
+    },
+    {
+      "id": "com-012",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "factual",
+      "question": "Is storm damage to stock kept in the yard covered?",
+      "expected_answer_found": true,
+      "expected_evidence": ["property in the open air"],
+      "expected_answer_summary": "No. Section 5.7 excludes storm damage to property in the open air."
+    },
+    {
+      "id": "com-013",
+      "document": "commercial-property-liability-en",
+      "lang": "tr",
+      "category": "cross_lingual",
+      "question": "İş kesintisi teminatının limiti ve muafiyeti nedir?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Business Interruption", "750,000", "72 hours"],
+      "expected_answer_summary": "750.000 GBP, 72 saatlik zaman muafiyetiyle. Yanıt Türkçe, madde referansı İngilizce."
+    },
+    {
+      "id": "com-014",
+      "document": "commercial-property-liability-en",
+      "lang": "tr",
+      "category": "cross_lingual",
+      "question": "Siber saldırı kapsam dışında mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["cyber act or cyber incident"],
+      "expected_answer_summary": "Evet, Section 5.5 ile istisna edilmiş."
+    },
+    {
+      "id": "com-neg-001",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "negative",
+      "question": "What is our employers liability limit?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "The document covers public and products liability but says nothing about employers liability.",
+      "notes": "Highly plausible: employers liability is compulsory for most UK employers, so a model reasoning from world knowledge will assert a figure."
+    },
+    {
+      "id": "com-neg-002",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "negative",
+      "question": "Are we covered for an unfair dismissal claim by an employee?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "No employment practices liability cover is described in this document."
+    },
+    {
+      "id": "com-neg-003",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "negative",
+      "question": "What is the directors and officers liability limit?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Not addressed. The Schedule lists property, BI, public, products, money, goods in transit and glass."
+    },
+    {
+      "id": "com-neg-004",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "negative",
+      "question": "What professional indemnity limit applies?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "There is no professional indemnity limit. Section 5.3 excludes liability from professional services, which is the opposite of a limit.",
+      "notes": "The document mentions professional services only to exclude them. Reporting the exclusion as if it were the answer to 'what limit applies' would be a subtle failure."
+    },
+    {
+      "id": "com-neg-005",
+      "document": "commercial-property-liability-en",
+      "lang": "en",
+      "category": "negative",
+      "question": "Does the policy cover environmental clean-up costs after a spill?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Clean-up costs are not addressed anywhere in the document."
+    },
+    {
+      "id": "com-neg-006",
+      "document": "commercial-property-liability-en",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Şirket araç filomuz bu poliçe kapsamında mı?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belge motorlu taşıt teminatına değinmiyor. Nakliyat teminatı var ama araçların kendisi için değil.",
+      "notes": "Goods in Transit is adjacent and will be retrieved. It covers the goods, not the vehicle."
+    },
+
+    {
+      "id": "sag-001",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "table",
+      "question": "Yatarak tedavi için limit var mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Yatarak Tedavi", "Limitsiz"],
+      "expected_answer_summary": "Limitsiz, katılım payı yok."
+    },
+    {
+      "id": "sag-002",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "table",
+      "question": "Yılda kaç kez ayakta muayene hakkım var?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Yılda 8 kez"],
+      "expected_answer_summary": "Yılda 8 kez, %20 katılım payıyla."
+    },
+    {
+      "id": "sag-003",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "table",
+      "question": "Doğum teminatı ne kadar?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Doğum", "25.000"],
+      "expected_answer_summary": "25.000 TL, katılım payı yok — ancak 12 ay bekleme süresi var."
+    },
+    {
+      "id": "sag-004",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Poliçemi yeni aldım, üç ay sonra doğum yapacağım. Doğum masrafları karşılanır mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["on iki aydır"],
+      "expected_answer_summary": "Hayır. Doğum teminatı 25.000 TL ancak bekleme süresi 12 ay; bu süre dolmadan gerçekleşen doğumlar kapsam dışı.",
+      "notes": "Cover exists in the table and is withdrawn by the waiting period in Madde 2. Retrieving only the table gives a confident wrong 'yes'."
+    },
+    {
+      "id": "sag-005",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Diş tedavim karşılanır mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Diş Tedavisi", "3.000"],
+      "expected_answer_summary": "Yalnızca acil diş tedavisi, 3.000 TL limit ve %30 katılım payıyla. Acil olmayan diş tedavisi Madde 3.8 ile istisna."
+    },
+    {
+      "id": "sag-006",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Anlaşmalı olmayan bir hastanede tedavi olursam ne olur?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Anlaşmalı kurum ağı dışındaki"],
+      "expected_answer_summary": "Kapsam dışı — Madde 3.6."
+    },
+    {
+      "id": "sag-007",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Gözlük camı ve muayenesi karşılanıyor mu?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Gözlük, kontakt lens"],
+      "expected_answer_summary": "Hayır, Madde 3.3 ile istisna."
+    },
+    {
+      "id": "sag-008",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Tazminat talebimi ne kadar sürede iletmeliyim?",
+      "expected_answer_found": true,
+      "expected_evidence": ["altı ay içinde"],
+      "expected_answer_summary": "Tedavi tarihinden itibaren en geç 6 ay içinde."
+    },
+    {
+      "id": "sag-009",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "en",
+      "category": "cross_lingual",
+      "question": "How long is the waiting period before I can use inpatient cover?",
+      "expected_answer_found": true,
+      "expected_evidence": ["üç ay"],
+      "expected_answer_summary": "Three months, except for emergencies."
+    },
+    {
+      "id": "sag-neg-001",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "negative",
+      "question": "İlaç ve eczane masraflarım karşılanıyor mu?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belge ilaç teminatına değinmiyor. Teminat tablosunda ilaç kalemi yok.",
+      "notes": "Almost every real complementary health policy addresses this, so the pull toward answering from world knowledge is strong."
+    },
+    {
+      "id": "sag-neg-002",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Yurt dışında tedavi olursam teminat geçerli mi?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belge yurt dışı tedaviye değinmiyor; yalnızca anlaşmalı kurum ağı şartı var."
+    },
+    {
+      "id": "sag-neg-003",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Psikiyatri ve psikolojik danışmanlık kapsam içinde mi?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Belgede psikiyatrik tedaviye dair bir hüküm yok — ne teminat ne istisna olarak."
+    },
+    {
+      "id": "sag-neg-004",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Ambulans hizmeti için limit ne kadar?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Ambulans teminatı belgede yer almıyor."
+    },
+    {
+      "id": "sag-neg-005",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Yıllık check-up hakkım var mı?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Check-up teminatı belgede yok. Ayakta tahlil ve görüntüleme teminatı var ama farklı bir şey.",
+      "notes": "Adjacent content exists (outpatient tests) which a careless system will present as a check-up entitlement."
+    },
+    {
+      "id": "sag-neg-006",
+      "document": "tamamlayici-saglik-tr-scanned",
+      "lang": "en",
+      "category": "negative",
+      "question": "Is there an upper age limit for renewal?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "The document says nothing about age limits or renewal guarantees."
+    }
+  ]
+}
