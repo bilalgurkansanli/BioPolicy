@@ -84,6 +84,11 @@ ignore = [
     "RUF003",
 ]
 
+[tool.ruff.lint.isort]
+# `eval` shadows a builtin name, so ruff does not infer it as first-party from
+# `src` alone and files it under third-party imports instead.
+known-first-party = ["api", "eval"]
+
 [tool.ruff.lint.per-file-ignores]
 "api/tests/**" = ["S", "N"]
 "eval/**" = ["S"]
