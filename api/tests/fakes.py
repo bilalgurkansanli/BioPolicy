@@ -14,9 +14,12 @@ the code under test, and then the test passes for the wrong reason.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Sequence
+from uuid import UUID
 
+from api.constants import EMBEDDING_DIM
 from api.generation.llm import LLMResponse, ProviderError, Turn
 from api.ingest.types import ParsedDocument
+from api.retrieval.types import RetrievedChunk
 
 
 class FakeOCRProvider:
@@ -164,6 +167,61 @@ class FailingLLM:
         for _ in ():
             yield ""
         raise ProviderError(self.message)
+
+
+class StubEmbedder:
+    """Deterministic vectors of the correct width.
+
+    The values are meaningless — the retriever never inspects them, it only
+    hands them to the store. What matters for testing is that the *width* is
+    right and that document and query paths are recorded separately, so a test
+    can catch the two being swapped.
+    """
+
+    name = "stub-embedder"
+    model = "stub-embedding-model"
+
+    def __init__(self, dimensions: int = EMBEDDING_DIM) -> None:
+        self.dimensions = dimensions
+        self.document_calls: list[list[str]] = []
+        self.query_calls: list[str] = []
+
+    def _vector(self, text: str) -> list[float]:
+        seed = sum(ord(c) for c in text) or 1
+        return [((seed * (i + 1)) % 1000) / 1000.0 for i in range(self.dimensions)]
+
+    async def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        self.document_calls.append(list(texts))
+        return [self._vector(t) for t in texts]
+
+    async def embed_query(self, text: str) -> list[float]:
+        self.query_calls.append(text)
+        return self._vector(text)
+
+
+class StubStore:
+    """Returns prepared search results and records how it was queried."""
+
+    def __init__(self, results: list[RetrievedChunk] | None = None) -> None:
+        self.results = results or []
+        self.queries: list[str] = []
+        self.embeddings: list[list[float]] = []
+        self.accessors: list[UUID | None] = []
+
+    async def hybrid_search(
+        self,
+        *,
+        document_id: UUID,
+        user_id: UUID | None,
+        query_embedding: list[float],
+        query_text: str,
+        vector_limit: int = 30,
+        keyword_limit: int = 30,
+    ) -> list[RetrievedChunk]:
+        self.queries.append(query_text)
+        self.embeddings.append(query_embedding)
+        self.accessors.append(user_id)
+        return list(self.results)
 
 
 _DEFAULT_MARKDOWN = """# Madde 1 — Teminat Kapsamı

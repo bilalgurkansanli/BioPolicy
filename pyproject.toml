@@ -100,7 +100,15 @@ exclude = ["^web/", "^\\.venv/"]
 
 [[tool.mypy.overrides]]
 # These ship without complete type information.
-module = ["pdfplumber.*", "pypdfium2.*", "llama_index.*", "supabase.*", "gotrue.*", "storage3.*"]
+module = [
+    "pdfplumber.*",
+    "pypdfium2.*",
+    "llama_index.*",
+    "supabase.*",
+    "gotrue.*",
+    "storage3.*",
+    "asyncpg.*",
+]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
