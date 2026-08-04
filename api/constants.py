@@ -76,6 +76,28 @@ MEMORY_VERBATIM_TURNS: Final[int] = 4
 MEMORY_SUMMARY_MAX_TOKENS: Final[int] = 150
 
 # -----------------------------------------------------------------------------
+# Provider timeouts
+# -----------------------------------------------------------------------------
+# WHY there is a ceiling on every outbound model call: the answer is withheld
+# until every check has run (ADR 010), so the user waits with nothing on screen.
+# An unbounded call is indistinguishable from a hang, and observed here as a
+# ~2.5 minute stall when the embedding provider rate-limited and its client
+# retried with backoff. The Anthropic SDK sets its own timeout; the Google
+# client defaults to none.
+GEMINI_TIMEOUT_SECONDS: Final[float] = 45.0
+
+# The rewrite is an optimisation, and it already has a safe fallback: the
+# question as typed, which is what a system without rewriting would have used.
+# It must never be the reason an answer is late — this ceiling is deliberately
+# far below the one above.
+#
+# 5s and not 10s: the whole answer takes 6.0s at the median. A rewrite allowed to
+# spend longer than the answer it is meant to improve has stopped being an
+# optimisation. Observed latency for this call is 8-11s at present, so the
+# fallback is currently the common path — see the backlog.
+QUERY_REWRITE_TIMEOUT_SECONDS: Final[float] = 5.0
+
+# -----------------------------------------------------------------------------
 # Groundedness thresholds (Section 7.3)
 # -----------------------------------------------------------------------------
 GROUNDEDNESS_SERVE: Final[float] = 0.8  # >= this: serve normally

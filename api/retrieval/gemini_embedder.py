@@ -29,7 +29,6 @@ import asyncio
 import math
 from typing import Any, cast
 
-from google import genai
 from google.genai import types as genai_types
 
 from api.constants import (
@@ -38,6 +37,7 @@ from api.constants import (
     EMBEDDING_BATCH_SIZE,
     EMBEDDING_DIM,
 )
+from api.gemini_client import build_client
 from api.logging_config import get_logger
 from api.retrieval.embedder import EmbeddingError, validate_dimensions
 
@@ -65,7 +65,7 @@ class GeminiEmbedder:
         dimensions: int = EMBEDDING_DIM,
         batch_size: int = EMBEDDING_BATCH_SIZE,
     ) -> None:
-        self._client = genai.Client(api_key=api_key)
+        self._client = build_client(api_key)
         self._model = model
         self._dimensions = dimensions
         self._batch_size = batch_size

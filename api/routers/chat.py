@@ -13,6 +13,7 @@ which is what makes the wait legible.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from uuid import UUID
@@ -22,6 +23,7 @@ from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
 from api.deps import State
+from api.generation.answerer import AnswerOutcome
 from api.generation.llm import Turn
 from api.logging_config import get_logger
 from api.pricing import UnpricedModelError, estimate_cost
@@ -84,11 +86,32 @@ async def chat(request: ChatRequest, state: State) -> EventSourceResponse:
             )
 
             yield _event("answering")
-            outcome = await state.answerer.answer(
-                question=request.question,
-                context=retrieved.context,
-                language=request.language,
-            )
+
+            # Answering is run as a task so its internal stage transitions can
+            # be forwarded while it is still in flight. Awaiting it directly
+            # would leave the client on "answering" for the whole call —
+            # including verification, which is roughly half the wait. A stage
+            # the interface shows but never reaches is the spinner with an
+            # invented label that ADR 010 argues against.
+            stages: asyncio.Queue[dict[str, str] | None] = asyncio.Queue()
+
+            async def run() -> AnswerOutcome:
+                try:
+                    return await state.answerer.answer(
+                        question=request.question,
+                        context=retrieved.context,
+                        language=request.language,
+                        on_stage=lambda name: stages.put(_event(name)),
+                    )
+                finally:
+                    # Unblocks the drain below on every path, including failure.
+                    await stages.put(None)
+
+            answering = asyncio.create_task(run())
+            while (event := await stages.get()) is not None:
+                yield event
+
+            outcome = await answering
             answer = outcome.answer
 
             cost = 0.0

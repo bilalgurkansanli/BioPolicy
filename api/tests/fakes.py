@@ -13,6 +13,7 @@ the code under test, and then the test passes for the wrong reason.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Sequence
 from uuid import UUID
 
@@ -129,6 +130,46 @@ class ScriptedLLM:
         )
         for word in response.text.split(" "):
             yield word + " "
+
+
+class SlowLLM:
+    """Never answers in time. Models a stalled provider, not a failing one.
+
+    An outage raises; this does not, which is the harder case — nothing signals
+    that anything is wrong, and without a ceiling the caller simply waits.
+    """
+
+    name = "slow"
+    model = "slow-model"
+
+    def __init__(self, delay_seconds: float = 60.0) -> None:
+        self.delay_seconds = delay_seconds
+        self.call_count = 0
+
+    async def complete(
+        self,
+        *,
+        system: str,
+        turns: Sequence[Turn],
+        max_tokens: int,
+        temperature: float = 0.0,
+    ) -> LLMResponse:
+        self.call_count += 1
+        await asyncio.sleep(self.delay_seconds)
+        raise AssertionError("SlowLLM should never be waited out")
+
+    async def stream(
+        self,
+        *,
+        system: str,
+        turns: Sequence[Turn],
+        max_tokens: int,
+        temperature: float = 0.0,
+    ) -> AsyncIterator[str]:
+        await self.complete(
+            system=system, turns=turns, max_tokens=max_tokens, temperature=temperature
+        )
+        yield ""  # pragma: no cover - unreachable, keeps this an async generator
 
 
 class FailingLLM:

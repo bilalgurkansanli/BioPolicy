@@ -43,9 +43,9 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Any
 
 import anthropic
-from google import genai
 from google.genai import types as genai_types
 
+from api.gemini_client import build_client
 from api.generation.llm import LLMResponse, ProviderError, Turn
 from api.logging_config import get_logger
 
@@ -173,7 +173,7 @@ class GeminiLLM:
                 "GeminiLLM needs an explicit model id. Run "
                 "`python -m api.scripts.list_models` to find one; see docs/adr/004."
             )
-        self._client = genai.Client(api_key=api_key)
+        self._client = build_client(api_key)
         self.model = model
         self.name = "gemini"
         self._json_schema = json_schema

@@ -46,6 +46,13 @@ These were ruled out before the build started. Listed so the reasoning survives.
   what's the deductible?"). Currently one retrieval per turn.
 - **HyDE / hypothetical document embeddings.** Cheap to try, plausibly helps on
   the cross-lingual subset.
+- **Decide whether query rewriting earns its latency.** The rewrite call is
+  currently measured at 8-11s against a 6.0s median for the whole answer, so the
+  5s ceiling in `constants.py` means the fallback — the question as typed — is
+  the common path on follow-ups. Either the call gets fast (a smaller model, a
+  shorter prompt, a warmer client) or rewriting should be dropped rather than
+  left as a tax that mostly times out. This needs a multi-turn eval subset,
+  which does not exist yet: the golden dataset is single-turn.
 - **Tuning `CHUNK_TARGET_TOKENS` / `CHUNK_OVERLAP_TOKENS` against the eval set**
   rather than shipping the initial guess. This is a real gap, not a nice-to-have
   — the current values are stated in `constants.py` as untuned starting points.
@@ -60,9 +67,11 @@ These were ruled out before the build started. Listed so the reasoning survives.
 ### Frontend
 - **Highlighting the exact quote span** within a page, rather than the chunk's
   bounding box. Requires mapping the verified quote back to character offsets in
-  the parsed text.
+  the parsed text. This is the single largest quality gap in the workspace: the
+  citation chip names one clause and the highlight covers the block around it.
 - **Keyboard navigation between citations.**
-- **Dark mode.**
+- **A text layer over the PDF canvas**, so the document is selectable and
+  searchable. pdf.js renders one; the viewer currently draws pixels only.
 - **Export a conversation** as PDF or Markdown with citations intact.
 
 ### Evaluation — what the 2×2 run left open

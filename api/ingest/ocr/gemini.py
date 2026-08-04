@@ -16,9 +16,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any, cast
 
-from google import genai
 from google.genai import types as genai_types
 
+from api.gemini_client import build_client
 from api.logging_config import get_logger
 
 log = get_logger(__name__)
@@ -54,6 +54,11 @@ BASE_BACKOFF_SECONDS = 2.0
 # runaway generation from becoming a runaway bill.
 MAX_OUTPUT_TOKENS = 4096
 
+# One call transcribes a whole rendered page and is measured in tens of seconds,
+# so the query-time ceiling would cut off healthy work. Ingestion is
+# asynchronous (ADR 007): a slow page delays a document, not a waiting user.
+OCR_TIMEOUT_SECONDS = 180.0
+
 
 class GeminiOCR:
     name = "gemini-vision"
@@ -64,7 +69,7 @@ class GeminiOCR:
                 "GeminiOCR needs an explicit model id. Run "
                 "`python -m api.scripts.list_models` to find one; see docs/adr/004."
             )
-        self._client = genai.Client(api_key=api_key)
+        self._client = build_client(api_key, timeout_seconds=OCR_TIMEOUT_SECONDS)
         self._model = model
         self.pages_processed = 0
 

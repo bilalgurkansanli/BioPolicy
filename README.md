@@ -137,6 +137,12 @@ version:
 - **Hybrid retrieval, not pure vector.** Policy questions mix the semantic
   ("does this cover flooding?") with the exact ("Article 7.3", "TL 250.000").
   Vector search reliably misses the second kind.
+- **Stage events, not token streaming.** A streaming answer feels faster, but
+  citation binding and self-verification run *after* generation and can withhold
+  the answer entirely. Text already on screen can only be retracted, and a
+  retracted claim is still a delivered claim. The interface shows the real
+  pipeline stages instead — see
+  [ADR 010](./docs/adr/010-no-token-streaming.md).
 
 ## What this is not
 
@@ -147,6 +153,23 @@ can be wrong. The citation is there so you can check it in one click.
 Uploaded documents are irreversibly deleted — file and vectors — after 24 hours.
 That promise is enforced by a scheduled job and
 [proven by an automated test](./api/tests), not by assertion.
+
+## The interface
+
+Three surfaces, all statically prerendered:
+
+- **`/`** — the claim, the numbers behind it, and what the system does not do.
+- **`/app`** — the workspace. A sample document on the right, the conversation on
+  the left, and citation chips that put a highlight on the clause they came from.
+  Each answer carries its confidence, its groundedness score, whether the quote
+  was verbatim or matched approximately, and what it cost.
+- **`/eval`** — [`eval/report.md`](./eval/report.md) rendered verbatim, including
+  the finding that the mechanisms changed no decisions.
+
+Turkish and English, switched from the header. The locale is a stored preference
+rather than a URL segment, because the interface language and the *document's*
+language are independent here — see
+[ADR 011](./docs/adr/011-locale-is-a-preference.md).
 
 ## Running it locally
 

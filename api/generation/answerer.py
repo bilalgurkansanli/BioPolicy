@@ -27,6 +27,7 @@ flags to be left half-on in production.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from api.generation import prompts
@@ -141,7 +142,16 @@ class Answerer:
         question: str,
         context: AssembledContext,
         language: str = "tr",
+        on_stage: Callable[[str], Awaitable[None]] | None = None,
     ) -> AnswerOutcome:
+        """Produce a grounded answer, or a refusal.
+
+        `on_stage` is awaited when the pipeline moves to a step the caller may
+        want to show. Only the generation → verification boundary is reported,
+        because it is the only one long enough for a user to notice and the only
+        one whose label would otherwise be a guess: this method knows whether
+        verification is going to run at all, and the HTTP layer does not.
+        """
         usage: list[UsageRecord] = []
 
         # 1. Nothing retrieved. Refuse without spending anything.
@@ -214,6 +224,8 @@ class Answerer:
         groundedness: float | None = None
         verified = False
         if self._verify and self._verifier is not None:
+            if on_stage is not None:
+                await on_stage("verifying")
             verification = await self._verifier.verify(draft=payload.answer, context=context)
             # Recorded before the suppression check below: a verification that
             # decided to withhold the answer still cost money, and the budget
