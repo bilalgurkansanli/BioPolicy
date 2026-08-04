@@ -65,22 +65,31 @@ These were ruled out before the build started. Listed so the reasoning survives.
 - **Dark mode.**
 - **Export a conversation** as PDF or Markdown with citations intact.
 
-### Evaluation — the gaps the first run exposed
+### Evaluation — what the 2×2 run left open
 
-These are not nice-to-haves. The first full run scored 99% balanced accuracy and
-proved almost nothing, because the corpus never stressed the system.
+The first run proved nothing because the corpus never stressed the system. The
+second one — longer documents, a naive-prompt arm — produced a real finding:
+**the strict prompt does the work and the mechanisms change no decisions while
+adding ~55% to the cost.** These are the open threads from that.
 
-- **Longer sample documents.** Every document holds 7–8 chunks and the context
-  takes 8, so retrieval never has to discard anything and recall@8 is 100% by
-  construction. A 40+ chunk document would make the retrieval numbers mean
-  something. This is the single highest-value item in this file.
-- **An arm that induces fabrication.** The ablation showed no difference because
-  the model never fabricated. A third arm with the strict grounding prompt
-  replaced by a neutral one — or with the provider-enforced schema dropped —
-  would show whether binding and verification catch anything when there is
-  something to catch.
-- **Questions whose answer spans two documents' worth of context**, so the
-  budget-trimming path in context assembly is exercised.
+- **A check on the inferential step.** The naive prompt's failures are correct
+  citations supporting conclusions the document never draws — a real theft
+  clause quoted accurately, then stretched to cover a car. Binding validates the
+  quote and verification validates the claim against the excerpt; neither asks
+  whether the *inference* follows. This is the highest-value item in this file
+  and the one the measurement actually pointed at.
+- **Exercise the half of binding that has never fired.** Citation validity is
+  100% in every arm partly because a provider-enforced JSON schema makes an
+  invented chunk id near-impossible. An arm with the schema constraint dropped
+  would show whether quote-checking catches anything on its own.
+- **Decide whether the mechanisms earn their cost.** On current evidence they do
+  not: no decision changed, ~55% more per question. Either find the conditions
+  where they pay for themselves, or make them optional and say so. Keeping an
+  unmeasured safeguard because it feels prudent is the habit this project exists
+  to argue against.
+- **Questions whose answer spans more than the context budget**, so the trimming
+  path in context assembly is exercised — at 21 chunks against a window of 8 it
+  now trims, but no question yet needs a chunk that got trimmed.
 - **A deliberately noisier scan** — lower DPI, skew, speckle — to see where the
   OCR path degrades rather than assuming 200 DPI clean renders are typical.
 

@@ -122,12 +122,18 @@ class Answerer:
         enable_citation_binding: bool = True,
         enable_verification: bool = True,
         max_tokens: int = ANSWER_MAX_TOKENS,
+        prompt_name: str = prompts.ANSWER,
     ) -> None:
         self._llm = llm
         self._verifier = verifier
         self._bind = enable_citation_binding
         self._verify = enable_verification and verifier is not None
         self._max_tokens = max_tokens
+        # Swappable so the evaluation can run the same pipeline against the
+        # strict grounding prompt and a naive one. The prompt is the largest
+        # single lever in this system and it belongs in the ablation alongside
+        # the mechanisms, not held fixed underneath them.
+        self._prompt_name = prompt_name
 
     async def answer(
         self,
@@ -148,7 +154,7 @@ class Answerer:
         # 2. Generate.
         try:
             response = await self._llm.complete(
-                system=prompts.render(prompts.ANSWER, reply_language=_language_name(language)),
+                system=prompts.render(self._prompt_name, reply_language=_language_name(language)),
                 turns=[Turn(role="user", content=_user_turn(question, context))],
                 max_tokens=self._max_tokens,
                 temperature=0.0,

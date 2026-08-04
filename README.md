@@ -55,54 +55,50 @@ metrics below rather than in front of a user.
 
 ## Measured results
 
-59 questions, 32% of them adversarial negatives, run against live models and a
-live database. Full report: [`eval/report.md`](./eval/report.md).
+70 questions, 30% adversarial negatives, against live models and a live
+database. A 2×2 ablation: the **prompt** (strict grounding versus naive) crossed
+with the **mechanisms** (citation binding and self-verification). Full report:
+[`eval/report.md`](./eval/report.md).
 
-| Metric | Mechanisms OFF | Mechanisms ON |
-|---|---:|---:|
-| Refusal accuracy | 100% | 100% |
-| False-refusal rate | 2% | 2% |
-| Balanced accuracy | 99% | 99% |
-| Citation validity | 100% | 100% |
-| Caught hallucinations | 0 | 0 |
-| Cost per question | $0.0043 | $0.0066 |
+| Arm | Refusal accuracy | False-refusal | Balanced | $/question |
+|---|---:|---:|---:|---:|
+| naive prompt, no mechanisms | 86% | 0% | 93% | $0.0035 |
+| naive prompt **+ mechanisms** | 86% | 0% | 93% | $0.0062 |
+| **strict prompt**, no mechanisms | 100% | 2% | 99% | $0.0043 |
+| strict prompt + mechanisms *(shipped)* | 100% | 2% | 99% | $0.0067 |
 
-**The ablation moved nothing, and that is the honest headline.** This README was
-drafted expecting a table showing the anti-hallucination layer rescuing a
-mediocre baseline. It didn't, because there was nothing to rescue: citation
-binding dropped no citations and self-verification suppressed no answers. On
-this corpus, with this prompt and this model, the safety net never caught
-anything because nothing fell into it.
+**The prompt did the work. The mechanisms did not.**
 
-That is not evidence the mechanisms are useless — an untriggered safeguard is
-not a disproved one — but it is also not evidence they help, and the difference
-matters. Reporting it the other way round would be exactly the failure this
-project is built to argue against.
+Read the table by columns. Switching the *prompt* from naive to strict, with the
+mechanisms off the whole time, moved balanced accuracy 93% → 99% and refusal
+accuracy 86% → 100% — it fixed every missed refusal. Switching the *mechanisms*
+on, with the prompt held naive, moved balanced accuracy by zero: the same
+questions were answered and the same ones missed. Binding dropped one citation
+across 70 questions and verification suppressed none, while adding ~55% to the
+cost of every answer.
 
-Two further limitations, both surfaced by the report itself rather than by a
-reviewer:
+This README was drafted expecting the opposite table — the safety net rescuing a
+mediocre baseline. It is published this way round because the alternative is the
+exact failure the project argues against.
 
-- **Recall@8 of 100% is an artefact.** The sample documents hold 7–8 chunks and
-  the context takes 8, so every chunk reaches the prompt on every question.
-  Retrieval is never forced to choose. The number reflects document size, not
-  search quality.
-- **Citation validity of 100% is partly structural.** A provider-enforced JSON
-  schema makes invented chunk ids near-impossible by construction, so the
-  interesting half of binding — catching a quote that isn't in the chunk it
-  names — went unexercised.
+**Why the mechanisms missed:** the naive prompt's errors are *correct citations
+supporting an unwarranted inference*. Asked whether a stolen car is covered, it
+quotes the theft clause accurately and concludes the car is included. Binding
+checks the quote is real — it is. Verification checks the claim against the
+excerpt — the excerpt does say theft is covered. Neither is built to catch a
+valid quote used to support a conclusion the document never draws. That blind
+spot was invisible until this run measured it, and closing it needs a check on
+the *inferential* step, not on the quote.
 
-What the run does establish: the system refused all 19 unanswerable questions
-correctly, answered all 13 table lookups and all 6 multi-clause interactions
-correctly, and handled cross-lingual questions and a scanned Turkish document
-without special-casing. The single false refusal is
-[`com-012`](./eval/golden/questions.json) — asked whether storm damage to stock
-in a yard is covered, it refused rather than citing the "property in the open
+**What still isn't proven.** Citation validity is 100% in every arm, but a
+provider-enforced JSON schema makes invented chunk ids near-impossible by
+construction — the interesting half of binding, a quote absent from the chunk it
+names, has never been exercised. The report says so itself, in a section
+computed from the run rather than written by hand.
+
+The single false refusal is `com-012`: asked whether storm damage to stock in a
+yard is covered, the system refused rather than citing the "property in the open
 air" exclusion that answers it.
-
-**What would make this eval mean something:** documents long enough that
-retrieval has to discard, and an arm that deliberately induces fabrication —
-the strict prompt removed, or the schema constraint dropped. Both are in
-[`docs/BACKLOG.md`](./docs/BACKLOG.md).
 
 ## Architecture
 

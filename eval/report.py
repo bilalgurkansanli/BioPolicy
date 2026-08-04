@@ -17,6 +17,15 @@ from datetime import datetime
 from eval.dataset import Stats
 from eval.metrics import Report
 
+# Presentation order runs weakest to strongest, so the ablation table reads as
+# a progression rather than a scoreboard.
+ARM_LABELS = {
+    "naive_only": "naive prompt, no mechanisms",
+    "naive_guarded": "naive prompt + mechanisms",
+    "strict_only": "strict prompt, no mechanisms",
+    "strict_guarded": "strict prompt + mechanisms **(shipped)**",
+}
+
 
 def _pct(value: float) -> str:
     return f"{value:.0%}"
@@ -64,34 +73,47 @@ def _limitations(
             f"documents, not a better retriever."
         )
 
-    # 2. An ablation that shows nothing is a result, and needs saying out loud.
-    on, off = arms.get("on"), arms.get("off")
-    if on and off:
-        moved = (
-            abs(on.refusal.balanced_accuracy - off.refusal.balanced_accuracy) >= 0.005
-            or abs(on.citations.validity - off.citations.validity) >= 0.005
-            or on.citations.suppressions != off.citations.suppressions
+    # 2. Which lever actually moved the numbers?
+    naive_only, naive_guarded = arms.get("naive_only"), arms.get("naive_guarded")
+    strict_only, strict_guarded = arms.get("strict_only"), arms.get("strict_guarded")
+
+    if naive_only and naive_guarded and strict_only and strict_guarded:
+        prompt_effect = strict_only.refusal.balanced_accuracy - naive_only.refusal.balanced_accuracy
+        mechanism_effect = (
+            naive_guarded.refusal.balanced_accuracy - naive_only.refusal.balanced_accuracy
         )
-        if not moved:
+        overhead = (
+            strict_guarded.cost.mean_cost_per_query_usd / strict_only.cost.mean_cost_per_query_usd
+            - 1
+            if strict_only.cost.mean_cost_per_query_usd
+            else 0.0
+        )
+
+        if abs(mechanism_effect) < 0.005 and prompt_effect >= 0.01:
             notes.append(
-                "**The anti-hallucination layer changed nothing on this dataset.** "
-                "Citation binding dropped no citations and self-verification "
-                "suppressed no answers, so both arms score identically. That is a "
-                "real result and it is reported as one rather than buried: on these "
-                "documents, with this prompt and this model, the safety net never "
-                "caught anything because nothing fell into it. It does **not** show "
-                "the mechanisms are unnecessary — an untriggered safeguard is not a "
-                "disproved one — but it does mean this run provides no evidence that "
-                "they help. Evidence would require conditions that actually induce "
-                "fabrication: longer documents where the answer is not always in "
-                "context, a weaker or unconstrained model, or the strict prompt "
-                "removed."
+                f"**The prompt did the work; the mechanisms did not.** Holding the "
+                f"prompt naive and switching the mechanisms on moved balanced "
+                f"accuracy by {mechanism_effect:+.0%} — the same questions were "
+                f"answered and the same ones missed. Holding the mechanisms off and "
+                f"switching the prompt to the strict grounding version moved it "
+                f"{prompt_effect:+.0%}. Citation binding and self-verification add "
+                f"roughly {overhead:.0%} to the cost of every question and, on this "
+                f"corpus, changed no decisions.\n\n"
+                f"  The reason is visible in the failures they missed. The naive "
+                f"prompt's errors are *correct citations supporting an unwarranted "
+                f"inference*: asked whether a stolen car is covered, it quotes the "
+                f"theft clause accurately and then concludes the car is included. "
+                f"Binding checks that the quote is real — it is. Verification checks "
+                f"the claim against the excerpt — the excerpt does say theft is "
+                f"covered. Neither mechanism is built to catch a valid quote used to "
+                f"support a conclusion the document never draws, and this run is the "
+                f"first evidence of that blind spot. Closing it needs a check on the "
+                f"*inferential* step, not on the quote."
             )
 
     # 3. The verifier does not treat every kind of answer alike.
-    scores = (
-        primary.groundedness_by_category if (primary := on or next(iter(arms.values()))) else {}
-    )
+    primary = arms.get("strict_guarded") or next(iter(arms.values()))
+    scores = primary.groundedness_by_category
     if len(scores) >= 3:
         worst, worst_score = min(scores.items(), key=lambda kv: kv[1])
         best, best_score = max(scores.items(), key=lambda kv: kv[1])
@@ -113,7 +135,7 @@ def _limitations(
             )
 
     # 4. Provider-enforced schemas are doing some of the work attributed elsewhere.
-    if on and on.citations.validity >= 0.995:
+    if (on := arms.get("strict_guarded")) and on.citations.validity >= 0.995:
         notes.append(
             "**Citation validity of 100% is partly structural.** The answering model "
             "is constrained by a provider-enforced JSON schema and the context is "
@@ -136,9 +158,8 @@ def render_report(
     chunks_per_document: dict[str, int] | None = None,
     context_chunk_count: int = 8,
 ) -> str:
-    on = arms.get("on")
-    off = arms.get("off")
-    primary = on or next(iter(arms.values()))
+    primary = arms.get("strict_guarded") or next(iter(arms.values()))
+    baseline = arms.get("naive_only")
 
     lines: list[str] = []
     add = lines.append
@@ -187,52 +208,63 @@ def render_report(
     add("")
 
     # --- the ablation -------------------------------------------------------
-    if on and off:
+    if len(arms) > 1:
         add("## The ablation")
         add("")
         add(
-            "The same dataset, twice: once with citation binding and "
-            "self-verification enabled, once with both switched off. The second "
-            "column is what this product would be without the layer it exists to "
-            "build."
-        )
-        add("")
-        add("| Metric | Mechanisms OFF | Mechanisms ON | Change |")
-        add("|---|---:|---:|---:|")
-        add(
-            f"| **Refusal accuracy** | {_pct(off.refusal.refusal_accuracy)} | "
-            f"{_pct(on.refusal.refusal_accuracy)} | "
-            f"{_delta(on.refusal.refusal_accuracy, off.refusal.refusal_accuracy)} |"
-        )
-        add(
-            f"| **False-refusal rate** | {_pct(off.refusal.false_refusal_rate)} | "
-            f"{_pct(on.refusal.false_refusal_rate)} | "
-            f"{_delta(on.refusal.false_refusal_rate, off.refusal.false_refusal_rate, higher_is_better=False)} |"
-        )
-        add(
-            f"| **Balanced accuracy** | {_pct(off.refusal.balanced_accuracy)} | "
-            f"{_pct(on.refusal.balanced_accuracy)} | "
-            f"{_delta(on.refusal.balanced_accuracy, off.refusal.balanced_accuracy)} |"
-        )
-        add(
-            f"| Citation validity | {_pct(off.citations.validity)} | "
-            f"{_pct(on.citations.validity)} | "
-            f"{_delta(on.citations.validity, off.citations.validity)} |"
-        )
-        add(
-            f"| Caught hallucinations | {off.citations.suppressions} | "
-            f"{on.citations.suppressions} | — |"
-        )
-        add(
-            f"| Cost per question | ${off.cost.mean_cost_per_query_usd:.4f} | "
-            f"${on.cost.mean_cost_per_query_usd:.4f} | — |"
+            "Two independent variables, four arms: the **prompt** (a strict "
+            "grounding prompt versus a naive one) crossed with the "
+            "**mechanisms** (citation binding and self-verification, on or off)."
         )
         add("")
         add(
-            "**Read the first two rows together.** Refusal accuracy alone is "
-            "trivially gamed by refusing everything, and the false-refusal rate "
-            "alone by never refusing. Balanced accuracy is the mean of the two "
-            "and lands at 50% for either degenerate strategy."
+            "The naive prompt is not a strawman. It asks for accuracy, requests "
+            "citations and returns the same JSON — it is what a competent developer "
+            "writes on a first pass. What it does not do is forbid outside "
+            "knowledge, demand verbatim quotes, or say that “not in the document” "
+            "is an acceptable answer."
+        )
+        add("")
+        add(
+            "| Arm | Refusal accuracy | False-refusal | Balanced | Citation validity "
+            "| Suppressed | $/question |"
+        )
+        add("|---|---:|---:|---:|---:|---:|---:|")
+        for key, label in ARM_LABELS.items():
+            report = arms.get(key)
+            if report is None:
+                continue
+            add(
+                f"| {label} "
+                f"| {_pct(report.refusal.refusal_accuracy)} "
+                f"| {_pct(report.refusal.false_refusal_rate)} "
+                f"| {_pct(report.refusal.balanced_accuracy)} "
+                f"| {_pct(report.citations.validity)} "
+                f"| {report.citations.suppressions} "
+                f"| ${report.cost.mean_cost_per_query_usd:.4f} |"
+            )
+        add("")
+        if baseline:
+            add(
+                f"**Baseline to shipped:** balanced accuracy "
+                f"{_pct(baseline.refusal.balanced_accuracy)} → "
+                f"{_pct(primary.refusal.balanced_accuracy)}, refusal accuracy "
+                f"{_pct(baseline.refusal.refusal_accuracy)} → "
+                f"{_pct(primary.refusal.refusal_accuracy)}."
+            )
+            add("")
+        add(
+            "**Read refusal accuracy and false-refusal rate together.** The first "
+            "is trivially gamed by refusing everything, the second by never "
+            "refusing. Balanced accuracy is the mean of the two and lands at 50% "
+            "for either degenerate strategy — it is the column to compare arms on."
+        )
+        add("")
+        add(
+            "**Comparing rows tells you which lever did the work.** naive_only → "
+            "strict_only isolates the prompt. naive_only → naive_guarded isolates "
+            "the mechanisms. If the two paths to strict_guarded are not equal, the "
+            "levers are not independent."
         )
         add("")
 

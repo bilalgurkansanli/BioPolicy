@@ -1,19 +1,23 @@
 """Run the golden dataset and write `eval/report.md`.
 
-    python -m eval.run_eval                  # full run, both ablation arms
-    python -m eval.run_eval --limit 5        # smoke test on five questions
-    python -m eval.run_eval --arm on         # only the mechanisms-on arm
+    python -m eval.run_eval                       # all four arms
+    python -m eval.run_eval --limit 5             # smoke test
+    python -m eval.run_eval --arm strict_guarded  # one arm
+    python -m eval.run_eval --arm rerender        # rebuild the report, free
 
 This costs money. It is not part of CI.
 
 ## The ablation is the point
 
-Each question runs twice: once with citation binding and self-verification
-enabled, once with both disabled. The second arm is what the product would be
-without the layer this project exists to build, and publishing the pair is the
-difference between a claim and a measurement. A single column of good numbers
-proves nothing — the reader cannot tell whether the mechanisms did anything or
-whether the model was simply well-behaved.
+The run is a 2x2: the **prompt** (strict grounding versus naive) crossed with
+the **mechanisms** (citation binding and self-verification, on or off).
+
+An earlier version varied only the mechanisms and found no difference — a true
+result, and an uninformative one, because the strict prompt sat underneath both
+arms doing the work. Varying both separates the levers: naive_only is the
+baseline a normal RAG build reaches, naive_guarded asks whether the mechanisms
+rescue a weak prompt, and strict_only asks how much of the product is prompt
+alone.
 
 ## Reproducibility
 
@@ -38,6 +42,7 @@ from uuid import UUID
 from api.config import get_settings
 from api.constants import CONTEXT_CHUNK_COUNT
 from api.db import create_pool
+from api.generation import prompts
 from api.generation.answerer import Answerer
 from api.generation.llm import FailoverLLM, LLMProvider
 from api.generation.providers import AnthropicLLM, GeminiLLM
@@ -55,6 +60,25 @@ from eval.report import render_report
 # to hit a per-minute rate limit and turn a paid run into a wasted one; four
 # keeps the whole dataset inside a couple of minutes.
 CONCURRENCY = 4
+
+# The evaluation is a 2x2: prompt (strict / naive) by mechanisms (on / off).
+#
+# The earlier on/off pair held the strict grounding prompt fixed underneath both
+# arms and found no difference — which was true, and uninformative, because the
+# prompt was already doing the work. Varying both tells the story the earlier
+# run could not:
+#
+#   naive_only    what a normal RAG build does. The baseline.
+#   naive_guarded do binding and verification rescue a naive prompt?
+#   strict_only   how much of the product is prompt alone?
+#   strict_guarded the shipped configuration.
+ARMS: dict[str, tuple[str, str, bool, bool]] = {
+    # key:            (label,                     prompt,                binding, verify)
+    "naive_only": ("naive prompt, no mechanisms", prompts.ANSWER_NAIVE, False, False),
+    "naive_guarded": ("naive prompt + mechanisms", prompts.ANSWER_NAIVE, True, True),
+    "strict_only": ("strict prompt, no mechanisms", prompts.ANSWER, False, False),
+    "strict_guarded": ("strict prompt + mechanisms", prompts.ANSWER, True, True),
+}
 
 REPORT_PATH = Path(__file__).parent / "report.md"
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -152,6 +176,7 @@ async def run_arm(
     questions: list[GoldenQuestion],
     *,
     label: str,
+    prompt_name: str,
     binding: bool,
     verify: bool,
     document_ids: dict[str, tuple[UUID, UUID]],
@@ -170,6 +195,7 @@ async def run_arm(
         verifier=verifier,
         enable_citation_binding=binding,
         enable_verification=verify,
+        prompt_name=prompt_name,
     )
 
     semaphore = asyncio.Semaphore(CONCURRENCY)
@@ -322,33 +348,29 @@ async def run(*, limit: int | None, arm: str) -> int:
         )
 
         arms: dict[str, Report] = {}
-        if arm == "rerender":
-            for key, label in (("on", "mechanisms ON"), ("off", "mechanisms OFF")):
+        selected = list(ARMS) if arm in ("all", "rerender") else [arm]
+
+        for key in selected:
+            label, prompt_name, binding, verify = ARMS[key]
+            if arm == "rerender":
                 saved = load_arm(label)
                 if saved:
                     arms[key] = build_report(saved)
                     print(f"  loaded {len(saved)} saved results for {label}")
-            if not arms:
-                print(f"{R}No saved results in {RESULTS_DIR}. Run the eval first.{RESET}")
-                return 1
-        if arm in ("on", "both"):
-            arms["on"] = await run_arm(
+                continue
+            arms[key] = await run_arm(
                 questions,
-                label="mechanisms ON",
-                binding=True,
-                verify=True,
+                label=label,
+                prompt_name=prompt_name,
+                binding=binding,
+                verify=verify,
                 document_ids=document_ids,
                 retriever=retriever,
             )
-        if arm in ("off", "both"):
-            arms["off"] = await run_arm(
-                questions,
-                label="mechanisms OFF",
-                binding=False,
-                verify=False,
-                document_ids=document_ids,
-                retriever=retriever,
-            )
+
+        if not arms:
+            print(f"{R}No results. Run the eval first.{RESET}")
+            return 1
 
         # Corpus shape, so the report can judge whether recall was measurable at
         # all rather than reporting a number that only reflects document size.
@@ -374,7 +396,7 @@ async def run(*, limit: int | None, arm: str) -> int:
         REPORT_PATH.write_text(markdown, encoding="utf-8")
         print(f"\n{G}Wrote {REPORT_PATH}{RESET}")
 
-        primary = arms.get("on") or next(iter(arms.values()))
+        primary = arms.get("strict_guarded") or next(iter(arms.values()))
         print(f"\n  recall@8            {primary.retrieval.recall_at_k:.0%}")
         print(f"  refusal accuracy    {primary.refusal.refusal_accuracy:.0%}")
         print(f"  false-refusal rate  {primary.refusal.false_refusal_rate:.0%}")
@@ -391,9 +413,9 @@ def main() -> int:
     parser.add_argument("--limit", type=int, help="Run only the first N questions.")
     parser.add_argument(
         "--arm",
-        choices=["on", "off", "both", "rerender"],
-        default="both",
-        help="Which arms to run. `rerender` rebuilds the report from saved results, free.",
+        choices=[*ARMS, "all", "rerender"],
+        default="all",
+        help="Which arm(s) to run. `rerender` rebuilds the report from saved results, free.",
     )
     args = parser.parse_args()
     return asyncio.run(run(limit=args.limit, arm=args.arm))

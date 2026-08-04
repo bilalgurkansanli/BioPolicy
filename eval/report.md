@@ -6,11 +6,9 @@
 
 Placed before the results rather than after them, because a caveat at the bottom of a report is a caveat nobody reads.
 
-- **Recall is not a meaningful measurement on this corpus.** The sample documents hold 7–8 chunks each and the context window takes 8, so *every chunk of every document reaches the prompt on every question*. Retrieval is never forced to discard anything, which means a recall figure of 100% reflects the size of the documents, not the quality of the search. MRR still says something about ranking; recall does not. Fixing this needs longer documents, not a better retriever.
+- **The prompt did the work; the mechanisms did not.** Holding the prompt naive and switching the mechanisms on moved balanced accuracy by +0% — the same questions were answered and the same ones missed. Holding the mechanisms off and switching the prompt to the strict grounding version moved it +6%. Citation binding and self-verification add roughly 55% to the cost of every question and, on this corpus, changed no decisions.
 
-- **The anti-hallucination layer changed nothing on this dataset.** Citation binding dropped no citations and self-verification suppressed no answers, so both arms score identically. That is a real result and it is reported as one rather than buried: on these documents, with this prompt and this model, the safety net never caught anything because nothing fell into it. It does **not** show the mechanisms are unnecessary — an untriggered safeguard is not a disproved one — but it does mean this run provides no evidence that they help. Evidence would require conditions that actually induce fabrication: longer documents where the answer is not always in context, a weaker or unconstrained model, or the strict prompt removed.
-
-- **The verifier scores multi-clause answers lowest — the category the product exists to handle.** Mean groundedness by category runs from 1.00 (cross_lingual) down to 0.81 (multi_clause), while decision accuracy on multi_clause is 100%: every one of those answers was *correct*. The cause is in the verification prompt, which flags "two separate excerpts merged into a single claim that neither supports alone" — and a correct multi-clause answer is exactly that. The rule that catches a fabricated synthesis also catches a legitimate one. Two answers landed on 0.50, at the suppression boundary; raising the threshold to 0.6 would withhold correct answers about coverage exclusions, which is the kind of answer a user most needs.
+  The reason is visible in the failures they missed. The naive prompt's errors are *correct citations supporting an unwarranted inference*: asked whether a stolen car is covered, it quotes the theft clause accurately and then concludes the car is included. Binding checks that the quote is real — it is. Verification checks the claim against the excerpt — the excerpt does say theft is covered. Neither mechanism is built to catch a valid quote used to support a conclusion the document never draws, and this run is the first evidence of that blind spot. Closing it needs a check on the *inferential* step, not on the quote.
 
 - **Citation validity of 100% is partly structural.** The answering model is constrained by a provider-enforced JSON schema and the context is small, so malformed or invented chunk ids are close to impossible by construction. The interesting half of binding — catching a *quote* that does not appear in a chunk it names — was never exercised here.
 
@@ -18,28 +16,32 @@ Placed before the results rather than after them, because a caveat at the bottom
 
 | | |
 |---|---|
-| Generated | 2026-08-04 11:36 UTC |
-| Commit | `7b9e5f9` |
+| Generated | 2026-08-04 11:53 UTC |
+| Commit | `8624a0b` |
 | Answering model | `claude-haiku-4-5-20251001` |
 | Embedding model | `gemini-embedding-001` (1536 dimensions) |
 | Prompts | `answer_v1`, `verify_v1` |
-| Questions | 59 |
-| Adversarial negatives | 19 (32%) |
+| Questions | 70 |
+| Adversarial negatives | 21 (30%) |
 
 ## The ablation
 
-The same dataset, twice: once with citation binding and self-verification enabled, once with both switched off. The second column is what this product would be without the layer it exists to build.
+Two independent variables, four arms: the **prompt** (a strict grounding prompt versus a naive one) crossed with the **mechanisms** (citation binding and self-verification, on or off).
 
-| Metric | Mechanisms OFF | Mechanisms ON | Change |
-|---|---:|---:|---:|
-| **Refusal accuracy** | 100% | 100% | — |
-| **False-refusal rate** | 2% | 2% | — |
-| **Balanced accuracy** | 99% | 99% | — |
-| Citation validity | 100% | 100% | — |
-| Caught hallucinations | 0 | 0 | — |
-| Cost per question | $0.0043 | $0.0065 | — |
+The naive prompt is not a strawman. It asks for accuracy, requests citations and returns the same JSON — it is what a competent developer writes on a first pass. What it does not do is forbid outside knowledge, demand verbatim quotes, or say that “not in the document” is an acceptable answer.
 
-**Read the first two rows together.** Refusal accuracy alone is trivially gamed by refusing everything, and the false-refusal rate alone by never refusing. Balanced accuracy is the mean of the two and lands at 50% for either degenerate strategy.
+| Arm | Refusal accuracy | False-refusal | Balanced | Citation validity | Suppressed | $/question |
+|---|---:|---:|---:|---:|---:|---:|
+| naive prompt, no mechanisms | 86% | 0% | 93% | 100% | 0 | $0.0035 |
+| naive prompt + mechanisms | 86% | 0% | 93% | 99% | 0 | $0.0062 |
+| strict prompt, no mechanisms | 100% | 2% | 99% | 100% | 0 | $0.0043 |
+| strict prompt + mechanisms **(shipped)** | 100% | 2% | 99% | 100% | 0 | $0.0067 |
+
+**Baseline to shipped:** balanced accuracy 93% → 99%, refusal accuracy 86% → 100%.
+
+**Read refusal accuracy and false-refusal rate together.** The first is trivially gamed by refusing everything, the second by never refusing. Balanced accuracy is the mean of the two and lands at 50% for either degenerate strategy — it is the column to compare arms on.
+
+**Comparing rows tells you which lever did the work.** naive_only → strict_only isolates the prompt. naive_only → naive_guarded isolates the mechanisms. If the two paths to strict_guarded are not equal, the levers are not independent.
 
 ## Retrieval
 
@@ -47,19 +49,19 @@ Measured over the answerable questions only — a negative has no correct chunk 
 
 | | |
 |---|---:|
-| Recall@8 | 100% |
-| MRR | 0.821 |
-| Answerable questions | 40 |
+| Recall@8 | 98% |
+| MRR | 0.835 |
+| Answerable questions | 49 |
 
 ### By category
 
 | Category | Questions | Recall@8 | Decision accuracy |
 |---|---:|---:|---:|
-| cross_lingual | 6 | 100% | 100% |
-| factual | 15 | 100% | 93% |
-| multi_clause | 6 | 100% | 100% |
+| cross_lingual | 7 | 100% | 100% |
+| factual | 19 | 100% | 95% |
+| multi_clause | 9 | 89% | 100% |
 | negative | 0 | — | 100% |
-| table | 13 | 100% | 100% |
+| table | 14 | 100% | 100% |
 
 `negative` has no recall figure by construction — there is nothing to retrieve. Its decision accuracy is the refusal accuracy for that subset.
 
@@ -67,8 +69,8 @@ Measured over the answerable questions only — a negative has no correct chunk 
 
 | | |
 |---|---:|
-| Correct refusals | 19 / 19 |
-| False refusals | 1 / 40 |
+| Correct refusals | 21 / 21 |
+| False refusals | 1 / 49 |
 | Refusal accuracy | 100% |
 | False-refusal rate | 2% |
 | Balanced accuracy | 99% |
@@ -77,27 +79,27 @@ Measured over the answerable questions only — a negative has no correct chunk 
 
 | | |
 |---|---:|
-| Citations offered | 50 |
-| Survived binding | 50 |
+| Citations offered | 67 |
+| Survived binding | 67 |
 | Citation validity | 100% |
 | Answers suppressed (caught hallucinations) | 0 |
-| Mean groundedness (served answers) | 0.94 |
+| Mean groundedness (served answers) | 0.97 |
 
 Mean groundedness by category, over served answers:
 
 | Category | Mean groundedness | Decision accuracy |
 |---|---:|---:|
-| multi_clause | 0.81 | 100% |
-| factual | 0.93 | 93% |
-| table | 0.98 | 100% |
+| multi_clause | 0.95 | 100% |
+| factual | 0.95 | 95% |
 | cross_lingual | 1.00 | 100% |
+| table | 1.00 | 100% |
 
 Groundedness distribution over served answers:
 
 | Band | Answers |
 |---|---:|
-| high (>=0.8) | 32 |
-| medium (0.5-0.8) | 7 |
+| high (>=0.8) | 45 |
+| medium (0.5-0.8) | 3 |
 | low (<0.5) | 0 |
 
 The mean covers **served** answers only. Including suppressed ones would mix “we checked and it held up” with “we checked, it didn't, and we withheld it” — the second is a success of the system, counted separately as a caught hallucination.
@@ -106,10 +108,10 @@ The mean covers **served** answers only. Including suppressed ones would mix “
 
 | | |
 |---|---:|
-| Cost per question | $0.0065 |
-| p50 latency | 6.1s |
-| p95 latency | 8.9s |
-| Total for this run | $0.64 |
+| Cost per question | $0.0067 |
+| p50 latency | 6.2s |
+| p95 latency | 9.1s |
+| Total for this run | $1.45 |
 
 p50 and p95 rather than a mean: one cold start moves a mean and says nothing about the typical experience.
 

@@ -167,6 +167,173 @@ KONUT: dict[str, Any] = {
             "kaydıyla poliçeyi feshedebilir. Sigorta ettiren tarafından yapılan "
             "fesihlerde, işlememiş süreye ait prim gün esasına göre iade edilir.",
         ),
+        # ------------------------------------------------------------------
+        # Everything below exists to make retrieval a real problem.
+        #
+        # With eight chunks and a context window of eight, every chunk reached
+        # every prompt and recall@8 was 100% by construction — a number that
+        # measured document length, not search quality. These articles push the
+        # document past the window so the retriever has to choose, and the
+        # second coverage table in Madde 16 means it must choose between two
+        # tables that look alike to a keyword and similar to an embedding.
+        #
+        # Nothing here touches a topic listed in `absent_topics`. Article 13
+        # comes close on purpose: it describes how disputes are *resolved*,
+        # which is not the same as a legal-expenses *cover*, and it makes
+        # knt-neg-005 a genuinely harder negative rather than an easy one.
+        # ------------------------------------------------------------------
+        ("h1", "Madde 7 — Hasar Tespiti ve Eksper Ataması"),
+        (
+            "p",
+            "Sigortacı, hasar bildirimini takip eden üç iş günü içinde eksper "
+            "atayıp atamayacağını sigortalıya bildirir. Eksper atanması halinde, "
+            "eksperin hasar mahalline ilk ziyareti bildirimden itibaren yedi gün "
+            "içinde gerçekleştirilir.",
+        ),
+        (
+            "p",
+            "Sigortalı, eksper raporunun bir örneğini talep etme hakkına sahiptir. "
+            "Rapora itiraz süresi, raporun sigortalıya tebliğinden itibaren on beş "
+            "gündür.",
+        ),
+        (
+            "p",
+            "Sigortalı, hasar mahallini eksper incelemesi tamamlanana kadar "
+            "değiştirmemekle yükümlüdür. Ancak hasarın büyümesini önlemek amacıyla "
+            "alınan acil tedbirler bu yükümlülüğün ihlali sayılmaz.",
+        ),
+        ("h1", "Madde 8 — Halefiyet ve Rücu"),
+        (
+            "p",
+            "Sigortacı, ödediği tazminat tutarı kadar sigortalının zarardan "
+            "sorumlu üçüncü kişilere karşı sahip olduğu haklara halef olur. "
+            "Sigortalı, sigortacının bu hakkını kullanmasını güçleştirecek "
+            "davranışlardan kaçınmakla yükümlüdür.",
+        ),
+        (
+            "p",
+            "Sigortalının, hasardan sorumlu üçüncü kişiyi ibra etmesi halinde, "
+            "sigortacı ibra edilen tutar kadar tazminattan indirim yapabilir.",
+        ),
+        ("h1", "Madde 9 — Birden Fazla Sigorta"),
+        (
+            "p",
+            "Aynı menfaatin birden fazla sigortacı tarafından teminat altına "
+            "alınması halinde sigortalı, bu durumu her bir sigortacıya derhal "
+            "bildirmekle yükümlüdür.",
+        ),
+        (
+            "p",
+            "Bu durumda her sigortacı, kendi poliçesinde yazılı bedelin toplam "
+            "sigorta bedeline oranı ölçüsünde tazminattan sorumludur. Sigortalı "
+            "toplam zararından fazlasını hiçbir şekilde talep edemez.",
+        ),
+        ("h1", "Madde 10 — Sigorta Bedelinin Tespiti"),
+        (
+            "p",
+            "Bina için sigorta bedeli, hasar tarihindeki yeniden inşa maliyeti "
+            "üzerinden belirlenir. Arsa değeri sigorta bedeline dahil edilmez.",
+        ),
+        (
+            "p",
+            "Eşya için sigorta bedeli, aynı nitelikteki yeni bir eşyanın hasar "
+            "tarihindeki piyasa değerinden yıpranma payı düşülerek hesaplanır. "
+            "Yıpranma payı, üç yaşından küçük eşya için uygulanmaz.",
+        ),
+        ("h1", "Madde 11 — Zeyilname ve Poliçe Değişiklikleri"),
+        (
+            "p",
+            "Poliçede yapılacak her türlü değişiklik zeyilname düzenlenmesi "
+            "suretiyle gerçekleştirilir. Zeyilname, düzenlendiği tarihten "
+            "itibaren hüküm ifade eder ve geçmişe etkili olarak uygulanmaz.",
+        ),
+        (
+            "p",
+            "Risk adresinin değişmesi halinde sigortalı, taşınma tarihinden en az "
+            "beş iş günü önce sigortacıya bildirimde bulunur. Bildirim yapılmadan "
+            "gerçekleşen adres değişikliğinde, yeni adreste meydana gelen "
+            "hasarlar teminat kapsamı dışındadır.",
+        ),
+        ("h1", "Madde 12 — Tebligat ve Bildirimler"),
+        (
+            "p",
+            "Taraflar arasındaki bildirimler yazılı olarak, poliçede yazılı "
+            "adreslere yapılır. Elektronik posta yoluyla yapılan bildirimler, "
+            "sigortalının poliçede beyan ettiği elektronik posta adresine "
+            "gönderilmesi kaydıyla yazılı bildirim hükmündedir.",
+        ),
+        (
+            "p",
+            "Adres değişikliğini bildirmeyen tarafa, poliçede yazılı son adrese "
+            "yapılan bildirim geçerli sayılır.",
+        ),
+        ("h1", "Madde 13 — Uyuşmazlıkların Çözümü"),
+        (
+            "p",
+            "Bu poliçeden doğan uyuşmazlıklarda, sigortalı öncelikle Sigorta "
+            "Tahkim Komisyonu'na başvurabilir. Tahkim yoluna başvurulması, dava "
+            "açma hakkını ortadan kaldırmaz.",
+        ),
+        (
+            "p",
+            "Yetkili mahkeme, sigortalının ikametgâhının bulunduğu yer mahkemesidir. "
+            "Bu madde bir teminat düzenlemesi olmayıp, yalnızca uyuşmazlıkların "
+            "hangi usulle çözüleceğini belirler.",
+        ),
+        ("h1", "Madde 14 — Zamanaşımı"),
+        (
+            "p",
+            "Bu poliçeden doğan tazminat talepleri, hasar tarihinden itibaren iki "
+            "yıl geçmekle zamanaşımına uğrar. Sigortacıya yapılan yazılı başvuru "
+            "zamanaşımını keser.",
+        ),
+        ("h1", "Madde 15 — Kişisel Verilerin Korunması"),
+        (
+            "p",
+            "Sigortacı, poliçe kapsamında elde ettiği kişisel verileri 6698 sayılı "
+            "Kanun kapsamında, yalnızca sigorta sözleşmesinin kurulması ve ifası "
+            "amacıyla işler.",
+        ),
+        (
+            "p",
+            "Hasar dosyası kapsamında toplanan belgeler, poliçe sona erdikten "
+            "sonra on yıl süreyle saklanır ve bu süre sonunda imha edilir.",
+        ),
+        ("h1", "Madde 16 — İsteğe Bağlı Ek Teminatlar"),
+        (
+            "p",
+            "Aşağıdaki teminatlar, ek prim ödenmesi ve poliçede açıkça "
+            "belirtilmesi kaydıyla sağlanır. Bu tablodaki teminatlar, Madde 1.1'de "
+            "yer alan ana teminat tablosundan ayrıdır ve ana teminat limitlerini "
+            "artırmaz.",
+        ),
+        ("h2", "16.1 Ek Teminat Tablosu"),
+        (
+            "table",
+            [
+                ["Ek Teminat", "Limit (TL)", "Ek Prim Oranı"],
+                ["Gıda Bozulması", "15.000", "%3"],
+                ["Bahçe ve Peyzaj Düzenlemesi", "40.000", "%5"],
+                ["Güneş Enerjisi Paneli", "120.000", "%8"],
+                ["Ev Sineması ve Ses Sistemi", "60.000", "%4"],
+                ["Sanat Eseri ve Tablo", "200.000", "%12"],
+                ["Bisiklet ve Elektrikli Scooter", "35.000", "%6"],
+                ["Akvaryum ve Canlı Bitki", "8.000", "%2"],
+            ],
+        ),
+        (
+            "p",
+            "Ek teminatlar için ayrıca 1.500 TL muafiyet uygulanır. Bu muafiyet, "
+            "Madde 1.1'deki muafiyetlerden bağımsızdır ve her bir ek teminat "
+            "hasarı için ayrı ayrı düşülür.",
+        ),
+        ("h1", "Madde 17 — Yürürlük"),
+        (
+            "p",
+            "İşbu poliçe, primin veya peşinatın ödendiği tarihte saat 12.00'de "
+            "yürürlüğe girer ve poliçede belirtilen sürenin son günü saat "
+            "12.00'de sona erer.",
+        ),
     ],
     # Plausible questions this document genuinely does not answer.
     "absent_topics": [
