@@ -11,24 +11,52 @@ Things that must not be guessed, with the date they were checked.
 
 | Fact | Value | Verified |
 |---|---|---|
-| Primary LLM model ID | `claude-haiku-4-5-20251001` | 2026-08-03 |
+| Primary LLM model ID | `claude-haiku-4-5-20251001` (alias: `claude-haiku-4-5`) | 2026-08-04 |
+| Haiku 4.5 pricing | **$1.00 / $5.00** per million input / output tokens | 2026-08-04 |
+| Haiku 4.5 context / max output | **200K / 64K** — smaller than the Opus tier's 1M/128K | 2026-08-04 |
+| Haiku 4.5 rejects `effort` | yes — do not pass `output_config.effort` | 2026-08-04 |
+| Haiku 4.5 accepts `temperature` | yes — unlike the newest Opus/Sonnet models | 2026-08-04 |
 | Gemini fallback LLM model ID | _not yet verified — see below_ | — |
 | Gemini vision OCR model ID | _not yet verified — see below_ | — |
+| Gemini pricing | _not yet verified — configuration, defaults to unpriced_ | — |
 | Embedding model | `gemini-embedding-001` | — |
-| Embedding dimensions requested | 1536 (of 3072 native) | 2026-08-03 |
+| Embedding dimensions requested | 1536 (of 3072 native) — **assumption until the script below runs** | — |
 | `turkish` FTS config present in Postgres | _not yet checked_ | — |
 
-### Verifying the Gemini model IDs
-
-Per [ADR 004](./adr/004-model-ids-are-verified-not-recalled.md) these ship empty
-rather than guessed. To fill them in, with `GOOGLE_API_KEY` set:
+### The first thing to run once keys exist
 
 ```bash
 uv run python -m api.scripts.list_models
 ```
 
-Record the chosen IDs and today's date in the table above, then set
-`GEMINI_FALLBACK_MODEL` and `GEMINI_OCR_MODEL` in every environment.
+This is not just a listing. It:
+
+1. Enumerates Gemini models by capability, so `GEMINI_FALLBACK_MODEL` and
+   `GEMINI_OCR_MODEL` can be filled in from a live list rather than guessed
+   ([ADR 004](./adr/004-model-ids-are-verified-not-recalled.md)).
+2. Pings the Anthropic model with one tiny request.
+3. **Tests constraint C3 for real** — makes an actual embedding call and
+   measures the returned vector. The entire storage design assumes
+   `gemini-embedding-001` honours `output_dimensionality: 1536`. Until this
+   passes, that is a documented assumption, not a fact. **Do not run migrations
+   or ingest anything until it does.**
+
+A full run costs a fraction of a cent. Record the chosen model IDs and today's
+date in the table above.
+
+### Gemini pricing
+
+Not hardcoded, by design — the same do-not-fabricate rule that governs model IDs
+governs prices. Register them at startup with a verification date:
+
+```python
+from api.pricing import register
+register("gemini-embedding-001", input_per_mtok=..., output_per_mtok=..., verified_on="YYYY-MM-DD")
+```
+
+Until registered, a Gemini call raises `UnpricedModelError` rather than being
+recorded as free. That is deliberate: a zero rate does not make a call free, it
+makes it invisible to the circuit breaker.
 
 ### Verifying the Turkish text-search configuration
 
