@@ -27,8 +27,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from api import __version__
 from api.config import get_settings
+from api.db import create_pool
+from api.deps import AppState
 from api.logging_config import configure_logging, get_logger
-from api.routers import health
+from api.routers import chat, documents, health
 
 log = get_logger(__name__)
 
@@ -39,6 +41,21 @@ REQUEST_ID_HEADER = "X-Request-ID"
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     configure_logging(settings.log_level, json_output=settings.is_deployed)
+
+    # The pool and the providers are built once. A failure here must not take
+    # the whole process down: `/api/health` is the route whose job is to explain
+    # what is broken, and it cannot do that if a database outage prevents boot.
+    pool = None
+    if settings.database_url:
+        try:
+            pool = await create_pool()
+            app.state.app_state = AppState.build(pool, settings)
+        # Degrade, do not fail to start.
+        except Exception as exc:
+            log.error("startup_database_unavailable", error=str(exc))
+            app.state.app_state = None
+    else:
+        app.state.app_state = None
 
     missing = settings.missing_credentials()
     log.info(
@@ -59,6 +76,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     yield
 
+    if pool is not None:
+        await pool.close()
     log.info("shutdown")
 
 
@@ -138,6 +157,8 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health.router, prefix="/api")
+    app.include_router(documents.router, prefix="/api")
+    app.include_router(chat.router, prefix="/api")
 
     return app
 
