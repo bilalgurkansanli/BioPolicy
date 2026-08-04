@@ -65,6 +65,25 @@ These were ruled out before the build started. Listed so the reasoning survives.
 - **Dark mode.**
 - **Export a conversation** as PDF or Markdown with citations intact.
 
+### Evaluation — the gaps the first run exposed
+
+These are not nice-to-haves. The first full run scored 99% balanced accuracy and
+proved almost nothing, because the corpus never stressed the system.
+
+- **Longer sample documents.** Every document holds 7–8 chunks and the context
+  takes 8, so retrieval never has to discard anything and recall@8 is 100% by
+  construction. A 40+ chunk document would make the retrieval numbers mean
+  something. This is the single highest-value item in this file.
+- **An arm that induces fabrication.** The ablation showed no difference because
+  the model never fabricated. A third arm with the strict grounding prompt
+  replaced by a neutral one — or with the provider-enforced schema dropped —
+  would show whether binding and verification catch anything when there is
+  something to catch.
+- **Questions whose answer spans two documents' worth of context**, so the
+  budget-trimming path in context assembly is exercised.
+- **A deliberately noisier scan** — lower DPI, skew, speckle — to see where the
+  OCR path degrades rather than assuming 200 DPI clean renders are typical.
+
 ### Operations
 - **Structured cost attribution per conversation**, not just per user. Would make
   the "cost per query" figure in the eval report a live metric rather than a

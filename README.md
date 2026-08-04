@@ -55,11 +55,54 @@ metrics below rather than in front of a user.
 
 ## Measured results
 
-_Pending — populated by the evaluation harness in Phase 5._
+59 questions, 32% of them adversarial negatives, run against live models and a
+live database. Full report: [`eval/report.md`](./eval/report.md).
 
-The headline table will be an ablation: the same golden dataset run with the
-anti-hallucination layers off, then on. Including the results that aren't
-flattering.
+| Metric | Mechanisms OFF | Mechanisms ON |
+|---|---:|---:|
+| Refusal accuracy | 100% | 100% |
+| False-refusal rate | 2% | 2% |
+| Balanced accuracy | 99% | 99% |
+| Citation validity | 100% | 100% |
+| Caught hallucinations | 0 | 0 |
+| Cost per question | $0.0043 | $0.0066 |
+
+**The ablation moved nothing, and that is the honest headline.** This README was
+drafted expecting a table showing the anti-hallucination layer rescuing a
+mediocre baseline. It didn't, because there was nothing to rescue: citation
+binding dropped no citations and self-verification suppressed no answers. On
+this corpus, with this prompt and this model, the safety net never caught
+anything because nothing fell into it.
+
+That is not evidence the mechanisms are useless — an untriggered safeguard is
+not a disproved one — but it is also not evidence they help, and the difference
+matters. Reporting it the other way round would be exactly the failure this
+project is built to argue against.
+
+Two further limitations, both surfaced by the report itself rather than by a
+reviewer:
+
+- **Recall@8 of 100% is an artefact.** The sample documents hold 7–8 chunks and
+  the context takes 8, so every chunk reaches the prompt on every question.
+  Retrieval is never forced to choose. The number reflects document size, not
+  search quality.
+- **Citation validity of 100% is partly structural.** A provider-enforced JSON
+  schema makes invented chunk ids near-impossible by construction, so the
+  interesting half of binding — catching a quote that isn't in the chunk it
+  names — went unexercised.
+
+What the run does establish: the system refused all 19 unanswerable questions
+correctly, answered all 13 table lookups and all 6 multi-clause interactions
+correctly, and handled cross-lingual questions and a scanned Turkish document
+without special-casing. The single false refusal is
+[`com-012`](./eval/golden/questions.json) — asked whether storm damage to stock
+in a yard is covered, it refused rather than citing the "property in the open
+air" exclusion that answers it.
+
+**What would make this eval mean something:** documents long enough that
+retrieval has to discard, and an arm that deliberately induces fabrication —
+the strict prompt removed, or the schema constraint dropped. Both are in
+[`docs/BACKLOG.md`](./docs/BACKLOG.md).
 
 ## Architecture
 
