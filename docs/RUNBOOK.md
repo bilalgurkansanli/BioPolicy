@@ -16,12 +16,24 @@ Things that must not be guessed, with the date they were checked.
 | Haiku 4.5 context / max output | **200K / 64K** — smaller than the Opus tier's 1M/128K | 2026-08-04 |
 | Haiku 4.5 rejects `effort` | yes — do not pass `output_config.effort` | 2026-08-04 |
 | Haiku 4.5 accepts `temperature` | yes — unlike the newest Opus/Sonnet models | 2026-08-04 |
-| Gemini fallback LLM model ID | _not yet verified — see below_ | — |
-| Gemini vision OCR model ID | _not yet verified — see below_ | — |
+| Gemini fallback LLM model ID | `gemini-3.6-flash` | 2026-08-04 |
+| Gemini vision OCR model ID | `gemini-3.6-flash` | 2026-08-04 |
 | Gemini pricing | _not yet verified — configuration, defaults to unpriced_ | — |
-| Embedding model | `gemini-embedding-001` | — |
-| Embedding dimensions requested | 1536 (of 3072 native) — **assumption until the script below runs** | — |
-| `turkish` FTS config present in Postgres | _not yet checked_ | — |
+| Embedding model | `gemini-embedding-001` | 2026-08-04 |
+| Embedding dimensions requested | **1536 confirmed by a live call** (of 3072 native) | 2026-08-04 |
+| `turkish` FTS config present in Postgres | **yes** — `fts_tr` built with `'turkish'::regconfig`, not the `simple` fallback | 2026-08-04 |
+| HNSW index on `vector(1536)` | built successfully — C3 holds end to end | 2026-08-04 |
+
+### A listed model is not necessarily a callable model
+
+`gemini-2.5-flash` appears in `models.list()` and returns **404 — "no longer
+available to new users"** when actually called. Enumerating the model list is
+therefore *not* sufficient verification; only a real request is. This is why
+`list_models` pings rather than just lists.
+
+`gemini-flash-latest` is deliberately **not** used. It is a moving alias, and
+ADR 004's reasoning applies unchanged: a model that can change under you makes
+every number in `eval/report.md` non-reproducible. Pin the dated id.
 
 ### The first thing to run once keys exist
 
@@ -73,6 +85,48 @@ retrieval with no error anywhere, and the eval would report the damage without
 explaining it.
 
 ---
+
+## Connecting to Postgres
+
+Two things about `DATABASE_URL` that each cost real debugging time:
+
+**1. Percent-encode the password.** A Postgres password containing `@` `:` `/`
+`?` `#` `[` `]` or `%` must be encoded in the URI. Unencoded, the `@` is read as
+the userinfo/host separator, the host becomes a fragment of the password, and
+the port becomes garbage. asyncpg then fails with
+`invalid literal for int() with base 10: 'uF'` — a message that mentions
+neither passwords nor URIs. `config.py` now catches this at startup and says so
+plainly, but encode it correctly in the first place:
+
+```bash
+python -c "import urllib.parse,getpass; print(urllib.parse.quote(getpass.getpass(), safe=''))"
+```
+
+**2. The transaction pooler needs `statement_cache_size=0`.** We use Supabase's
+transaction pooler (port **6543**), which is the right choice for a
+scale-to-zero deployment — short-lived instances, many of them, none holding a
+session open. But pgbouncer in transaction mode hands a different backend
+connection to each statement, while asyncpg caches server-side prepared
+statements by name and assumes they persist. The two disagree *intermittently*,
+surfacing as `prepared statement "__asyncpg_stmt_x__" does not exist` on a query
+that worked moments earlier. Every `asyncpg.connect` / pool in this project
+passes `statement_cache_size=0`.
+
+The session pooler (port 5432) avoids the issue and needs no flag, at the cost
+of holding a connection per client — the wrong trade for serverless.
+
+## Applying migrations
+
+```bash
+uv run python -m api.scripts.migrate --status
+```
+
+```bash
+uv run python -m api.scripts.migrate
+```
+
+Forward-only, numerically ordered, one transaction each, checksummed. Editing a
+migration that has already run is refused rather than silently ignored.
 
 ## Local development
 
