@@ -22,11 +22,12 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
+from api.auth import CurrentUser
 from api.deps import State
 from api.generation.answerer import AnswerOutcome
 from api.generation.llm import Turn
 from api.logging_config import get_logger
-from api.pricing import UnpricedModelError, estimate_cost
+from api.safety.limits import LimitExceededError
 
 router = APIRouter(tags=["chat"])
 log = get_logger(__name__)
@@ -54,16 +55,32 @@ def _event(name: str, payload: dict[str, object] | None = None) -> dict[str, str
 
 
 @router.post("/chat", summary="Ask a grounded question (SSE)")
-async def chat(request: ChatRequest, state: State) -> EventSourceResponse:
+async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSourceResponse:
+    """Answer one question about one document.
+
+    Every guard runs *before* the stream opens. An SSE response that has already
+    begun can only report a limit as an `error` event, which the client has to
+    special-case; a 429 before the first byte is a status code every HTTP client
+    already understands.
+    """
     row = await state.pool.fetchrow(
         "select id, user_id, detected_lang from documents "
-        "where id = $1 and is_sample and status = 'ready'",
+        "where id = $1 and (is_sample or user_id = $2) and status = 'ready'",
         request.document_id,
+        user.id,
     )
     if row is None:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND, detail="No such document, or it is not ready yet."
         )
+
+    try:
+        # Order matters: the global breaker first. When the demo is out of
+        # money, telling a visitor they have questions left would be a lie.
+        await state.breaker.ensure_capacity()
+        await state.quota.ensure_can_ask(user.id)
+    except LimitExceededError as exc:
+        raise exc.as_http() from exc
 
     async def stream() -> AsyncIterator[dict[str, str]]:
         try:
@@ -114,19 +131,15 @@ async def chat(request: ChatRequest, state: State) -> EventSourceResponse:
             outcome = await answering
             answer = outcome.answer
 
-            cost = 0.0
-            for usage in [*retrieved.usage, *outcome.usage]:
-                try:
-                    cost += estimate_cost(
-                        usage.model,
-                        input_tokens=usage.input_tokens,
-                        output_tokens=usage.output_tokens,
-                    )
-                except UnpricedModelError:
-                    # Google is unpriced by design (see api/pricing.py). The
-                    # figure shown to the user is therefore Anthropic-only, and
-                    # the UI says so rather than implying it is the whole bill.
-                    pass
+            # The ledger is written even when the answer was suppressed: a
+            # withheld answer still cost money, and the breaker has to see it.
+            # `record` prices as it writes, so Google's unpriced calls are
+            # stored with their tokens and a zero — the figure shown to the user
+            # is therefore Anthropic-only, and the interface says so.
+            cost = await state.usage.record(
+                user_id=user.id, records=[*retrieved.usage, *outcome.usage]
+            )
+            state.breaker.note_spend(cost)
 
             yield _event(
                 "done",

@@ -65,8 +65,15 @@ class DocumentRepository:
         storage_path: str,
         byte_size: int,
         is_sample: bool = False,
+        document_id: UUID | None = None,
     ) -> DocumentRecord:
         """Insert a queued document. This row is the durable record (ADR 007).
+
+        `document_id` is supplied by the upload flow rather than generated here.
+        The id is minted before the file exists, because it names the object in
+        storage (`uploads/{user}/{id}.pdf`) — and a row whose id differs from
+        the one in its own storage path hands the client an identifier that does
+        not identify the document.
 
         Samples get a far-future expiry so the retention job never deletes the
         public demo out from under itself — migration 0002 has a CHECK
@@ -76,9 +83,9 @@ class DocumentRepository:
         row = await self._pool.fetchrow(
             """
             insert into documents (
-                user_id, filename, storage_path, byte_size, is_sample, expires_at
+                id, user_id, filename, storage_path, byte_size, is_sample, expires_at
             ) values (
-                $1, $2, $3, $4, $5,
+                coalesce($6, gen_random_uuid()), $1, $2, $3, $4, $5,
                 case when $5 then now() + interval '100 years'
                      else now() + interval '24 hours' end
             )
@@ -89,6 +96,7 @@ class DocumentRepository:
             storage_path,
             byte_size,
             is_sample,
+            document_id,
         )
         return DocumentRecord.from_row(row)
 

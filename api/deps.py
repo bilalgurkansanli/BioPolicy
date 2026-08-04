@@ -27,10 +27,20 @@ from api.generation.llm import FailoverLLM, LLMProvider
 from api.generation.providers import AnthropicLLM, GeminiLLM
 from api.generation.schemas import ANSWER_JSON_SCHEMA, VERIFICATION_JSON_SCHEMA
 from api.generation.verifier import Verifier
+from api.ingest.chunker import Chunker
+from api.ingest.ocr.gemini import GeminiOCR
+from api.ingest.parsers.native import PdfParser
+from api.ingest.pipeline import IngestionPipeline
+from api.ingest.worker import IngestionWorker
 from api.logging_config import get_logger
+from api.retention import RetentionService
 from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.hybrid import HybridRetriever
 from api.retrieval.store import ChunkStore
+from api.safety.breaker import BudgetBreaker
+from api.safety.quota import QuotaGuard
+from api.storage import VIEW_URL_TTL_SECONDS, DocumentStorage
+from api.usage import UsageRepository
 
 log = get_logger(__name__)
 
@@ -44,11 +54,21 @@ class AppState:
     store: ChunkStore
     retriever: HybridRetriever
     answerer: Answerer
+    storage: DocumentStorage
+    usage: UsageRepository
+    quota: QuotaGuard
+    breaker: BudgetBreaker
+    retention: RetentionService
+    worker: IngestionWorker
+    storage_view_ttl: int = VIEW_URL_TTL_SECONDS
 
     @classmethod
     def build(cls, pool: asyncpg.Pool, settings: Settings) -> AppState:
         embedder = GeminiEmbedder(settings.google_api_key or "", settings.gemini_embedding_model)
         store = ChunkStore(pool)
+        documents = DocumentRepository(pool)
+        storage = DocumentStorage(settings)
+        usage = UsageRepository(pool)
 
         answering: list[LLMProvider] = [
             AnthropicLLM(
@@ -80,10 +100,20 @@ class AppState:
             )
         )
 
+        # OCR is optional: without a verified model id the parser handles native
+        # PDFs and fails scanned ones with a message saying so (ADR 004).
+        ocr = (
+            GeminiOCR(settings.google_api_key, settings.gemini_ocr_model)
+            if settings.google_api_key and settings.gemini_ocr_model
+            else None
+        )
+
         return cls(
             pool=pool,
-            documents=DocumentRepository(pool),
+            documents=documents,
             store=store,
+            storage=storage,
+            usage=usage,
             retriever=HybridRetriever(
                 store,
                 embedder,
@@ -95,6 +125,25 @@ class AppState:
                 verifier=verifier,
                 enable_citation_binding=settings.enable_citation_binding,
                 enable_verification=settings.enable_self_verification,
+            ),
+            quota=QuotaGuard(
+                pool,
+                usage,
+                daily_questions=settings.user_daily_message_limit,
+                daily_documents=settings.user_daily_document_limit,
+            ),
+            breaker=BudgetBreaker(usage, limit_usd=settings.global_budget_usd),
+            retention=RetentionService(pool, storage),
+            worker=IngestionWorker(
+                documents=documents,
+                pipeline=IngestionPipeline(
+                    documents=documents,
+                    store=store,
+                    parser=PdfParser(ocr=ocr),
+                    embedder=embedder,
+                    chunker=Chunker(),
+                ),
+                storage=storage,
             ),
         )
 

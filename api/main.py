@@ -30,7 +30,7 @@ from api.config import get_settings
 from api.db import create_pool
 from api.deps import AppState
 from api.logging_config import configure_logging, get_logger
-from api.routers import chat, documents, health
+from api.routers import chat, documents, health, internal
 
 log = get_logger(__name__)
 
@@ -159,6 +159,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(documents.router, prefix="/api")
     app.include_router(chat.router, prefix="/api")
+    app.include_router(internal.router, prefix="/api")
 
     return app
 

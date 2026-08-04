@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from uuid import UUID
 
 from api.constants import EMBEDDING_DIM
 from api.generation.llm import LLMResponse, ProviderError, Turn
 from api.ingest.types import ParsedDocument
 from api.retrieval.types import RetrievedChunk
+from api.storage import StoredObject
 
 
 class FakeOCRProvider:
@@ -279,3 +281,116 @@ karşılar.
 
 Doğum teminatı için bekleme süresi on iki aydır.
 """
+
+
+# -----------------------------------------------------------------------------
+# database and storage
+# -----------------------------------------------------------------------------
+
+
+class FakeConnection:
+    """Records statements. Deliberately understands no SQL.
+
+    The safety-layer tests are about *ordering and conditions* — did the file go
+    before the rows, was the audit entry written only when both halves worked —
+    not about what the SQL means. A fake that parsed SQL would be re-encoding the
+    queries it is meant to check.
+    """
+
+    def __init__(self, log: list[tuple[str, tuple[object, ...]]]) -> None:
+        self.log = log
+        self.fetchval_result: object = 0
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[None]:
+        self.log.append(("begin", ()))
+        yield
+        self.log.append(("commit", ()))
+
+    async def execute(self, query: str, *args: object) -> None:
+        self.log.append((_first_words(query), args))
+
+    async def fetchval(self, query: str, *args: object) -> object:
+        self.log.append((_first_words(query), args))
+        return self.fetchval_result
+
+
+class FakePool:
+    """An asyncpg pool that returns prepared rows and remembers every query."""
+
+    def __init__(
+        self,
+        *,
+        fetch: Sequence[Sequence[dict[str, object]]] = (),
+        fetchrow: Sequence[dict[str, object] | None] = (),
+        fetchval: object = 0,
+    ) -> None:
+        self._fetch = list(fetch)
+        self._fetchrow = list(fetchrow)
+        self.fetchval_result = fetchval
+        self.log: list[tuple[str, tuple[object, ...]]] = []
+        self.queries: list[str] = []
+
+    @property
+    def statements(self) -> list[str]:
+        """Just the operation names, in order. What ordering assertions read."""
+        return [name for name, _ in self.log]
+
+    async def fetch(self, query: str, *args: object) -> list[dict[str, object]]:
+        self.queries.append(query)
+        self.log.append((_first_words(query), args))
+        return list(self._fetch.pop(0)) if self._fetch else []
+
+    async def fetchrow(self, query: str, *args: object) -> dict[str, object] | None:
+        self.queries.append(query)
+        self.log.append((_first_words(query), args))
+        return self._fetchrow.pop(0) if self._fetchrow else None
+
+    async def execute(self, query: str, *args: object) -> None:
+        self.queries.append(query)
+        self.log.append((_first_words(query), args))
+
+    async def executemany(self, query: str, args: Sequence[Sequence[object]]) -> None:
+        self.queries.append(query)
+        self.log.append((_first_words(query), tuple(args)))
+
+    @asynccontextmanager
+    async def acquire(self) -> AsyncIterator[FakeConnection]:
+        connection = FakeConnection(self.log)
+        connection.fetchval_result = self.fetchval_result
+        yield connection
+
+
+def _first_words(query: str) -> str:
+    return " ".join(query.strip().split()[:2]).lower()
+
+
+class FakeStorage:
+    """Object storage that can be told to fail, which is the interesting case."""
+
+    def __init__(self, *, removable: bool = True, size: int | None = 1024) -> None:
+        self.removable = removable
+        self.size = size
+        self.removed: list[str] = []
+        self.log: list[tuple[str, tuple[object, ...]]] = []
+
+    def share_log(self, log: list[tuple[str, tuple[object, ...]]]) -> None:
+        """Write into the pool's log so call *ordering* across both is visible."""
+        self.log = log
+
+    async def remove(self, path: str) -> bool:
+        self.log.append(("storage.remove", (path,)))
+        if not self.removable:
+            return False
+        self.removed.append(path)
+        return True
+
+    async def stat(self, path: str) -> object:
+        self.log.append(("storage.stat", (path,)))
+        if self.size is None:
+            return None
+        return StoredObject(path=path, byte_size=self.size)
+
+    async def download(self, path: str) -> bytes:
+        self.log.append(("storage.download", (path,)))
+        return b"%PDF-1.4 fake"
