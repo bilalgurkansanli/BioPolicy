@@ -208,9 +208,13 @@ class Answerer:
         groundedness: float | None = None
         verified = False
         if self._verify and self._verifier is not None:
-            result = await self._verifier.verify(draft=payload.answer, context=context)
-            if result is not None:
-                groundedness = result.groundedness
+            verification = await self._verifier.verify(draft=payload.answer, context=context)
+            # Recorded before the suppression check below: a verification that
+            # decided to withhold the answer still cost money, and the budget
+            # breaker has to see it.
+            usage.extend(verification.usage)
+            if verification.result is not None:
+                groundedness = verification.result.groundedness
                 verified = True
 
             if classify(groundedness) == "suppress":

@@ -75,14 +75,42 @@ async def test_a_supported_answer_is_served_with_its_citation() -> None:
 
 
 async def test_usage_is_recorded_for_every_billable_call() -> None:
-    """The budget breaker is only real if this is."""
+    """The budget breaker is only real if this is.
+
+    Verification is a second provider call on every served answer — roughly
+    doubling the per-question cost. Recording only the answering call would make
+    the breaker watch about half the real spend, which is the kind of error that
+    surfaces as a surprise bill rather than as a failure.
+    """
     outcome = await Answerer(
         ScriptedLLM(drafted(citations=GOOD_CITE)),
         verifier=Verifier(ScriptedLLM(verdicts("SUPPORTED"))),
     ).answer(question="…", context=context())
 
-    assert [u.operation for u in outcome.usage] == ["answer"]
+    assert [u.operation for u in outcome.usage] == ["answer", "verify"]
     assert outcome.cost_relevant_tokens > 0
+
+
+async def test_a_suppressing_verification_is_still_billed() -> None:
+    """Withholding the answer does not refund the call that decided to."""
+    outcome = await Answerer(
+        ScriptedLLM(drafted(citations=GOOD_CITE)),
+        verifier=Verifier(ScriptedLLM(verdicts("UNSUPPORTED", "UNSUPPORTED"))),
+    ).answer(question="…", context=context())
+
+    assert outcome.answer.suppressed is True
+    assert "verify" in [u.operation for u in outcome.usage]
+
+
+async def test_an_unreadable_verification_is_still_billed() -> None:
+    """A response we could not parse was still generated, and still charged."""
+    outcome = await Answerer(
+        ScriptedLLM(drafted(citations=GOOD_CITE)),
+        verifier=Verifier(ScriptedLLM("not json")),
+    ).answer(question="…", context=context())
+
+    assert outcome.answer.groundedness is None  # verification did not produce a score
+    assert "verify" in [u.operation for u in outcome.usage]  # but it did cost money
 
 
 # -----------------------------------------------------------------------------

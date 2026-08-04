@@ -25,6 +25,8 @@ checking layer exists to catch.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from api.constants import GROUNDEDNESS_SERVE, GROUNDEDNESS_WARN
 from api.generation import prompts
 from api.generation.llm import (
@@ -32,6 +34,7 @@ from api.generation.llm import (
     MalformedResponseError,
     ProviderError,
     Turn,
+    UsageRecord,
     extract_json,
 )
 from api.generation.schemas import VerificationResult
@@ -39,6 +42,27 @@ from api.logging_config import get_logger
 from api.retrieval.context import AssembledContext
 
 log = get_logger(__name__)
+
+
+@dataclass(slots=True)
+class VerificationOutcome:
+    """What the pass produced, and what it cost.
+
+    Usage is returned rather than accumulated on the `Verifier` instance,
+    because one instance serves concurrent requests and per-instance state would
+    attribute one user's tokens to another. It is carried even when `result` is
+    None: a call that failed to produce a usable answer was still billed, and a
+    budget breaker fed only the successful calls under-counts exactly when the
+    system is having a bad day.
+    """
+
+    result: VerificationResult | None
+    usage: list[UsageRecord] = field(default_factory=list)
+
+    @property
+    def groundedness(self) -> float | None:
+        return self.result.groundedness if self.result is not None else None
+
 
 # The verifier emits short structured verdicts, never prose. Capping output
 # keeps a cheap pass cheap — this runs on every served answer.
@@ -51,16 +75,16 @@ class Verifier:
         self._max_tokens = max_tokens
         self.prompt_version = prompts.VERIFY
 
-    async def verify(self, *, draft: str, context: AssembledContext) -> VerificationResult | None:
+    async def verify(self, *, draft: str, context: AssembledContext) -> VerificationOutcome:
         """Score a draft against the excerpts.
 
-        Returns `None` when verification could not run — a provider failure or
-        an unreadable response. `None` means *unknown*, not *failed*: the caller
-        must not treat an absent score as a low one, or a provider outage would
-        silently start suppressing correct answers.
+        `outcome.result` is `None` when verification could not run — a provider
+        failure or an unreadable response. `None` means *unknown*, not *failed*:
+        the caller must not treat an absent score as a low one, or a provider
+        outage would silently start suppressing correct answers.
         """
         if not draft.strip() or context.is_empty:
-            return None
+            return VerificationOutcome(result=None)
 
         # Note what is absent from this payload: the user's question.
         user_content = (
@@ -76,14 +100,18 @@ class Verifier:
             )
         except ProviderError as exc:
             log.warning("verification_unavailable", error=str(exc))
-            return None
+            return VerificationOutcome(result=None)
+
+        # Recorded before parsing: the call was billed whether or not we can
+        # read what came back.
+        usage = [UsageRecord.from_response("verify", response)]
 
         try:
             payload = extract_json(response.text)
             result = VerificationResult.model_validate(payload)
         except (MalformedResponseError, ValueError) as exc:
             log.warning("verification_unreadable", error=str(exc))
-            return None
+            return VerificationOutcome(result=None, usage=usage)
 
         log.info(
             "verification_complete",
@@ -91,7 +119,7 @@ class Verifier:
             groundedness=round(result.groundedness, 3),
             unsupported=sum(1 for c in result.claims if c.support == "UNSUPPORTED"),
         )
-        return result
+        return VerificationOutcome(result=result, usage=usage)
 
 
 def classify(groundedness: float | None) -> str:

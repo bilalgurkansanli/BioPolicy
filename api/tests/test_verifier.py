@@ -132,13 +132,13 @@ async def test_a_supported_draft_scores_high() -> None:
             ("A deductible of 3.500 TL applies", "SUPPORTED"),
         )
     )
-    result = await Verifier(llm).verify(
+    outcome = await Verifier(llm).verify(
         draft="Sel teminatı 750.000 TL, muafiyet 3.500 TL.", context=assemble([chunk(EXCERPT)])
     )
 
-    assert result is not None
-    assert result.groundedness == 1.0
-    assert classify(result.groundedness) == "serve"
+    assert outcome.result is not None
+    assert outcome.groundedness == 1.0
+    assert classify(outcome.groundedness) == "serve"
 
 
 async def test_an_invented_claim_drags_the_score_below_the_serve_band() -> None:
@@ -149,11 +149,11 @@ async def test_an_invented_claim_drags_the_score_below_the_serve_band() -> None:
             ("Cover applies with no waiting period", "UNSUPPORTED"),
         )
     )
-    result = await Verifier(llm).verify(draft="…", context=assemble([chunk(EXCERPT)]))
+    outcome = await Verifier(llm).verify(draft="…", context=assemble([chunk(EXCERPT)]))
 
-    assert result is not None
-    assert result.groundedness == pytest.approx(1 / 3)
-    assert classify(result.groundedness) == "suppress"
+    assert outcome.result is not None
+    assert outcome.groundedness == pytest.approx(1 / 3)
+    assert classify(outcome.groundedness) == "suppress"
 
 
 async def test_an_overstated_claim_lands_in_the_warn_band() -> None:
@@ -164,10 +164,10 @@ async def test_an_overstated_claim_lands_in_the_warn_band() -> None:
             ("Cover is unconditional", "PARTIAL"),
         )
     )
-    result = await Verifier(llm).verify(draft="…", context=assemble([chunk(EXCERPT)]))
+    outcome = await Verifier(llm).verify(draft="…", context=assemble([chunk(EXCERPT)]))
 
-    assert result is not None
-    assert classify(result.groundedness) == "warn"
+    assert outcome.result is not None
+    assert classify(outcome.groundedness) == "warn"
 
 
 async def test_the_verify_prompt_is_the_one_that_gets_sent() -> None:
@@ -187,25 +187,25 @@ async def test_the_verify_prompt_is_the_one_that_gets_sent() -> None:
 
 async def test_a_provider_outage_returns_unknown_not_zero() -> None:
     """None means 'we do not know', and the caller must not read it as 'bad'."""
-    result = await Verifier(FailingLLM()).verify(draft="…", context=assemble([chunk(EXCERPT)]))
+    outcome = await Verifier(FailingLLM()).verify(draft="…", context=assemble([chunk(EXCERPT)]))
 
-    assert result is None
+    assert outcome.result is None
     assert classify(None) == "serve"
 
 
 async def test_an_unreadable_response_returns_unknown() -> None:
-    result = await Verifier(ScriptedLLM("I'm not going to answer in JSON, sorry.")).verify(
+    outcome = await Verifier(ScriptedLLM("I'm not going to answer in JSON, sorry.")).verify(
         draft="…", context=assemble([chunk(EXCERPT)])
     )
 
-    assert result is None
+    assert outcome.result is None
 
 
 async def test_verification_is_skipped_when_there_is_nothing_to_verify() -> None:
     llm = ScriptedLLM()  # would raise if called
 
-    assert await Verifier(llm).verify(draft="", context=assemble([chunk(EXCERPT)])) is None
-    assert await Verifier(llm).verify(draft="something", context=assemble([])) is None
+    assert (await Verifier(llm).verify(draft="", context=assemble([chunk(EXCERPT)]))).result is None
+    assert (await Verifier(llm).verify(draft="something", context=assemble([]))).result is None
     assert llm.call_count == 0
 
 
@@ -219,9 +219,9 @@ async def test_failover_moves_to_the_next_provider_on_an_outage() -> None:
     fallback = ScriptedLLM(verdicts(("a", "SUPPORTED")))
     chain = FailoverLLM(providers=[primary, fallback])
 
-    result = await Verifier(chain).verify(draft="…", context=assemble([chunk(EXCERPT)]))
+    outcome = await Verifier(chain).verify(draft="…", context=assemble([chunk(EXCERPT)]))
 
-    assert result is not None
+    assert outcome.result is not None
     assert primary.call_count == 1
     assert fallback.call_count == 1
     assert chain.attempted == ["anthropic", "scripted"]
@@ -236,11 +236,11 @@ async def test_failover_does_not_retry_a_provider_that_answered_badly() -> None:
     primary = ScriptedLLM("not json at all")
     fallback = ScriptedLLM(verdicts(("a", "SUPPORTED")))
 
-    result = await Verifier(FailoverLLM(providers=[primary, fallback])).verify(
+    outcome = await Verifier(FailoverLLM(providers=[primary, fallback])).verify(
         draft="…", context=assemble([chunk(EXCERPT)])
     )
 
-    assert result is None  # unreadable, and not retried
+    assert outcome.result is None  # unreadable, and not retried
     assert fallback.call_count == 0
 
 
