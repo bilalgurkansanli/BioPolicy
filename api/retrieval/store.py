@@ -62,6 +62,27 @@ def to_pgvector(values: list[float]) -> str:
 # `row_number()` is what turns each arm into ranks, which is all RRF consumes —
 # the raw distances and ts_rank scores are deliberately left behind, since they
 # are on incomparable scales (see fusion.py).
+#
+# ---------------------------------------------------------------------------
+# WHY the `& -> |` rewrite on the tsquery, which is the least obvious line here
+# ---------------------------------------------------------------------------
+# `websearch_to_tsquery` joins every term with AND. For a search box — where a
+# user types two or three keywords — that is exactly right. For a natural
+# language question it is fatal:
+#
+#     websearch_to_tsquery('turkish', 'Deprem hasarında bana ne kadar ödenir?')
+#       -> 'depre' & 'hasar' & 'ba' & 'kadar' & 'ödenir'
+#
+# That demands a single chunk containing all five stems. No chunk does, so the
+# arm returns zero rows — with no error, no warning, and a hybrid search
+# quietly degraded to pure vector. It was found only by noticing that live
+# results never carried a keyword rank.
+#
+# Rewriting the connective to OR makes every term optional and lets
+# `ts_rank_cd` do what it is for: score a chunk by how many of them it matched,
+# and how close together. Stemming, stop-word removal and phrase groups
+# (`<->`, from quoted input) all survive the rewrite untouched — only the
+# top-level connective changes.
 _HYBRID_SQL = """
 with accessible as (
     select d.id
@@ -69,6 +90,11 @@ with accessible as (
     where d.id = $1
       and d.status = 'ready'
       and (d.is_sample or d.user_id = $2)
+),
+q as (
+    select
+        replace(websearch_to_tsquery($7::regconfig, $4)::text, ' & ', ' | ')::tsquery as tr,
+        replace(websearch_to_tsquery('english', $4)::text, ' & ', ' | ')::tsquery as en
 ),
 vector_arm as (
     select c.id, row_number() over (order by c.embedding <=> $3::vector) as rank
@@ -82,13 +108,13 @@ keyword_arm as (
     from (
         select c.id,
                greatest(
-                   ts_rank_cd(c.fts_tr, websearch_to_tsquery($7::regconfig, $4)),
-                   ts_rank_cd(c.fts_en, websearch_to_tsquery('english', $4))
+                   ts_rank_cd(c.fts_tr, q.tr),
+                   ts_rank_cd(c.fts_en, q.en)
                ) as score
         from chunks c
         join accessible a on a.id = c.document_id
-        where c.fts_tr @@ websearch_to_tsquery($7::regconfig, $4)
-           or c.fts_en @@ websearch_to_tsquery('english', $4)
+        cross join q
+        where c.fts_tr @@ q.tr or c.fts_en @@ q.en
     ) ranked
     order by score desc, id
     limit $6
