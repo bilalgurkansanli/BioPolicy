@@ -123,6 +123,7 @@ function LocaleSwitch({
     <div
       role="group"
       aria-label={label}
+      data-no-retype
       className="relative flex items-center rounded-full border border-line bg-surface-sunken p-0.5"
     >
       <span

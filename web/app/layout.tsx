@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { CookieConsent } from "@/components/CookieConsent";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { SessionProvider } from "@/components/SessionProvider";
 import { PageTransition } from "@/components/PageTransition";
@@ -39,6 +40,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <PageTransition />
         <LocaleProvider>
           <SessionProvider>{children}</SessionProvider>
+          {/* Inside the locale provider because the banner has to be readable,
+              and outside the session because it is asked of everyone. */}
+          <CookieConsent />
         </LocaleProvider>
       </body>
     </html>

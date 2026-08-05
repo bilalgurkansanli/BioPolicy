@@ -6,19 +6,46 @@
 
 Placed before the results rather than after them, because a caveat at the bottom of a report is a caveat nobody reads.
 
+- **2 question(s) failed with a provider error and are counted as refusals.** A question the provider never answered looks identical, in every metric here, to one the system declined — so a bad afternoon at the API arrives as a false-refusal rate. The arms carrying the entailment check make three serial provider calls per question instead of two, and they are the arms with errors: `naive_entailed` (2). Read every false-refusal figure below with that subtracted.
+
+- **The entailment check did not do what it was built to do.** It exists because an earlier run of this report diagnosed the previous mechanisms as blind to unwarranted inference, and it is the only pass that is shown the question. On this corpus it moved refusal accuracy by +0%, moved the false-refusal rate by +0%, and added 28% to the cost of every question. Subtract the provider errors above and it changed no decisions — the same finding as the two mechanisms before it, reached the same way. It does catch something on the adversarial set (`report_hard.md`), and nothing here; shipping it always would be paying on every question for a check that fires on documents this corpus does not contain.
+
+- **The prompt did the work; the mechanisms did not.** Holding the prompt naive and switching the mechanisms on moved balanced accuracy by +0% — the same questions were answered and the same ones missed. Holding the mechanisms off and switching the prompt to the strict grounding version moved it +5%. Citation binding and self-verification add roughly 45% to the cost of every question and, on this corpus, changed no decisions.
+
+  The reason is visible in the failures they missed. The naive prompt's errors are *correct citations supporting an unwarranted inference*: asked whether a stolen car is covered, it quotes the theft clause accurately and then concludes the car is included. Binding checks that the quote is real — it is. Verification checks the claim against the excerpt — the excerpt does say theft is covered. Neither mechanism is built to catch a valid quote used to support a conclusion the document never draws, and this run is the first evidence of that blind spot. Closing it needs a check on the *inferential* step, not on the quote.
+
 - **Citation validity of 100% is partly structural.** The answering model is constrained by a provider-enforced JSON schema and the context is small, so malformed or invented chunk ids are close to impossible by construction. The interesting half of binding — catching a *quote* that does not appear in a chunk it names — was never exercised here.
 
 ## Run
 
 | | |
 |---|---|
-| Generated | 2026-08-05 18:10 UTC |
-| Commit | `e950a6b` |
+| Generated | 2026-08-05 21:53 UTC |
+| Commit | `e6c3fde` |
 | Answering model | `claude-haiku-4-5-20251001` |
 | Embedding model | `gemini-embedding-001` (1536 dimensions) |
 | Prompts | `answer_v2`, `verify_v1` |
 | Questions | 70 |
 | Adversarial negatives | 21 (30%) |
+
+## The ablation
+
+Two independent variables, four arms: the **prompt** (a strict grounding prompt versus a naive one) crossed with the **mechanisms** (citation binding and self-verification, on or off).
+
+The naive prompt is not a strawman. It asks for accuracy, requests citations and returns the same JSON — it is what a competent developer writes on a first pass. What it does not do is forbid outside knowledge, demand verbatim quotes, or say that “not in the document” is an acceptable answer.
+
+| Arm | Refusal accuracy | False-refusal | Balanced | Citation validity | Suppressed | $/question |
+|---|---:|---:|---:|---:|---:|---:|
+| naive prompt, no mechanisms | 86% | 0% | 93% | 100% | 0 | $0.0035 |
+| naive prompt + mechanisms | 86% | 0% | 93% | 99% | 0 | $0.0062 |
+| strict prompt, no mechanisms | 100% | 4% | 98% | 100% | 0 | $0.0049 |
+| strict prompt + mechanisms **(shipped)** | 100% | 4% | 98% | 100% | 0 | $0.0072 |
+
+**Baseline to shipped:** balanced accuracy 93% → 98%, refusal accuracy 86% → 100%.
+
+**Read refusal accuracy and false-refusal rate together.** The first is trivially gamed by refusing everything, the second by never refusing. Balanced accuracy is the mean of the two and lands at 50% for either degenerate strategy — it is the column to compare arms on.
+
+**Comparing rows tells you which lever did the work.** naive_only → strict_only isolates the prompt. naive_only → naive_guarded isolates the mechanisms. If the two paths to strict_guarded are not equal, the levers are not independent.
 
 ## Retrieval
 
@@ -88,7 +115,7 @@ The mean covers **served** answers only. Including suppressed ones would mix “
 | Cost per question | $0.0072 |
 | p50 latency | 6.2s |
 | p95 latency | 15.7s |
-| Total for this run | $0.50 |
+| Total for this run | $2.73 |
 
 p50 and p95 rather than a mean: one cold start moves a mean and says nothing about the typical experience.
 

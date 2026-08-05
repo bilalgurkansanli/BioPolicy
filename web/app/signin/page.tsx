@@ -10,10 +10,11 @@ import { useSession } from "@/components/SessionProvider";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { GoogleMark } from "@/components/workspace/SignInGate";
+import { clearConsent, setConsent } from "@/lib/consent-store";
 import { AuthUnavailableError } from "@/lib/supabase";
 
 /** Where the two documents are read, without leaving the page they are on. */
-type Sheet = "privacy" | "terms";
+type Sheet = "privacy" | "terms" | "cookies";
 
 /**
  * Confirmation that signing out worked, for the visitor who was sent here by
@@ -57,6 +58,10 @@ export default function SignInPage() {
   const start = async () => {
     setFailure(null);
     setBusy(true);
+    // The sentence under the button says signing in accepts the measurement
+    // cookie, so this is where that acceptance is recorded. Someone who never
+    // signs in is still asked by the banner.
+    setConsent("granted");
     try {
       // Into the workspace, not back here: this page is a door, and coming back
       // to a door you have already walked through is not an arrival.
@@ -77,6 +82,11 @@ export default function SignInPage() {
   const documents = [
     { key: "privacy" as const, title: t.signin.privacyTitle, points: t.signin.privacy },
     { key: "terms" as const, title: t.signin.termsTitle, points: t.signin.terms },
+    {
+      key: "cookies" as const,
+      title: t.signin.cookiesTitle,
+      points: t.signin.cookiesDoc,
+    },
   ];
 
   return (
@@ -215,6 +225,15 @@ export default function SignInPage() {
                     </div>
                   ))}
                 </dl>
+                {document.key === "cookies" && (
+                  <button
+                    type="button"
+                    onClick={() => clearConsent()}
+                    className="mt-5 rounded-full border border-line-strong px-4 py-2 text-xs font-medium text-ink transition-colors hover:bg-surface-sunken"
+                  >
+                    {t.cookies.reset}
+                  </button>
+                )}
               </article>
             ) : null,
           )}

@@ -10,9 +10,6 @@ import {
   type ReactNode,
 } from "react";
 
-const RETYPE_CLASS = "locale-retype";
-const RETYPE_MS = 620;
-
 import { dictionaries, type Dictionary, type Locale } from "@/lib/i18n";
 import {
   getLocaleSnapshot,
@@ -20,6 +17,7 @@ import {
   setStoredLocale,
   subscribeToLocale,
 } from "@/lib/locale-store";
+import { replayText } from "@/lib/retype";
 
 type LocaleContextValue = {
   locale: Locale;
@@ -44,9 +42,9 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  // Every visible string has just been replaced, so the page replays itself.
-  // The first run is skipped: on a fresh load nothing was rewritten, and an
-  // animation there would only delay the first paint of the real content.
+  // Every visible string has just been replaced, so the page writes itself out
+  // again. The first run is skipped: on a fresh load nothing was rewritten, and
+  // an animation there would only delay the first paint of the real content.
   const isFirstLocale = useRef(true);
   useEffect(() => {
     if (isFirstLocale.current) {
@@ -55,21 +53,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const { body } = document;
-    // Removing the class and reading a layout value in between is what lets the
-    // animation restart when the language is switched twice in a row.
-    body.classList.remove(RETYPE_CLASS);
-    void body.offsetWidth;
-    body.classList.add(RETYPE_CLASS);
-
-    const timer = window.setTimeout(
-      () => body.classList.remove(RETYPE_CLASS),
-      RETYPE_MS,
-    );
-    return () => {
-      window.clearTimeout(timer);
-      body.classList.remove(RETYPE_CLASS);
-    };
+    replayText();
   }, [locale]);
 
   const value = useMemo(

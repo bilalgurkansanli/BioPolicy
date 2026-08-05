@@ -105,32 +105,22 @@ body {
   color: var(--ink);
 }
 
-/* Switching language rewrites every string on the page, so the page says so: a
-   soft edge sweeps left to right and the text arrives behind it, the way it
-   would if it were being typed again. Applied to <body> for one shot, because
-   the alternative — remounting the tree on locale change — would throw away an
-   answer the user is in the middle of reading. */
-@keyframes biopolicy-retype {
+/* Switching language rewrites every string on the page, so the page is written
+   again: each block of text fills in from the left, in steps, one after another
+   down the page. See lib/retype.ts for why it is stepped and why nothing fades
+   — and for why the tree is not simply remounted, which would throw away an
+   answer the reader is in the middle of. */
+@keyframes biopolicy-retype-line {
   from {
-    opacity: 0.25;
-    mask-position: 100% 0;
+    clip-path: inset(0 100% 0 0);
   }
   to {
-    opacity: 1;
-    mask-position: 0 0;
+    clip-path: inset(0 0 0 0);
   }
 }
 
-.locale-retype {
-  mask-image: linear-gradient(
-    90deg,
-    #000 38%,
-    rgb(0 0 0 / 0.4) 58%,
-    transparent 74%
-  );
-  mask-size: 260% 100%;
-  mask-repeat: no-repeat;
-  animation: biopolicy-retype 620ms cubic-bezier(0.22, 1, 0.36, 1);
+.retype-line {
+  animation: biopolicy-retype-line 280ms steps(14, end) both;
 }
 
 /* The account menu comes out of the button it belongs to rather than fading in
@@ -360,14 +350,14 @@ body {
   .menu-pop,
   .page-leaving body,
   .page-arriving body,
-  .locale-retype {
+  .retype-line {
     animation: none;
   }
 
-  /* The mask is half of the retype effect, not decoration around it: left in
-     place without the animation it would simply hide the page. */
-  .locale-retype {
-    mask-image: none;
+  /* The clip is half of the retype effect, not decoration around it: left in
+     place without the animation it would simply hide the text. */
+  .retype-line {
+    clip-path: none;
   }
 
   /* Both halves of the button's hover are movement, so both come off. The

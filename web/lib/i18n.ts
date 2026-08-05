@@ -169,13 +169,22 @@ const tr = {
     deleteFailed:
       "Hesap silinemedi. Belgeleriniz ve hesabınız duruyor; birazdan tekrar deneyin.",
   },
+  cookies: {
+    bannerBody:
+      "Sitede nerede takıldığınızı görmek için bir ölçüm çerezi kullanıyoruz. Kabul etmezseniz site aynı şekilde çalışır.",
+    bannerLink: "Ayrıntılar",
+    accept: "Kabul et",
+    decline: "Sadece gerekli olanlar",
+    reset: "Seçimimi değiştir",
+  },
   signin: {
     title: "Poliçenizi sorun",
     lede: "Devam etmek için Google hesabınızla girin. Örnek belgeleri girmeden de inceleyebilirsiniz.",
     why: "Her soru gerçek bir model çağrısı ve gerçek bir fatura. Giriş, günlük hakkın kime ait olduğunu belirliyor — başka bir sebebi yok.",
     browse: "Girmeden incele",
     signedOut: "Çıkış yaptınız.",
-    legalNote: "Giriş yaparak aşağıdakileri kabul etmiş olursunuz.",
+    legalNote:
+      "Giriş yaparak aşağıdakileri ve ölçüm çerezini kabul etmiş olursunuz.",
     updated: "Güncelleme: 5 Ağustos 2026",
     privacyTitle: "Gizlilik Politikası",
     privacy: [
@@ -198,6 +207,25 @@ const tr = {
       {
         title: "Silme",
         body: "Hesabınızı profil menüsünden silebilirsiniz. Belgeleriniz, sohbetleriniz ve hesabınız birlikte gider.",
+      },
+    ],
+    cookiesTitle: "Çerezler",
+    cookiesDoc: [
+      {
+        title: "Oturumunuz",
+        body: "Girişinizi açık tutmak için tarayıcınızın hafızası kullanılır. Bu bir izleme aracı değildir ve kapatılamaz; olmazsa giriş yapılamaz.",
+      },
+      {
+        title: "Ölçüm (Microsoft Clarity)",
+        body: "Hangi sayfaların kullanıldığını ve insanların nerede takıldığını görmek için. Kabul etmezseniz hiç yüklenmez ve site aynı şekilde çalışır.",
+      },
+      {
+        title: "Kaydedilmeyenler",
+        body: "Sorularınız, aldığınız cevaplar ve belgeleriniz ölçümün dışında tutuldu. Yazdığınız metin de maskelenir.",
+      },
+      {
+        title: "Fikrinizi değiştirirseniz",
+        body: "Aşağıdaki düğme seçiminizi sıfırlar; soru yeniden sorulur ve reddederseniz ölçüm bir daha yüklenmez.",
       },
     ],
     termsTitle: "Kullanım Koşulları",
@@ -471,13 +499,22 @@ const en: Dictionary = {
     deleteFailed:
       "The account could not be deleted. Your documents and account are still there; try again shortly.",
   },
+  cookies: {
+    bannerBody:
+      "We use one measurement cookie to see where people get stuck. Decline and the site works exactly the same.",
+    bannerLink: "Details",
+    accept: "Accept",
+    decline: "Only what is needed",
+    reset: "Change my choice",
+  },
   signin: {
     title: "Ask your policy",
     lede: "Sign in with Google to continue. The sample documents are readable without an account.",
     why: "Every question is a real model call against a real bill. Signing in is what the daily allowance is counted against — that is the whole reason for it.",
     browse: "Look around first",
     signedOut: "You are signed out.",
-    legalNote: "By signing in you accept the following.",
+    legalNote:
+      "By signing in you accept the following, and the measurement cookie.",
     updated: "Updated: 5 August 2026",
     privacyTitle: "Privacy Policy",
     privacy: [
@@ -500,6 +537,25 @@ const en: Dictionary = {
       {
         title: "Deleting",
         body: "You can delete your account from the profile menu. Your documents, your conversations and your account go together.",
+      },
+    ],
+    cookiesTitle: "Cookies",
+    cookiesDoc: [
+      {
+        title: "Your session",
+        body: "Your browser's storage is used to keep you signed in. It is not a tracker and cannot be switched off; without it there is no sign-in.",
+      },
+      {
+        title: "Measurement (Microsoft Clarity)",
+        body: "To see which pages are used and where people get stuck. Decline and it is never loaded, and the site works exactly the same.",
+      },
+      {
+        title: "What is not recorded",
+        body: "Your questions, the answers you get and your documents are kept out of it. Anything you type is masked as well.",
+      },
+      {
+        title: "If you change your mind",
+        body: "The button below resets your choice: you are asked again, and declining means measurement is never loaded again.",
       },
     ],
     termsTitle: "Terms of Use",

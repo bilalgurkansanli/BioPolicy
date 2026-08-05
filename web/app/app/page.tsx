@@ -10,7 +10,12 @@ import { Workspace } from "@/components/workspace/Workspace";
  */
 export default function WorkspacePage() {
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    // Masked as a whole rather than pane by pane: everything inside is either
+    // the visitor's document, their question, or an answer quoting the
+    // document, and session recording is not a place any of it belongs. Clicks
+    // and layout still reach the analytics, so the funnel stays measurable; the
+    // text does not. This is the promise the cookie notice makes.
+    <div data-clarity-mask="true" className="flex h-dvh flex-col overflow-hidden">
       <SiteHeader />
       <Workspace />
     </div>
