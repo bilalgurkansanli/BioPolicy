@@ -1,11 +1,13 @@
 "use client";
 
-import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { useLocale } from "@/components/LocaleProvider";
+import { SlideLink } from "@/components/SlideLink";
 
 export function SiteFooter() {
   const { t } = useLocale();
+  const pathname = usePathname();
 
   return (
     <footer className="border-t border-line bg-paper">
@@ -15,12 +17,16 @@ export function SiteFooter() {
           {/* The measurements are reachable but quiet: they are the project's
               evidence, not its invitation, and a second link beside the header's
               call-to-action would compete with the one thing it asks for. */}
-          <Link
+          {/* Same destination as the header's link, so the same rule decides
+              which way the page moves — see SiteHeader. Two links to one page
+              that animate differently would read as two different places. */}
+          <SlideLink
             href="/eval"
+            direction={pathname === "/app" ? "back" : "forward"}
             className="underline-offset-4 transition-colors hover:text-ink hover:underline"
           >
             {t.evaluation.title}
-          </Link>
+          </SlideLink>
           {/* Retention is a promise, so it is stated on every page rather than
               buried in a privacy document nobody opens. */}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1">

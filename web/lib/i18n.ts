@@ -24,6 +24,7 @@ const tr = {
     workspace: "Deneyin",
     source: "GitHub",
     home: "Ana sayfa",
+    backHome: "Ana sayfaya dön",
   },
   language: {
     label: "Dil",
@@ -151,6 +152,13 @@ const tr = {
     signInWhy:
       "Neden: her soru gerçek bir model çağrısı ve gerçek bir fatura. Giriş, günlük sınırın kime ait olduğunu belirliyor.",
     signOut: "Çıkış yap",
+    signOutTitle: "Çıkış yapılsın mı?",
+    signOutBody:
+      "Sohbetleriniz ve belgeleriniz hesabınızda kalır; tekrar giriş " +
+      "yaptığınızda kaldığınız yerden devam edersiniz.",
+    signOutCancel: "Vazgeç",
+    signOutConfirm: "Çıkış yap",
+    signingOut: "Çıkılıyor…",
     providerDisabledTitle: "Google girişi kapalı",
     providerDisabled:
       "Bu Supabase projesinde Google sağlayıcısı açık değil. Panelde Authentication → Sign In / Providers → Google açıldığında giriş çalışır.",
@@ -319,7 +327,7 @@ const tr = {
       "Rapor bu derlemede bulunamadı. Depoda eval/report.md dosyasına bakabilirsiniz.",
     regenerate: "Yeniden üretmek için",
     languageNote:
-      "Rapor, onu üreten komutun yazdığı haliyle duruyor — bu yüzden İngilizce. Çevirmek, sayfanın aracın gerçekten ne yazdığını göstermemesi anlamına gelirdi.",
+      "Bu derlemenin Türkçe raporu üretilmemiş, o yüzden İngilizcesi gösteriliyor. Türkçesi için: python -m eval.run_eval --arm rerender",
     spendTitle: "Bu demo şimdiye kadar ne harcadı",
     spendTotal: "Toplam",
     spendPerQuestion: "Soru başına",
@@ -359,6 +367,7 @@ const en: Dictionary = {
     workspace: "Try it",
     source: "GitHub",
     home: "Home",
+    backHome: "Back to home",
   },
   language: {
     label: "Language",
@@ -480,6 +489,13 @@ const en: Dictionary = {
     signInWhy:
       "Why: every question is a real model call against a real bill. Signing in is what the daily limit is counted against.",
     signOut: "Sign out",
+    signOutTitle: "Sign out?",
+    signOutBody:
+      "Your conversations and documents stay on your account — signing back " +
+      "in picks up where you left off.",
+    signOutCancel: "Cancel",
+    signOutConfirm: "Sign out",
+    signingOut: "Signing out…",
     providerDisabledTitle: "Google sign-in is off",
     providerDisabled:
       "The Google provider is not enabled for this Supabase project. Sign-in works once Authentication → Sign In / Providers → Google is turned on.",
@@ -648,7 +664,7 @@ const en: Dictionary = {
       "The report was not found in this build. It lives at eval/report.md in the repository.",
     regenerate: "To regenerate it",
     languageNote:
-      "The report is shown exactly as the command wrote it, which is why it is in English.",
+      "No Turkish report was generated for this build, so the English one is shown.",
     spendTitle: "What this demo has spent",
     spendTotal: "Total",
     spendPerQuestion: "Per question",

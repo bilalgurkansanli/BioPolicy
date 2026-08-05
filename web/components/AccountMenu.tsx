@@ -23,7 +23,14 @@ export function AccountMenu() {
   const { ready, signedIn, me, profile, signOut, deleteAccount, configured } =
     useSession();
   const [open, setOpen] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  // Which question the menu is currently asking, rather than one boolean
+  // per destructive action. Two booleans can both be true, and the state
+  // where the menu asks about signing out and deleting at the same time is
+  // one the markup below would have to defend against.
+  const [confirming, setConfirming] = useState<"signOut" | "delete" | null>(
+    null,
+  );
+  const [signingOut, setSigningOut] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -34,7 +41,7 @@ export function AccountMenu() {
   // must not reopen still asking it.
   const close = useCallback(() => {
     setOpen(false);
-    setConfirming(false);
+    setConfirming(null);
     setDeleteFailed(false);
   }, []);
 
@@ -182,7 +189,56 @@ export function AccountMenu() {
             </div>
           )}
 
-          {confirming ? (
+          {confirming === "signOut" ? (
+            /* Asked in the menu, in the same shape as the delete question, and
+               not in a `window.confirm`. A native dialogue takes over the whole
+               window and arrives with no styling, no translation and no memory
+               of which account it is about — for a question this ordinary that
+               is a bigger interruption than the action deserves.
+
+               Signing out is not destructive: the conversations and documents
+               are still there afterwards. So the confirm button is the ordinary
+               filled one rather than the red one the delete panel uses, and the
+               copy says what survives instead of warning about what is lost. */
+            <div className="p-4">
+              <p className="text-sm font-medium text-ink">
+                {t.account.signOutTitle}
+              </p>
+              <p className="mt-1.5 text-xs leading-5 text-ink-muted">
+                {t.account.signOutBody}
+              </p>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirming(null)}
+                  disabled={signingOut}
+                  className="h-9 flex-1 rounded-full border border-line-strong text-xs font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
+                >
+                  {t.account.signOutCancel}
+                </button>
+                <button
+                  type="button"
+                  // Out of the workspace and onto the sign-in screen: staying
+                  // put would leave a signed-out visitor looking at a gate where
+                  // the conversation used to be.
+                  //
+                  // `signingOut` is never cleared on success. The navigation
+                  // unmounts this menu, and setting state on the way out is
+                  // either a no-op or a warning depending on the React version.
+                  onClick={() => {
+                    setSigningOut(true);
+                    void signOut()
+                      .then(() => router.push("/signin?signed-out"))
+                      .catch(() => setSigningOut(false));
+                  }}
+                  disabled={signingOut}
+                  className="h-9 flex-1 rounded-full bg-gradient-to-b from-accent-fill-from to-accent-fill-to text-xs font-semibold text-on-accent transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {signingOut ? t.account.signingOut : t.account.signOutConfirm}
+                </button>
+              </div>
+            </div>
+          ) : confirming === "delete" ? (
             <div className="p-4">
               <p className="text-sm font-medium text-ink">{t.account.deleteTitle}</p>
               <p className="mt-1.5 text-xs leading-5 text-ink-muted">
@@ -196,7 +252,7 @@ export function AccountMenu() {
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setConfirming(false)}
+                  onClick={() => setConfirming(null)}
                   disabled={deleting}
                   className="h-9 flex-1 rounded-full border border-line-strong text-xs font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
                 >
@@ -217,12 +273,7 @@ export function AccountMenu() {
               <button
                 type="button"
                 role="menuitem"
-                // Out of the workspace and onto the sign-in screen: staying put
-                // would leave a signed-out visitor looking at a gate where the
-                // conversation used to be.
-                onClick={() =>
-                  void signOut().then(() => router.push("/signin?signed-out"))
-                }
+                onClick={() => setConfirming("signOut")}
                 className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-ink transition-colors hover:bg-surface-sunken"
               >
                 <SignOutIcon />
@@ -231,7 +282,7 @@ export function AccountMenu() {
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => setConfirming(true)}
+                onClick={() => setConfirming("delete")}
                 className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-danger transition-colors hover:bg-danger-soft"
               >
                 <TrashIcon />
