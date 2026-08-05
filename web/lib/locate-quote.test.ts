@@ -13,7 +13,13 @@
 
 import { describe, expect, it } from "vitest";
 
-import { locateQuote, segments, type TextItem } from "./locate-quote";
+import {
+  locateQuote,
+  locateQuoteInLines,
+  segments,
+  type Rect,
+  type TextItem,
+} from "./locate-quote";
 
 const PAGE_HEIGHT = 842;
 
@@ -132,5 +138,67 @@ describe("locateQuote", () => {
     // otherwise match across a cell boundary and highlight half of each.
     const cells = [run("Sigorta", 72, 683, 35), run("Süresi", 200, 683, 30)];
     expect(locateQuote(cells, PAGE_HEIGHT, "sigortasüresi")).toBeNull();
+  });
+});
+
+
+/**
+ * The OCR path.
+ *
+ * A scanned page has no text layer, so its geometry comes from the vision model
+ * at ingestion: one box per visual line, each table cell its own line. The
+ * numbers below are the real ones read off page 1 of the scanned sample.
+ */
+describe("locateQuoteInLines", () => {
+  const line = (text: string, top: number, x0: number, x1: number) => ({
+    text,
+    bbox: { x0, top, x1, bottom: top + 9 } as Rect,
+  });
+
+  const COVERAGE_TABLE = [
+    line("Ameliyat", 381.4, 75.1, 111.4),
+    line("Limitsiz", 381.4, 268.0, 310.0),
+    line("Yok", 381.4, 428.9, 446.8),
+    line("Ayakta Tedavi (muayene)", 399.9, 75.1, 182.9),
+    line("Yılda 8 kez", 399.9, 268.0, 320.0),
+    line("%20", 399.9, 428.9, 446.8),
+    line("Fizik Tedavi", 437.0, 75.1, 122.7),
+    line("Yılda 20 seans", 437.0, 268.0, 335.0),
+    line("%20", 437.0, 428.9, 446.8),
+  ];
+
+  it("merges the cells of one row and stops there", () => {
+    const rects = locateQuoteInLines(
+      COVERAGE_TABLE,
+      "Ayakta Tedavi (muayene) | Yılda 8 kez | %20",
+    );
+
+    expect(rects).toHaveLength(1);
+    const [rect] = rects!;
+    expect(rect.x0).toBeCloseTo(75.1, 1);
+    expect(rect.x1).toBeCloseTo(446.8, 1);
+
+    // The rows above and below sit 18.5pt and 37pt away. Reaching either of
+    // them is the whole failure mode: on a scan the alternative to a precise
+    // box is the entire page, so a highlight that drifts one row is worse than
+    // it looks — there is nothing else on screen to correct it against.
+    expect(rect.top).toBeGreaterThan(381.4 + 9);
+    expect(rect.bottom).toBeLessThan(437.0);
+  });
+
+  it("matches a cell on its own", () => {
+    const rects = locateQuoteInLines(COVERAGE_TABLE, "Fizik Tedavi");
+    expect(rects).toHaveLength(1);
+    expect(rects![0].top).toBeCloseTo(437.0, 0);
+  });
+
+  it("returns null when a page has no stored geometry", () => {
+    // Every document ingested before the OCR pass reported boxes. The caller
+    // falls back to the chunk box, which is what those pages had all along.
+    expect(locateQuoteInLines([], "Ayakta Tedavi")).toBeNull();
+  });
+
+  it("returns null when the quote is on another page", () => {
+    expect(locateQuoteInLines(COVERAGE_TABLE, "Doğum teminatı")).toBeNull();
   });
 });

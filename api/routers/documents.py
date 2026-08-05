@@ -342,6 +342,43 @@ async def delete_document(document_id: UUID, user: CurrentUser, state: State) ->
         )
 
 
+class PageLine(BaseModel):
+    text: str
+    bbox: dict[str, float]
+
+
+class PageLines(BaseModel):
+    page: int
+    lines: list[PageLine]
+
+
+@router.get(
+    "/{document_id}/pages/{page}/lines",
+    response_model=PageLines,
+    summary="Line geometry for an OCR'd page",
+)
+async def page_lines(document_id: UUID, page: int, user: MaybeUser, state: State) -> PageLines:
+    """Where each transcribed line sits, for one page.
+
+    Only OCR'd pages have any. A page with a text layer returns an empty list,
+    and the viewer is expected to search the text layer itself rather than ask
+    here — the answer would be the same and the round trip would be wasted.
+
+    Fetched on demand, per page, when a citation is clicked: a thirty-page scan
+    runs to well over a thousand lines, and almost none of them are ever needed.
+    """
+    row = await state.pool.fetchrow(
+        "select id from documents where id = $1 and (is_sample or user_id = $2)",
+        document_id,
+        user.id if user else None,
+    )
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such document.")
+
+    lines = await state.store.page_lines(document_id, page)
+    return PageLines(page=page, lines=[PageLine(text=text, bbox=bbox) for text, bbox in lines])
+
+
 class Capabilities(BaseModel):
     stages: list[str]
     max_upload_bytes: int

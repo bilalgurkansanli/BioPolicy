@@ -175,6 +175,15 @@ class IngestionPipeline:
             chunks=chunks,
             embeddings=embeddings,
         )
+        # Only OCR'd pages produce these. Called unconditionally so that a
+        # re-ingest which no longer needs OCR clears the previous run's boxes
+        # rather than leaving them to be drawn over a page that now has real
+        # text underneath.
+        await self._store.replace_page_lines(
+            document_id=document.id,
+            user_id=document.user_id,
+            lines_by_page=parsed.ocr_lines,
+        )
         await self._documents.mark_ready(document.id)
 
         result = IngestionResult(

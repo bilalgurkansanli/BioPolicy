@@ -19,6 +19,7 @@ import type {
   DocumentStatus,
   DocumentSummary,
   HistoryTurn,
+  PageLines,
   UploadTicket,
 } from "./types";
 
@@ -132,6 +133,24 @@ export function fetchDocumentStatus(
   signal?: AbortSignal,
 ): Promise<DocumentStatus> {
   return request<DocumentStatus>(`/api/documents/${documentId}`, {
+    signal,
+    auth: "optional",
+  });
+}
+
+/**
+ * Line geometry for one OCR'd page.
+ *
+ * Only ever called for a page whose text layer turned up nothing. A page with
+ * text answers the same question locally, and a thirty-page scan runs to well
+ * over a thousand lines of which almost none are needed.
+ */
+export function fetchPageLines(
+  documentId: string,
+  page: number,
+  signal?: AbortSignal,
+): Promise<PageLines> {
+  return request<PageLines>(`/api/documents/${documentId}/pages/${page}/lines`, {
     signal,
     auth: "optional",
   });

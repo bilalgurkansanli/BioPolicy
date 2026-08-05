@@ -83,6 +83,12 @@ export type DocumentStatus = {
   error: string | null;
 };
 
+export type PageLines = {
+  page: number;
+  /** One visual row of text, boxed. Empty for a page with a text layer. */
+  lines: { text: string; bbox: BBox }[];
+};
+
 export type Capabilities = {
   stages: string[];
   max_upload_bytes: number;

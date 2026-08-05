@@ -598,6 +598,7 @@ export function Workspace() {
           } lg:block`}
         >
           <PdfViewer
+            documentId={selected?.id ?? null}
             url={
               viewing && viewing.documentId === selected?.id
                 ? viewing.url

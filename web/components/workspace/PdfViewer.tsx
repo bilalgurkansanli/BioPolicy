@@ -4,7 +4,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 
 import { useLocale } from "@/components/LocaleProvider";
-import { locateQuote, type Rect, type TextItem } from "@/lib/locate-quote";
+import { fetchPageLines } from "@/lib/api";
+import {
+  locateQuote,
+  locateQuoteInLines,
+  type Rect,
+  type TextItem,
+} from "@/lib/locate-quote";
 import type { BBox } from "@/lib/types";
 
 export type Highlight = {
@@ -40,9 +46,13 @@ async function loadPdfjs() {
 }
 
 export function PdfViewer({
+  documentId,
   url,
   highlight,
 }: {
+  /** Needed to ask for OCR geometry; the signed URL says nothing about which
+      document it is. */
+  documentId: string | null;
   url: string | null;
   highlight: Highlight | null;
 }) {
@@ -115,19 +125,28 @@ export function PdfViewer({
         const page = await pdf.getPage(highlight.page);
         const content = await page.getTextContent();
         const height = page.getViewport({ scale: 1 }).height;
-        const rects = locateQuote(
+        let rects = locateQuote(
           content.items as TextItem[],
           height,
           highlight.quote,
         );
+
+        // No text layer, or a quote that is not in it: the page was scanned.
+        // Its geometry exists, but it was produced by the OCR pass and lives on
+        // the server rather than in the file the browser is holding.
+        if (!rects && documentId) {
+          const { lines } = await fetchPageLines(documentId, highlight.page);
+          rects = locateQuoteInLines(lines, highlight.quote);
+        }
+
         if (!cancelled) {
           setLocated(
             rects ? { nonce: highlight.nonce, rects, precise: true } : fallback,
           );
         }
       } catch {
-        // A page with no text layer is a scan, not a failure. The block box is
-        // still the right region, just a coarser one.
+        // Nothing found and nothing to ask. The block box is still the right
+        // region, just a coarser one.
         if (!cancelled) setLocated(fallback);
       }
     })();
@@ -135,7 +154,7 @@ export function PdfViewer({
     return () => {
       cancelled = true;
     };
-  }, [pdf, highlight]);
+  }, [pdf, highlight, documentId]);
 
   const resolved =
     highlight && located && located.nonce === highlight.nonce ? located : null;

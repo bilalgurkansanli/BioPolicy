@@ -21,11 +21,18 @@
  * where precise highlighting matters most, so the quote is split on its
  * separators and each piece located on its own.
  *
+ * ## Two sources, one search
+ *
+ * A page with a text layer is searched through `getTextContent`. A scan has no
+ * text layer — every character is a pixel — so its geometry comes from the OCR
+ * pass instead, which reports one box per visual line and is stored at
+ * ingestion (`supabase/migrations/0008_page_lines.sql`). Both arrive here as
+ * positioned runs and go through exactly the same matching, so the OCR path
+ * inherits every case the text-layer path was fixed for.
+ *
  * ## What this does not handle
  *
- * Rotated pages, and pages with no text layer at all — a scan, where the
- * characters are pixels and `getTextContent` returns nothing. Both fall back to
- * the chunk box, which is the behaviour that existed before this file.
+ * Rotated pages. Those still fall back to the chunk box.
  */
 
 export type Rect = { x0: number; top: number; x1: number; bottom: number };
@@ -39,14 +46,27 @@ export type TextItem = {
   height: number;
 };
 
+/** A piece of text that knows where it is. Both sources reduce to this. */
+export type PositionedRun = { text: string; rect: Rect };
+
 /** Below this, a fragment matches too much to be worth highlighting. */
 const MIN_SEGMENT_CHARS = 3;
 
 /** Glyphs sit slightly outside their reported box; a little air avoids clipping. */
 const PADDING = 1.5;
 
-/** Two runs whose baselines differ by less than this are on the same line. */
+/** Two runs whose tops differ by less than this are on the same line. */
 const LINE_TOLERANCE = 3;
+
+/**
+ * The same, for OCR boxes.
+ *
+ * Wider because a vision model's boxes wobble by a point or two across a row,
+ * and two cells of one coverage row that fail to merge draw as two rectangles
+ * with a seam down the middle. Still far below the ~17pt between rows, so
+ * neighbouring rows cannot merge into each other.
+ */
+const OCR_LINE_TOLERANCE = 6;
 
 function isSpace(character: string): boolean {
   return /[\s ]/.test(character);
@@ -93,19 +113,19 @@ type Haystack = {
   text: string;
   /** `origin[i]` is the index in `raw` of normalised character `i`. */
   origin: number[];
-  /** `[start, end)` in `raw` for each item, in order. */
-  spans: { start: number; end: number; item: TextItem }[];
+  /** `[start, end)` in `raw` for each run, in order. */
+  spans: { start: number; end: number; run: PositionedRun }[];
 };
 
-export function buildHaystack(items: TextItem[]): Haystack {
+export function buildHaystack(runs: PositionedRun[]): Haystack {
   let raw = "";
   const spans: Haystack["spans"] = [];
 
-  for (const item of items) {
-    if (!item.str) continue;
+  for (const run of runs) {
+    if (!run.text) continue;
     const start = raw.length;
-    raw += item.str;
-    spans.push({ start, end: raw.length, item });
+    raw += run.text;
+    spans.push({ start, end: raw.length, run });
     // A separator between runs, so two adjacent cells cannot accidentally join
     // into a word that appears in neither.
     raw += " ";
@@ -156,14 +176,14 @@ export function segments(quote: string): string[] {
     .filter((piece) => piece.length >= MIN_SEGMENT_CHARS);
 }
 
-function itemsInRange(
+function runsInRange(
   haystack: Haystack,
   from: number,
   to: number,
-): TextItem[] {
+): PositionedRun[] {
   return haystack.spans
     .filter((span) => span.start < to && span.end > from)
-    .map((span) => span.item);
+    .map((span) => span.run);
 }
 
 function rectFor(item: TextItem, pageHeight: number): Rect {
@@ -186,11 +206,11 @@ function rectFor(item: TextItem, pageHeight: number): Rect {
  * A quote spanning three lines should read as three highlighted lines, not as
  * one box swallowing the margin between them.
  */
-function mergeByLine(rects: Rect[]): Rect[] {
+function mergeByLine(rects: Rect[], tolerance: number): Rect[] {
   const lines: Rect[] = [];
   for (const rect of [...rects].sort((a, b) => a.top - b.top || a.x0 - b.x0)) {
     const line = lines.find(
-      (candidate) => Math.abs(candidate.top - rect.top) <= LINE_TOLERANCE,
+      (candidate) => Math.abs(candidate.top - rect.top) <= tolerance,
     );
     if (line) {
       line.x0 = Math.min(line.x0, rect.x0);
@@ -205,22 +225,22 @@ function mergeByLine(rects: Rect[]): Rect[] {
 }
 
 /**
- * Where `quote` sits on the page, or `null` if it could not be found.
+ * Where `quote` sits, given runs of text that already know their own positions.
  *
  * `null` is a real answer and the caller is expected to fall back to the chunk
  * box rather than showing nothing: a coarse highlight is worth more than none.
  */
-export function locateQuote(
-  items: TextItem[],
-  pageHeight: number,
+export function locateInRuns(
+  runs: PositionedRun[],
   quote: string,
+  tolerance: number = LINE_TOLERANCE,
 ): Rect[] | null {
-  if (!quote.trim() || items.length === 0) return null;
+  if (!quote.trim() || runs.length === 0) return null;
 
-  const haystack = buildHaystack(items);
+  const haystack = buildHaystack(runs);
   if (!haystack.text) return null;
 
-  const matched: TextItem[] = [];
+  const matched: PositionedRun[] = [];
 
   // The whole quote first. When it is prose it appears verbatim, and matching
   // it in one piece keeps the highlight to exactly the sentence cited.
@@ -228,7 +248,7 @@ export function locateQuote(
   const wholeAt = whole ? haystack.text.indexOf(whole) : -1;
   if (wholeAt !== -1) {
     matched.push(
-      ...itemsInRange(
+      ...runsInRange(
         haystack,
         haystack.origin[wholeAt],
         haystack.origin[wholeAt + whole.length - 1] + 1,
@@ -239,7 +259,7 @@ export function locateQuote(
       const at = haystack.text.indexOf(segment);
       if (at === -1) continue;
       matched.push(
-        ...itemsInRange(
+        ...runsInRange(
           haystack,
           haystack.origin[at],
           haystack.origin[at + segment.length - 1] + 1,
@@ -249,5 +269,42 @@ export function locateQuote(
   }
 
   if (matched.length === 0) return null;
-  return mergeByLine(matched.map((item) => rectFor(item, pageHeight)));
+  return mergeByLine(
+    matched.map((run) => run.rect),
+    tolerance,
+  );
+}
+
+/**
+ * The text-layer entry point: pdf.js items, positioned by their baselines.
+ */
+export function locateQuote(
+  items: TextItem[],
+  pageHeight: number,
+  quote: string,
+): Rect[] | null {
+  return locateInRuns(
+    items
+      .filter((item) => item.str)
+      .map((item) => ({ text: item.str, rect: rectFor(item, pageHeight) })),
+    quote,
+  );
+}
+
+/**
+ * The OCR entry point: lines that already carry a box in page points.
+ *
+ * No conversion, because the geometry was normalised when it was stored. What
+ * it shares with the text-layer path is everything that matters — the folding,
+ * the segment splitting, the merge — so a fix to one is a fix to both.
+ */
+export function locateQuoteInLines(
+  lines: { text: string; bbox: Rect }[],
+  quote: string,
+): Rect[] | null {
+  return locateInRuns(
+    lines.map((line) => ({ text: line.text, rect: line.bbox })),
+    quote,
+    OCR_LINE_TOLERANCE,
+  );
 }

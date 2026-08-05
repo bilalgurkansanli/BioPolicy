@@ -3,7 +3,7 @@
 Division of labour, and why:
 
 * **pdfplumber** extracts text and detects tables. It is built on pdfminer.six,
-  which is slow but gives per-character font size, weight and position â€” which
+  which is slow but gives per-character font size, weight and position — which
   is what makes heading detection possible at all. It also reports table
   bounding boxes, which is what lets us subtract tables from the prose.
 * **pypdfium2** provides page count and rasterisation for the OCR path. It is a
@@ -13,7 +13,7 @@ The single most important behaviour in this file is that **a table's text is
 removed from the surrounding prose**. Without that subtraction every figure in a
 coverage schedule appears twice: once as a well-formed Markdown table and once
 as a soup of numbers with no column headings. The second copy is worse than
-useless â€” it competes with the good copy in retrieval and it is exactly the kind
+useless — it competes with the good copy in retrieval and it is exactly the kind
 of context that produces a confident wrong figure.
 """
 
@@ -31,7 +31,14 @@ import pypdfium2 as pdfium
 
 from api.constants import OCR_RENDER_DPI
 from api.ingest.protocols import OCRProvider
-from api.ingest.types import BBox, ParsedBlock, ParsedDocument, ParsedPage
+from api.ingest.types import (
+    BBox,
+    OcrLine,
+    ParsedBlock,
+    ParsedDocument,
+    ParsedPage,
+    TranscribedPage,
+)
 from api.logging_config import get_logger
 
 log = get_logger(__name__)
@@ -40,7 +47,7 @@ log = get_logger(__name__)
 # is treated as a heading.
 HEADING_SIZE_MARGIN = 0.6
 
-# A short, fully-bold line is a heading even at body size â€” which is how most
+# A short, fully-bold line is a heading even at body size — which is how most
 # policy sub-headings ("1.1 Teminat Tablosu") are actually set.
 MAX_BOLD_HEADING_CHARS = 90
 
@@ -62,7 +69,7 @@ class PdfParser:
         self._ocr = ocr
         self._ocr_concurrency = ocr_concurrency
 
-    async def _transcribe(self, rendered: dict[int, bytes]) -> dict[int, str]:
+    async def _transcribe(self, rendered: dict[int, bytes]) -> dict[int, TranscribedPage]:
         """OCR every page, several at a time.
 
         Measured first: two pages of the scanned sample took **162 seconds**
@@ -80,9 +87,9 @@ class PdfParser:
         assert self._ocr is not None
         semaphore = asyncio.Semaphore(self._ocr_concurrency)
 
-        async def one(number: int, image: bytes) -> tuple[int, str]:
+        async def one(number: int, image: bytes) -> tuple[int, TranscribedPage]:
             async with semaphore:
-                return number, await self._ocr.extract_markdown(image)  # type: ignore[union-attr]
+                return number, await self._ocr.transcribe(image)  # type: ignore[union-attr]
 
         started = time.monotonic()
         results = await asyncio.gather(*(one(n, img) for n, img in sorted(rendered.items())))
@@ -98,7 +105,7 @@ class PdfParser:
         ocr_pages = set(pages_to_ocr)
         document = ParsedDocument()
 
-        transcriptions: dict[int, str] = {}
+        transcriptions: dict[int, TranscribedPage] = {}
         if ocr_pages:
             if self._ocr is None:
                 raise RuntimeError(
@@ -127,9 +134,26 @@ class PdfParser:
                 )
 
                 if needs_ocr:
+                    transcribed = transcriptions.get(number, TranscribedPage(markdown=""))
+                    # The provider works in fractions of an image because it
+                    # never sees a page size. This is the only place that knows
+                    # one, so it is the only place the conversion belongs.
+                    if transcribed.lines:
+                        document.ocr_lines[number] = [
+                            OcrLine(
+                                text=line.text,
+                                bbox=BBox(
+                                    x0=line.bbox.x0 * width,
+                                    top=line.bbox.top * height,
+                                    x1=line.bbox.x1 * width,
+                                    bottom=line.bbox.bottom * height,
+                                ),
+                            )
+                            for line in transcribed.lines
+                        ]
                     document.blocks.extend(
                         _blocks_from_markdown(
-                            transcriptions.get(number, ""),
+                            transcribed.markdown,
                             page=number,
                             width=width,
                             height=height,
@@ -243,7 +267,7 @@ def _is_heading(line: dict[str, Any], body_size: float) -> tuple[bool, int]:
         return False, 0
 
     # WHY median rather than max: a single oversized glyph is common and means
-    # nothing â€” a bullet character, a superscript footnote marker, a currency
+    # nothing — a bullet character, a superscript footnote marker, a currency
     # symbol set in a different face. Taking the max made every bullet in an
     # exclusions list read as a heading, which shredded the section hierarchy
     # exactly where it matters most (Article 4 is where the exclusions live).
@@ -336,7 +360,7 @@ def _rows_to_markdown(rows: list[list[str | None]]) -> str:
     """Serialise an extracted table to a Markdown table.
 
     Empty rows are dropped, `None` cells become empty strings, and newlines
-    inside a cell are flattened â€” a literal newline would terminate the row and
+    inside a cell are flattened — a literal newline would terminate the row and
     silently corrupt every column after it.
     """
     cleaned: list[list[str]] = []
@@ -382,10 +406,13 @@ def _blocks_from_markdown(
 ) -> list[ParsedBlock]:
     """Turn a vision model's Markdown for one page into blocks.
 
-    Every block gets the full page as its bounding box. OCR gives us no reliable
-    geometry, and inventing a plausible-looking rectangle would make the
-    citation highlighting *appear* precise while pointing at the wrong place â€”
-    worse than honestly highlighting the whole page.
+    Every block still gets the full page as its bounding box. Blocks are built
+    from the Markdown, which carries no positions; the geometry the model
+    reports is per *line* and is stored separately, so a citation is located at
+    click time instead. Guessing which lines make up a block, in order to shrink
+    this box, would be inventing precision — and a box that looks exact while
+    pointing at the wrong clause is worse than one that is honestly the whole
+    page.
     """
     full_page = BBox(x0=0.0, top=0.0, x1=width, bottom=height)
     blocks: list[ParsedBlock] = []
