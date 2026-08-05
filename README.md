@@ -55,11 +55,50 @@ metrics below rather than in front of a user.
 
 ## Measured results
 
-_Pending — populated by the evaluation harness in Phase 5._
+70 questions, 30% adversarial negatives, against live models and a live
+database. A 2×2 ablation: the **prompt** (strict grounding versus naive) crossed
+with the **mechanisms** (citation binding and self-verification). Full report:
+[`eval/report.md`](./eval/report.md).
 
-The headline table will be an ablation: the same golden dataset run with the
-anti-hallucination layers off, then on. Including the results that aren't
-flattering.
+| Arm | Refusal accuracy | False-refusal | Balanced | $/question |
+|---|---:|---:|---:|---:|
+| naive prompt, no mechanisms | 86% | 0% | 93% | $0.0035 |
+| naive prompt **+ mechanisms** | 86% | 0% | 93% | $0.0062 |
+| **strict prompt**, no mechanisms | 100% | 2% | 99% | $0.0043 |
+| strict prompt + mechanisms *(shipped)* | 100% | 2% | 99% | $0.0067 |
+
+**The prompt did the work. The mechanisms did not.**
+
+Read the table by columns. Switching the *prompt* from naive to strict, with the
+mechanisms off the whole time, moved balanced accuracy 93% → 99% and refusal
+accuracy 86% → 100% — it fixed every missed refusal. Switching the *mechanisms*
+on, with the prompt held naive, moved balanced accuracy by zero: the same
+questions were answered and the same ones missed. Binding dropped one citation
+across 70 questions and verification suppressed none, while adding ~55% to the
+cost of every answer.
+
+This README was drafted expecting the opposite table — the safety net rescuing a
+mediocre baseline. It is published this way round because the alternative is the
+exact failure the project argues against.
+
+**Why the mechanisms missed:** the naive prompt's errors are *correct citations
+supporting an unwarranted inference*. Asked whether a stolen car is covered, it
+quotes the theft clause accurately and concludes the car is included. Binding
+checks the quote is real — it is. Verification checks the claim against the
+excerpt — the excerpt does say theft is covered. Neither is built to catch a
+valid quote used to support a conclusion the document never draws. That blind
+spot was invisible until this run measured it, and closing it needs a check on
+the *inferential* step, not on the quote.
+
+**What still isn't proven.** Citation validity is 100% in every arm, but a
+provider-enforced JSON schema makes invented chunk ids near-impossible by
+construction — the interesting half of binding, a quote absent from the chunk it
+names, has never been exercised. The report says so itself, in a section
+computed from the run rather than written by hand.
+
+The single false refusal is `com-012`: asked whether storm damage to stock in a
+yard is covered, the system refused rather than citing the "property in the open
+air" exclusion that answers it.
 
 ## Architecture
 
@@ -98,6 +137,12 @@ version:
 - **Hybrid retrieval, not pure vector.** Policy questions mix the semantic
   ("does this cover flooding?") with the exact ("Article 7.3", "TL 250.000").
   Vector search reliably misses the second kind.
+- **Stage events, not token streaming.** A streaming answer feels faster, but
+  citation binding and self-verification run *after* generation and can withhold
+  the answer entirely. Text already on screen can only be retracted, and a
+  retracted claim is still a delivered claim. The interface shows the real
+  pipeline stages instead — see
+  [ADR 010](./docs/adr/010-no-token-streaming.md).
 
 ## What this is not
 
@@ -105,9 +150,47 @@ BioPolicy summarises what a document says. It is **not legal or insurance
 advice**, it does not tell you whether to file a claim or sign anything, and it
 can be wrong. The citation is there so you can check it in one click.
 
-Uploaded documents are irreversibly deleted — file and vectors — after 24 hours.
-That promise is enforced by a scheduled job and
-[proven by an automated test](./api/tests), not by assertion.
+Uploaded documents are irreversibly deleted — file and vectors — after 24 hours,
+and you can delete one yourself at any time. That promise is enforced by a
+scheduled job and [proven by automated tests](./api/tests/test_retention.py),
+not by assertion.
+
+The order those tests pin is the whole guarantee: the file leaves object storage
+*first*, then the rows, then the audit entry. Deleting the rows first is the
+natural thing to write, and it loses the storage path — the purge reports
+success, the audit table agrees, and the PDF is still on disk with nothing left
+pointing at it.
+
+Spending is bounded in three layers: per-user daily quotas, a global budget
+breaker that counts spend the moment it happens rather than when the ledger
+catches up, and the provider console's own limit — the only one that still works
+when this code is wrong. The quotas are a courtesy: anonymous accounts are free
+to create, so they slow a determined visitor down rather than stopping one. The
+breaker is what actually bounds the bill.
+
+## The interface
+
+Three surfaces, all statically prerendered:
+
+- **`/`** — the claim, the numbers behind it, and what the system does not do.
+- **`/app`** — the workspace. A sample document on the right, the conversation on
+  the left, and citation chips that put a highlight on the clause they came from.
+  Each answer carries its confidence, its groundedness score, whether the quote
+  was verbatim or matched approximately, and what it cost.
+- **`/eval`** — [`eval/report.md`](./eval/report.md) rendered verbatim, including
+  the finding that the mechanisms changed no decisions.
+
+You can also upload your own PDF. The file goes straight from the browser to
+object storage against a signed URL — it never passes through the API — and
+ingestion runs asynchronously with the real pipeline stages visible while it
+works. There is no signup: the session is an anonymous Supabase account created
+on first use, because a system that deletes your document tomorrow has no
+business keeping your email address ([ADR 012](./docs/adr/012-anonymous-accounts.md)).
+
+Turkish and English, switched from the header. The locale is a stored preference
+rather than a URL segment, because the interface language and the *document's*
+language are independent here — see
+[ADR 011](./docs/adr/011-locale-is-a-preference.md).
 
 ## Running it locally
 

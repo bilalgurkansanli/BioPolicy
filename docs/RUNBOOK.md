@@ -11,24 +11,64 @@ Things that must not be guessed, with the date they were checked.
 
 | Fact | Value | Verified |
 |---|---|---|
-| Primary LLM model ID | `claude-haiku-4-5-20251001` | 2026-08-03 |
-| Gemini fallback LLM model ID | _not yet verified — see below_ | — |
-| Gemini vision OCR model ID | _not yet verified — see below_ | — |
-| Embedding model | `gemini-embedding-001` | — |
-| Embedding dimensions requested | 1536 (of 3072 native) | 2026-08-03 |
-| `turkish` FTS config present in Postgres | _not yet checked_ | — |
+| Primary LLM model ID | `claude-haiku-4-5-20251001` (alias: `claude-haiku-4-5`) | 2026-08-04 |
+| Haiku 4.5 pricing | **$1.00 / $5.00** per million input / output tokens | 2026-08-04 |
+| Haiku 4.5 context / max output | **200K / 64K** — smaller than the Opus tier's 1M/128K | 2026-08-04 |
+| Haiku 4.5 rejects `effort` | yes — do not pass `output_config.effort` | 2026-08-04 |
+| Haiku 4.5 accepts `temperature` | yes — unlike the newest Opus/Sonnet models | 2026-08-04 |
+| Gemini fallback LLM model ID | `gemini-3.6-flash` | 2026-08-04 |
+| Gemini vision OCR model ID | `gemini-3.6-flash` | 2026-08-04 |
+| Gemini pricing | _not yet verified — configuration, defaults to unpriced_ | — |
+| Embedding model | `gemini-embedding-001` | 2026-08-04 |
+| Embedding dimensions requested | **1536 confirmed by a live call** (of 3072 native) | 2026-08-04 |
+| `turkish` FTS config present in Postgres | **yes** — `fts_tr` built with `'turkish'::regconfig`, not the `simple` fallback | 2026-08-04 |
+| HNSW index on `vector(1536)` | built successfully — C3 holds end to end | 2026-08-04 |
 
-### Verifying the Gemini model IDs
+### A listed model is not necessarily a callable model
 
-Per [ADR 004](./adr/004-model-ids-are-verified-not-recalled.md) these ship empty
-rather than guessed. To fill them in, with `GOOGLE_API_KEY` set:
+`gemini-2.5-flash` appears in `models.list()` and returns **404 — "no longer
+available to new users"** when actually called. Enumerating the model list is
+therefore *not* sufficient verification; only a real request is. This is why
+`list_models` pings rather than just lists.
+
+`gemini-flash-latest` is deliberately **not** used. It is a moving alias, and
+ADR 004's reasoning applies unchanged: a model that can change under you makes
+every number in `eval/report.md` non-reproducible. Pin the dated id.
+
+### The first thing to run once keys exist
 
 ```bash
 uv run python -m api.scripts.list_models
 ```
 
-Record the chosen IDs and today's date in the table above, then set
-`GEMINI_FALLBACK_MODEL` and `GEMINI_OCR_MODEL` in every environment.
+This is not just a listing. It:
+
+1. Enumerates Gemini models by capability, so `GEMINI_FALLBACK_MODEL` and
+   `GEMINI_OCR_MODEL` can be filled in from a live list rather than guessed
+   ([ADR 004](./adr/004-model-ids-are-verified-not-recalled.md)).
+2. Pings the Anthropic model with one tiny request.
+3. **Tests constraint C3 for real** — makes an actual embedding call and
+   measures the returned vector. The entire storage design assumes
+   `gemini-embedding-001` honours `output_dimensionality: 1536`. Until this
+   passes, that is a documented assumption, not a fact. **Do not run migrations
+   or ingest anything until it does.**
+
+A full run costs a fraction of a cent. Record the chosen model IDs and today's
+date in the table above.
+
+### Gemini pricing
+
+Not hardcoded, by design — the same do-not-fabricate rule that governs model IDs
+governs prices. Register them at startup with a verification date:
+
+```python
+from api.pricing import register
+register("gemini-embedding-001", input_per_mtok=..., output_per_mtok=..., verified_on="YYYY-MM-DD")
+```
+
+Until registered, a Gemini call raises `UnpricedModelError` rather than being
+recorded as free. That is deliberate: a zero rate does not make a call free, it
+makes it invisible to the circuit breaker.
 
 ### Verifying the Turkish text-search configuration
 
@@ -46,6 +86,48 @@ explaining it.
 
 ---
 
+## Connecting to Postgres
+
+Two things about `DATABASE_URL` that each cost real debugging time:
+
+**1. Percent-encode the password.** A Postgres password containing `@` `:` `/`
+`?` `#` `[` `]` or `%` must be encoded in the URI. Unencoded, the `@` is read as
+the userinfo/host separator, the host becomes a fragment of the password, and
+the port becomes garbage. asyncpg then fails with
+`invalid literal for int() with base 10: 'uF'` — a message that mentions
+neither passwords nor URIs. `config.py` now catches this at startup and says so
+plainly, but encode it correctly in the first place:
+
+```bash
+python -c "import urllib.parse,getpass; print(urllib.parse.quote(getpass.getpass(), safe=''))"
+```
+
+**2. The transaction pooler needs `statement_cache_size=0`.** We use Supabase's
+transaction pooler (port **6543**), which is the right choice for a
+scale-to-zero deployment — short-lived instances, many of them, none holding a
+session open. But pgbouncer in transaction mode hands a different backend
+connection to each statement, while asyncpg caches server-side prepared
+statements by name and assumes they persist. The two disagree *intermittently*,
+surfacing as `prepared statement "__asyncpg_stmt_x__" does not exist` on a query
+that worked moments earlier. Every `asyncpg.connect` / pool in this project
+passes `statement_cache_size=0`.
+
+The session pooler (port 5432) avoids the issue and needs no flag, at the cost
+of holding a connection per client — the wrong trade for serverless.
+
+## Applying migrations
+
+```bash
+uv run python -m api.scripts.migrate --status
+```
+
+```bash
+uv run python -m api.scripts.migrate
+```
+
+Forward-only, numerically ordered, one transaction each, checksummed. Editing a
+migration that has already run is refused rather than silently ignored.
+
 ## Local development
 
 ```bash
@@ -61,7 +143,30 @@ cd web && npm run dev
 ```
 
 The frontend proxies `/api/*` to `http://127.0.0.1:8000` by default; override
-with `API_ORIGIN`.
+with `API_ORIGIN` in `web/.env.local`.
+
+### Before uploads will work: enable anonymous sign-ins
+
+Uploading needs an identity, and this project uses anonymous accounts rather
+than a signup form ([ADR 012](./adr/012-anonymous-accounts.md)). Anonymous
+sign-ins are **off by default** on a new Supabase project.
+
+Dashboard → **Authentication** → **Sign In / Providers** → enable **Anonymous
+sign-ins**.
+
+Until that is on, `signInAnonymously()` returns `anonymous_provider_disabled`
+and every upload fails. The interface detects that specific error and names the
+setting, so the symptom is a sentence pointing at the toggle rather than a
+generic sign-in failure. Verify from the shell:
+
+```bash
+curl -s -X POST "$SUPABASE_URL/auth/v1/signup" -H "apikey: $SUPABASE_ANON_KEY" -H 'Content-Type: application/json' -d '{}'
+```
+
+A JSON body containing `access_token` means it is on; `anonymous_provider_disabled` means it is not.
+
+`web/.env.local` also has to exist, holding `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` — see `.env.example`.
 
 Quality gates, all of which CI also runs:
 
@@ -201,3 +306,26 @@ that is a broken promise, not a bug backlog item.
    API rather than raw SQL.
 5. If documents outlived their window, that is worth a note in the README's
    honesty section. This project does not get to hide its own failures.
+
+Both scheduled jobs call back into the API rather than running SQL, so they need
+`app_settings` populated:
+
+```sql
+insert into app_settings (key, value) values
+  ('api_base_url', 'https://your-api-host'),
+  ('purge_job_secret', 'the same value as PURGE_JOB_SECRET')
+on conflict (key) do update set value = excluded.value, updated_at = now();
+```
+
+Until both rows exist the jobs log a warning and do nothing, which is deliberate
+— migrations must apply cleanly to an unconfigured project. To check the purge
+end to end by hand:
+
+```bash
+curl -s -X POST "$API_BASE/api/internal/purge" -H "X-Job-Secret: $PURGE_JOB_SECRET"
+```
+
+It answers `{"purged": n, "chunks_deleted": n, "failed": n}`. A non-zero
+`failed` means the storage object could not be deleted; those rows are kept
+deliberately and retried on the next sweep, because a row without its file is
+the one state retention must never produce.

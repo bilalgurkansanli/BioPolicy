@@ -125,6 +125,45 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _database_url_is_parseable(self) -> Settings:
+        """Catch an unencoded password before asyncpg does.
+
+        A Postgres password containing `@` or `:` must be percent-encoded in a
+        connection URI. Unencoded, the `@` is read as the userinfo/host
+        separator and everything shifts: the host becomes a fragment of the
+        password and the port becomes garbage. asyncpg then fails deep in its
+        own parser with `invalid literal for int() with base 10: 'uF'` — a
+        message that says nothing about passwords and sends you looking at the
+        wrong thing entirely.
+
+        This turns that into a message naming the actual problem, at startup.
+        """
+        if not self.database_url:
+            return self
+
+        from urllib.parse import urlparse
+
+        try:
+            parsed = urlparse(self.database_url)
+            port = parsed.port  # raises if the port is not an integer
+        except ValueError as exc:
+            raise ValueError(
+                "DATABASE_URL could not be parsed. The usual cause is a password "
+                "containing a character that must be percent-encoded in a URI "
+                "(@ : / ? # [ ] %). Encode just the password:\n"
+                '  python -c "import urllib.parse,getpass; '
+                "print(urllib.parse.quote(getpass.getpass(), safe=''))\"\n"
+                f"Underlying error: {exc}"
+            ) from exc
+
+        if not parsed.hostname or port is None:
+            raise ValueError(
+                "DATABASE_URL is missing a host or port. Expected the form "
+                "postgresql://user:password@host:port/database"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _sanity_check_limits(self) -> Settings:
         if self.max_ocr_page_count > self.max_page_count:
             raise ValueError(

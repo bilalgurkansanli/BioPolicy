@@ -188,6 +188,121 @@
       "expected_answer_summary": "Five business days."
     },
     {
+      "id": "knt-018",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "table",
+      "question": "Güneş enerjisi paneli hasarı için ne kadar teminat var?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Güneş Enerjisi Paneli", "120.000"],
+      "expected_answer_summary": "120.000 TL, ek prim (%8) ödenmesi ve poliçede belirtilmesi kaydıyla.",
+      "notes": "Lives in the SECOND coverage table, deep in the document. Retrieving the main table instead produces a confident answer from the wrong one — this is the question the two-table layout exists to test."
+    },
+    {
+      "id": "knt-019",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Ek teminatlarda muafiyet ne kadar uygulanıyor?",
+      "expected_answer_found": true,
+      "expected_evidence": ["1.500 TL muafiyet"],
+      "expected_answer_summary": "1.500 TL, ve bu muafiyet Madde 1.1'deki muafiyetlerden bağımsızdır; her ek teminat hasarı için ayrı düşülür.",
+      "notes": "The main table has its own per-peril deductibles. Answering with one of those instead of the flat 1.500 TL is the natural failure."
+    },
+    {
+      "id": "knt-020",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Evimdeki tablolar ve sanat eserleri teminat altında mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["koleksiyon niteliği", "Sanat Eseri ve Tablo", "200.000"],
+      "expected_answer_summary": "Ana teminatta değil — Madde 4.9 koleksiyon niteliğindeki eşyayı istisna ediyor. Ancak Madde 16.1'de ek prim karşılığı 200.000 TL'lik isteğe bağlı teminat var.",
+      "notes": "Excluded by the base policy and offered as a paid rider — the answer needs both clauses, and they sit at opposite ends of the document."
+    },
+    {
+      "id": "knt-021",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Eksper raporuna kaç gün içinde itiraz edebilirim?",
+      "expected_answer_found": true,
+      "expected_evidence": ["on beş"],
+      "expected_answer_summary": "Raporun tebliğinden itibaren 15 gün."
+    },
+    {
+      "id": "knt-022",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Tazminat talebim ne kadar sürede zamanaşımına uğrar?",
+      "expected_answer_found": true,
+      "expected_evidence": ["iki yıl geçmekle zamanaşımına"],
+      "expected_answer_summary": "Hasar tarihinden itibaren iki yıl. Yazılı başvuru zamanaşımını keser."
+    },
+    {
+      "id": "knt-023",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Başka bir eve taşınıyorum, bildirmezsem ne olur?",
+      "expected_answer_found": true,
+      "expected_evidence": ["beş iş günü önce", "yeni adreste meydana gelen"],
+      "expected_answer_summary": "Taşınmadan en az beş iş günü önce bildirim gerekiyor; bildirilmezse yeni adresteki hasarlar kapsam dışı."
+    },
+    {
+      "id": "knt-024",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Üç yaşından yeni eşyamda yıpranma payı düşülür mü?",
+      "expected_answer_found": true,
+      "expected_evidence": ["üç yaşından küçük eşya için uygulanmaz"],
+      "expected_answer_summary": "Hayır, üç yaşından küçük eşya için yıpranma payı uygulanmıyor."
+    },
+    {
+      "id": "knt-025",
+      "document": "konut-sigortasi-tr",
+      "lang": "en",
+      "category": "cross_lingual",
+      "question": "How long do I have before a claim becomes time-barred?",
+      "expected_answer_found": true,
+      "expected_evidence": ["iki yıl geçmekle zamanaşımına"],
+      "expected_answer_summary": "Two years from the date of the loss; a written application interrupts it."
+    },
+    {
+      "id": "knt-026",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Hasarı ödeyen sigortacı, zarara sebep olan kişiye rücu edebilir mi?",
+      "expected_answer_found": true,
+      "expected_evidence": ["halef olur"],
+      "expected_answer_summary": "Evet, ödediği tazminat kadar sigortalının üçüncü kişilere karşı haklarına halef olur."
+    },
+    {
+      "id": "knt-neg-008",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Ek teminat olarak evcil hayvan sağlık masrafları alınabilir mi?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Ek teminat tablosunda evcil hayvan sağlık teminatı yok. Madde 4.5 evcil hayvanların verdiği zararı istisna ediyor ama bu farklı bir konu.",
+      "notes": "Now that an optional-riders table exists, 'is X available as a rider?' is a plausible question with a genuinely absent answer. Article 4.5 mentions pets in an unrelated sense, which is the trap."
+    },
+    {
+      "id": "knt-neg-009",
+      "document": "konut-sigortasi-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Eksper ücretini kim öder?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "Madde 7 eksper atama sürecini ve itiraz süresini düzenliyor ama ücretin kime ait olduğunu söylemiyor.",
+      "notes": "Adjacent-but-absent: the article the retriever will surface is genuinely about loss adjusters, and genuinely silent on fees. Harder than a topic that appears nowhere."
+    },
+    {
       "id": "knt-neg-001",
       "document": "konut-sigortasi-tr",
       "lang": "tr",

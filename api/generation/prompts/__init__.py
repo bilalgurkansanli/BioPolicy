@@ -21,6 +21,16 @@ ANSWER = "answer_v1"
 VERIFY = "verify_v1"
 REWRITE = "rewrite_v1"
 
+# The baseline arm of the evaluation, not a production prompt.
+#
+# `answer_naive_v1` is what a competent developer writes on a first pass:
+# helpful, asks for citations, produces the right JSON. What it does not do is
+# forbid outside knowledge, demand verbatim quotes, or say that "not in the
+# document" is an acceptable answer. It is deliberately a fair baseline rather
+# than a strawman — the comparison is only worth publishing if the thing being
+# compared against is what someone would actually ship.
+ANSWER_NAIVE = "answer_naive_v1"
+
 
 @lru_cache(maxsize=16)
 def load(name: str) -> str:

@@ -27,6 +27,7 @@ flags to be left half-on in production.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from api.generation import prompts
@@ -122,12 +123,18 @@ class Answerer:
         enable_citation_binding: bool = True,
         enable_verification: bool = True,
         max_tokens: int = ANSWER_MAX_TOKENS,
+        prompt_name: str = prompts.ANSWER,
     ) -> None:
         self._llm = llm
         self._verifier = verifier
         self._bind = enable_citation_binding
         self._verify = enable_verification and verifier is not None
         self._max_tokens = max_tokens
+        # Swappable so the evaluation can run the same pipeline against the
+        # strict grounding prompt and a naive one. The prompt is the largest
+        # single lever in this system and it belongs in the ablation alongside
+        # the mechanisms, not held fixed underneath them.
+        self._prompt_name = prompt_name
 
     async def answer(
         self,
@@ -135,7 +142,16 @@ class Answerer:
         question: str,
         context: AssembledContext,
         language: str = "tr",
+        on_stage: Callable[[str], Awaitable[None]] | None = None,
     ) -> AnswerOutcome:
+        """Produce a grounded answer, or a refusal.
+
+        `on_stage` is awaited when the pipeline moves to a step the caller may
+        want to show. Only the generation → verification boundary is reported,
+        because it is the only one long enough for a user to notice and the only
+        one whose label would otherwise be a guess: this method knows whether
+        verification is going to run at all, and the HTTP layer does not.
+        """
         usage: list[UsageRecord] = []
 
         # 1. Nothing retrieved. Refuse without spending anything.
@@ -148,7 +164,7 @@ class Answerer:
         # 2. Generate.
         try:
             response = await self._llm.complete(
-                system=prompts.render(prompts.ANSWER, reply_language=_language_name(language)),
+                system=prompts.render(self._prompt_name, reply_language=_language_name(language)),
                 turns=[Turn(role="user", content=_user_turn(question, context))],
                 max_tokens=self._max_tokens,
                 temperature=0.0,
@@ -208,9 +224,15 @@ class Answerer:
         groundedness: float | None = None
         verified = False
         if self._verify and self._verifier is not None:
-            result = await self._verifier.verify(draft=payload.answer, context=context)
-            if result is not None:
-                groundedness = result.groundedness
+            if on_stage is not None:
+                await on_stage("verifying")
+            verification = await self._verifier.verify(draft=payload.answer, context=context)
+            # Recorded before the suppression check below: a verification that
+            # decided to withhold the answer still cost money, and the budget
+            # breaker has to see it.
+            usage.extend(verification.usage)
+            if verification.result is not None:
+                groundedness = verification.result.groundedness
                 verified = True
 
             if classify(groundedness) == "suppress":

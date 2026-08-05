@@ -21,6 +21,67 @@ from pydantic import BaseModel, Field, field_validator
 Confidence = Literal["high", "medium", "low"]
 ClaimSupport = Literal["SUPPORTED", "PARTIAL", "UNSUPPORTED"]
 
+# --- JSON Schemas for provider-enforced structured output ---------------------
+#
+# Claude Haiku 4.5 and Gemini both support constraining output to a schema, which
+# is strictly better than asking for JSON in the prompt and hoping. The prompt
+# still describes the shape — a model that understands *why* each field exists
+# fills it in better — but the shape itself is now enforced by the provider.
+#
+# Written by hand rather than generated from the pydantic models. The API
+# requires `additionalProperties: false` on every object and every property
+# listed in `required`, which is not what pydantic emits by default; hand-written
+# schemas make the contract visible at the point it matters instead of hiding it
+# behind a post-processing step.
+
+ANSWER_JSON_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "answer_found": {"type": "boolean"},
+        "answer": {"type": "string"},
+        "citations": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "chunk_id": {"type": "string"},
+                    "quote": {"type": "string"},
+                },
+                "required": ["chunk_id", "quote"],
+                "additionalProperties": False,
+            },
+        },
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "caveats": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["answer_found", "answer", "citations", "confidence", "caveats"],
+    "additionalProperties": False,
+}
+
+VERIFICATION_JSON_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "claims": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {"type": "string"},
+                    "support": {
+                        "type": "string",
+                        "enum": ["SUPPORTED", "PARTIAL", "UNSUPPORTED"],
+                    },
+                    "note": {"type": "string"},
+                },
+                "required": ["claim", "support", "note"],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["claims"],
+    "additionalProperties": False,
+}
+
 
 class Citation(BaseModel):
     """A claim by the model that some chunk says something.

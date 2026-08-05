@@ -153,8 +153,11 @@ def test_english_schedule_of_limits_survives(commercial: ParsedDocument) -> None
 
 
 def test_pages_are_one_based_and_bboxes_are_top_left(konut: ParsedDocument) -> None:
-    assert konut.page_count == 2
-    assert {p.number for p in konut.pages} == {1, 2}
+    # Deliberately not pinned to an exact page count: the sample document grows
+    # when the eval needs a harder corpus, and a test that breaks on that is
+    # asserting the fixture rather than the parser.
+    assert konut.page_count >= 2
+    assert {p.number for p in konut.pages} == set(range(1, konut.page_count + 1))
 
     for block in konut.blocks:
         assert block.page >= 1

@@ -9,10 +9,15 @@ on-topic and about the wrong clause.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from uuid import UUID
 
-from api.constants import CONTEXT_CHUNK_COUNT, MEMORY_VERBATIM_TURNS
+from api.constants import (
+    CONTEXT_CHUNK_COUNT,
+    MEMORY_VERBATIM_TURNS,
+    QUERY_REWRITE_TIMEOUT_SECONDS,
+)
 from api.generation import prompts
 from api.generation.llm import LLMProvider, ProviderError, Turn, UsageRecord
 from api.logging_config import get_logger
@@ -117,7 +122,10 @@ class HybridRetriever:
         retrieval and costs one small call.
 
         A failure here is not fatal: we fall back to the question as typed,
-        which is what a system without rewriting would have used anyway.
+        which is what a system without rewriting would have used anyway. That
+        fallback is also why the call gets its own short timeout — being slow is
+        a failure mode too, and the user is already waiting with nothing on
+        screen until every check has run (ADR 010).
         """
         if not self._enable_rewrite or not history or self._rewriter is None:
             return question, False, []
@@ -126,21 +134,27 @@ class HybridRetriever:
         transcript = "\n".join(f"{turn.role}: {turn.content}" for turn in recent)
 
         try:
-            response = await self._rewriter.complete(
-                system="You rewrite follow-up questions into standalone search queries.",
-                turns=[
-                    Turn(
-                        role="user",
-                        content=prompts.render(
-                            prompts.REWRITE, history=transcript, question=question
-                        ),
-                    )
-                ],
-                max_tokens=REWRITE_MAX_TOKENS,
-                temperature=0.0,
-            )
+            async with asyncio.timeout(QUERY_REWRITE_TIMEOUT_SECONDS):
+                response = await self._rewriter.complete(
+                    system="You rewrite follow-up questions into standalone search queries.",
+                    turns=[
+                        Turn(
+                            role="user",
+                            content=prompts.render(
+                                prompts.REWRITE, history=transcript, question=question
+                            ),
+                        )
+                    ],
+                    max_tokens=REWRITE_MAX_TOKENS,
+                    temperature=0.0,
+                )
         except ProviderError as exc:
             log.warning("rewrite_unavailable", error=str(exc))
+            return question, False, []
+        except TimeoutError:
+            # No usage is recorded: the call was abandoned, and billing for it
+            # is the provider's business, not something we can measure.
+            log.warning("rewrite_timed_out", seconds=QUERY_REWRITE_TIMEOUT_SECONDS)
             return question, False, []
 
         rewritten = response.text.strip().strip('"').strip()

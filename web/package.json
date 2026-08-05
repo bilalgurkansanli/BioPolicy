@@ -3,15 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "copy-pdf-worker": "node scripts/copy-pdf-worker.mjs",
+    "predev": "npm run copy-pdf-worker",
     "dev": "next dev",
+    "prebuild": "npm run copy-pdf-worker",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.0",
     "next": "16.3.0",
+    "pdfjs-dist": "^6.2.108",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

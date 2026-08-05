@@ -2,17 +2,25 @@
 
 from __future__ import annotations
 
+from unittest import mock
 from uuid import uuid4
 
 import pytest
 
 from api.constants import RRF_K
 from api.generation.llm import Turn
+from api.retrieval import hybrid
 from api.retrieval.fusion import fuse, reciprocal_rank_fusion
 from api.retrieval.hybrid import HybridRetriever
 from api.retrieval.store import to_pgvector
 from api.retrieval.types import RetrievedChunk
-from api.tests.fakes import FailingLLM, ScriptedLLM, StubEmbedder, StubStore
+from api.tests.fakes import (
+    FailingLLM,
+    ScriptedLLM,
+    SlowLLM,
+    StubEmbedder,
+    StubStore,
+)
 
 DOC = uuid4()
 USER = uuid4()
@@ -234,6 +242,28 @@ async def test_a_runaway_rewrite_is_rejected() -> None:
 
     assert result.search_query == "peki ya sel?"
     assert result.rewritten is False
+
+
+async def test_a_slow_rewriter_is_abandoned_rather_than_waited_on() -> None:
+    """Being slow is a failure mode, not a lesser one.
+
+    The rewrite is an optimisation with a safe fallback, and the user is already
+    waiting with nothing on screen until every check has run (ADR 010). A
+    provider that stalls must cost the answer a bounded delay, not an unbounded
+    one — this was observed as a ~2.5 minute stall before the ceiling existed.
+    """
+    slow = SlowLLM(delay_seconds=30.0)
+
+    store = StubStore([])
+    with mock.patch.object(hybrid, "QUERY_REWRITE_TIMEOUT_SECONDS", 0.01):
+        result = await HybridRetriever(store, StubEmbedder(), rewriter=slow).retrieve(
+            question="peki ya sel?", document_id=DOC, user_id=USER, history=HISTORY
+        )
+
+    assert result.search_query == "peki ya sel?"
+    assert result.rewritten is False
+    assert result.usage == []  # the call was abandoned; there is nothing to bill
+    assert store.queries == ["peki ya sel?"]  # retrieval still happened
 
 
 async def test_rewriting_can_be_switched_off_for_ablation() -> None:

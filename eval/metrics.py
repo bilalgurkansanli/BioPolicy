@@ -146,6 +146,14 @@ class Report:
     cost: CostMetrics
     by_category: dict[str, RetrievalMetrics] = field(default_factory=dict)
     category_decision_accuracy: dict[str, float] = field(default_factory=dict)
+    groundedness_by_category: dict[str, float] = field(default_factory=dict)
+    """Mean groundedness per category, over served answers.
+
+    Broken out because the aggregate hides the finding that matters: the
+    verifier does not score every kind of answer alike, and the category it
+    scores lowest may be the one the product exists to handle.
+    """
+
     errors: int = 0
     total: int = 0
 
@@ -238,11 +246,16 @@ def build_report(results: list[QuestionResult]) -> Report:
     by_category: dict[str, RetrievalMetrics] = {}
     decision_accuracy: dict[str, float] = {}
 
+    grounded_by_category: dict[str, float] = {}
+
     categories = sorted({r.question.category for r in results})
     for category in categories:
         subset = [r for r in results if r.question.category == category]
         by_category[category] = retrieval_metrics(subset)
         decision_accuracy[category] = sum(1 for r in subset if r.decision_correct) / len(subset)
+        scores = [r.groundedness for r in subset if r.groundedness is not None and r.answer_found]
+        if scores:
+            grounded_by_category[category] = statistics.fmean(scores)
 
     mean, distribution = groundedness_summary(results)
 
@@ -255,6 +268,7 @@ def build_report(results: list[QuestionResult]) -> Report:
         cost=cost_metrics(results),
         by_category=by_category,
         category_decision_accuracy=decision_accuracy,
+        groundedness_by_category=grounded_by_category,
         errors=sum(1 for r in results if r.error),
         total=len(results),
     )
