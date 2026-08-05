@@ -14,11 +14,13 @@ sentinel before it is returned.
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, cast
 
 from google.genai import types as genai_types
 
 from api.gemini_client import build_client
+from api.ingest.types import BBox, OcrLine, TranscribedPage
 from api.logging_config import get_logger
 
 log = get_logger(__name__)
@@ -45,14 +47,64 @@ Rules, in order of importance:
 5. Use # and ## for headings that are visually headings.
 6. Do not add commentary, do not summarise, do not explain what the page is.
    Output only the transcription.
+
+Alongside the Markdown, report where each line you read sits on the page.
+
+A "line" is one visual row of text. In a table, every cell is its own line — a
+coverage row that comes back as a single box cannot be highlighted cell by cell.
+Give each line its text exactly as printed and its bounding box as
+[ymin, xmin, ymax, xmax], normalised to 0-1000 over the whole image.
+
+The Markdown is the primary output. The positions describe what you have
+already read; they must never change what you transcribe.
 """
+
+# WHY one call and not two: transcription is the expensive stage of ingestion,
+# and doubling it to fetch geometry would be paid on every scanned page forever.
+# Measured on the sample before committing to it — the coverage table, every
+# figure in it and the article headings came back identical to the
+# Markdown-only call. The prompt names the primary output for the same reason.
+#
+# If it ever does degrade, the fix is to split the calls, not to drop the
+# transcription: a wrong transcription is a wrong answer, while a missing box is
+# only a coarser highlight.
+
+TRANSCRIPTION_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "markdown": {"type": "string"},
+        "lines": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "box_2d": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "minItems": 4,
+                        "maxItems": 4,
+                    },
+                },
+                "required": ["text", "box_2d"],
+            },
+        },
+    },
+    "required": ["markdown", "lines"],
+}
+
+# The model is asked for 0-1000. Anything outside that is a misunderstanding
+# rather than a page extending past its own edge.
+BOX_SCALE = 1000.0
 
 MAX_ATTEMPTS = 3
 BASE_BACKOFF_SECONDS = 2.0
 
 # Transcription is bounded by what fits on a page. Capping output stops a
 # runaway generation from becoming a runaway bill.
-MAX_OUTPUT_TOKENS = 4096
+# Raised for the geometry: a dense page runs to ~55 lines, and each one costs
+# a short JSON object on top of its own text.
+MAX_OUTPUT_TOKENS = 12288
 
 # One call transcribes a whole rendered page and is measured in tens of seconds,
 # so the query-time ceiling would cut off healthy work. Ingestion is
@@ -73,7 +125,9 @@ class GeminiOCR:
         self._model = model
         self.pages_processed = 0
 
-    async def extract_markdown(self, image_png: bytes, *, hint_lang: str | None = None) -> str:
+    async def transcribe(
+        self, image_png: bytes, *, hint_lang: str | None = None
+    ) -> TranscribedPage:
         prompt = OCR_PROMPT
         if hint_lang:
             prompt += f"\nThe document is written in {hint_lang}.\n"
@@ -85,6 +139,8 @@ class GeminiOCR:
         config = genai_types.GenerateContentConfig(
             temperature=0.0,
             max_output_tokens=MAX_OUTPUT_TOKENS,
+            response_mime_type="application/json",
+            response_schema=TRANSCRIPTION_SCHEMA,
         )
 
         for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -99,23 +155,62 @@ class GeminiOCR:
                     # An OCR failure is a page we could not read, not a document
                     # we should invent. Returning empty keeps the honest
                     # contract; the pipeline reports fewer pages parsed.
-                    return ""
+                    return TranscribedPage(markdown="")
                 await asyncio.sleep(BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)))
 
-        text = (response.text or "").strip()
         self.pages_processed += 1
 
+        try:
+            payload = json.loads(response.text or "{}")
+        except json.JSONDecodeError as exc:
+            log.error("ocr_unreadable", error=str(exc))
+            return TranscribedPage(markdown="")
+
+        text = str(payload.get("markdown") or "").strip()
         if not text or text == BLANK_SENTINEL:
-            return ""
+            return TranscribedPage(markdown="")
 
         # Models occasionally wrap the whole transcription in a fence despite
         # being told not to. Strip it rather than letting ``` become content.
         if text.startswith("```"):
-            lines = text.splitlines()
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
+            fenced = text.splitlines()
+            if fenced[0].startswith("```"):
+                fenced = fenced[1:]
+            if fenced and fenced[-1].strip() == "```":
+                fenced = fenced[:-1]
+            text = "\n".join(fenced).strip()
 
-        return text
+        lines = _lines_from(payload.get("lines"))
+        log.info("ocr_page", characters=len(text), lines=len(lines))
+        return TranscribedPage(markdown=text, lines=lines)
+
+
+def _lines_from(raw: Any) -> tuple[OcrLine, ...]:
+    """Turn the model's boxes into fractional `OcrLine`s, dropping the nonsense.
+
+    Geometry is optional, so anything malformed is discarded silently rather
+    than failing the page: losing a box costs a precise highlight, losing the
+    page costs the document.
+    """
+    if not isinstance(raw, list):
+        return ()
+
+    lines: list[OcrLine] = []
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+        text = str(entry.get("text") or "").strip()
+        box = entry.get("box_2d")
+        if not text or not isinstance(box, list) or len(box) != 4:
+            continue
+        try:
+            ymin, xmin, ymax, xmax = (float(value) / BOX_SCALE for value in box)
+        except (TypeError, ValueError):
+            continue
+        # A zero-area or inverted box points at nothing, and a box outside the
+        # page is the model having lost the coordinate system.
+        if not (0.0 <= xmin < xmax <= 1.0 and 0.0 <= ymin < ymax <= 1.0):
+            continue
+        lines.append(OcrLine(text=text, bbox=BBox(x0=xmin, top=ymin, x1=xmax, bottom=ymax)))
+
+    return tuple(lines)

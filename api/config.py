@@ -18,10 +18,10 @@ govern this module:
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 AppEnv = Literal["development", "preview", "production"]
 
@@ -73,8 +73,42 @@ class Settings(BaseSettings):
 
     # --- budget & quotas -----------------------------------------------------
     global_budget_usd: float = 30.0
-    user_daily_message_limit: int = 40
-    user_daily_document_limit: int = 5
+    # Deliberately small. Every question is a real model call against a real
+    # bill, and this is a portfolio demo rather than a service.
+    user_daily_message_limit: int = 3
+    user_daily_document_limit: int = 1
+
+    # Accounts exempt from the two limits above, by email address. Empty by
+    # default, so a deployment that forgets to set it grants nothing.
+    #
+    # The address is only ever *matched* here — it is read back out of
+    # `auth.users` at check time, never taken from a token (see api/accounts.py).
+    # It lives in the environment rather than in code because it is a personal
+    # address and this repository is public.
+    unlimited_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
+
+    @field_validator("unlimited_emails", "cors_allow_origins", mode="before")
+    @classmethod
+    def _split_commas(cls, value: object) -> object:
+        """Accept `a@b.com,c@d.com` as well as a JSON array.
+
+        pydantic-settings parses a `list[str]` from the environment as JSON,
+        which means an operator following the obvious comma convention gets a
+        stack trace at boot rather than a setting. For an allowlist that is a
+        bad failure: the deployment does not start, and the reason is a JSON
+        decode error several frames from anything they wrote.
+
+        `NoDecode` on the field is what lets this run at all — without it the
+        JSON parse happens in the settings source, before any validator.
+        """
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("["):
+                return stripped  # a JSON array; let the normal parser have it
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        return value
 
     # --- ingestion limits ----------------------------------------------------
     max_upload_bytes: int = 25 * 1024 * 1024
@@ -90,13 +124,27 @@ class Settings(BaseSettings):
     # They are configuration, not feature flags to be left half-on in prod.
     enable_citation_binding: bool = True
     enable_self_verification: bool = True
+    # The fourth mechanism, built because the ablation showed the first three
+    # were blind to unwarranted inference — and switched OFF by the ablation
+    # that measured it (docs/adr/014).
+    #
+    # On the demo corpus it changed no decisions, added 24% to the cost of every
+    # question, and made a third serial provider call that showed up as errors
+    # the other arms did not have. It did catch a numeric contradiction on the
+    # adversarial set that the shipped configuration answered confidently and
+    # wrongly, which is why the code stays.
+    #
+    # Turning it on is one environment variable. Doing so by default would mean
+    # paying on every question for a check that earns its place on documents
+    # this project cannot yet show are common.
+    enable_entailment_check: bool = False
     enable_query_rewrite: bool = True
     enable_rerank: bool = False
 
     # --- CORS ----------------------------------------------------------------
     # The browser talks to the API same-origin through a Next.js rewrite, so this
     # is normally empty. Populated only for local split-origin development.
-    cors_allow_origins: list[str] = Field(default_factory=list)
+    cors_allow_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     # -------------------------------------------------------------------------
     @property

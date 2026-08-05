@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useLocale } from "@/components/LocaleProvider";
 
 export function SiteFooter() {
@@ -10,6 +12,15 @@ export function SiteFooter() {
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="max-w-xl">{t.footer.disclaimer}</p>
         <div className="flex items-center gap-4">
+          {/* The measurements are reachable but quiet: they are the project's
+              evidence, not its invitation, and a second link beside the header's
+              call-to-action would compete with the one thing it asks for. */}
+          <Link
+            href="/eval"
+            className="underline-offset-4 transition-colors hover:text-ink hover:underline"
+          >
+            {t.evaluation.title}
+          </Link>
           {/* Retention is a promise, so it is stated on every page rather than
               buried in a privacy document nobody opens. */}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1">

@@ -92,10 +92,6 @@ These were ruled out before the build started. Listed so the reasoning survives.
   demo visitors.
 
 ### Frontend
-- **Highlighting the exact quote span** within a page, rather than the chunk's
-  bounding box. Requires mapping the verified quote back to character offsets in
-  the parsed text. This is the single largest quality gap in the workspace: the
-  citation chip names one clause and the highlight covers the block around it.
 - **Keyboard navigation between citations.**
 - **A text layer over the PDF canvas**, so the document is selectable and
   searchable. pdf.js renders one; the viewer currently draws pixels only.

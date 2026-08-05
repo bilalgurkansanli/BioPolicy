@@ -20,7 +20,7 @@ from uuid import UUID
 
 from api.constants import EMBEDDING_DIM
 from api.generation.llm import LLMResponse, ProviderError, Turn
-from api.ingest.types import ParsedDocument
+from api.ingest.types import OcrLine, ParsedDocument, TranscribedPage
 from api.retrieval.types import RetrievedChunk
 from api.storage import StoredObject
 
@@ -32,17 +32,23 @@ class FakeOCRProvider:
     page images were sent. A regression that OCRs pages which already have a
     text layer is a cost bug, not a correctness bug, and it would otherwise be
     invisible.
+
+    `lines` default to empty, which is a real case rather than a shortcut: a
+    provider that cannot report geometry still has to return its transcription.
     """
 
     name = "fake-ocr"
 
-    def __init__(self, markdown: str | None = None) -> None:
+    def __init__(self, markdown: str | None = None, lines: tuple[OcrLine, ...] = ()) -> None:
         self.markdown = markdown if markdown is not None else _DEFAULT_MARKDOWN
+        self.lines = lines
         self.calls: list[int] = []  # byte length of each image received
 
-    async def extract_markdown(self, image_png: bytes, *, hint_lang: str | None = None) -> str:
+    async def transcribe(
+        self, image_png: bytes, *, hint_lang: str | None = None
+    ) -> TranscribedPage:
         self.calls.append(len(image_png))
-        return self.markdown
+        return TranscribedPage(markdown=self.markdown, lines=self.lines)
 
     @property
     def call_count(self) -> int:
@@ -53,7 +59,7 @@ class BlankOCRProvider:
     """Returns nothing, always.
 
     Models the honest behaviour required by the `OCRProvider` contract for a
-    blank page: return an empty string rather than inventing plausible content.
+    blank page: return nothing rather than inventing plausible content.
     """
 
     name = "blank-ocr"
@@ -61,9 +67,11 @@ class BlankOCRProvider:
     def __init__(self) -> None:
         self.call_count = 0
 
-    async def extract_markdown(self, image_png: bytes, *, hint_lang: str | None = None) -> str:
+    async def transcribe(
+        self, image_png: bytes, *, hint_lang: str | None = None
+    ) -> TranscribedPage:
         self.call_count += 1
-        return ""
+        return TranscribedPage(markdown="")
 
 
 class StaticParser:

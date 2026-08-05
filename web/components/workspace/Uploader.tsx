@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { useLocale } from "@/components/LocaleProvider";
 import { ApiError, uploadDocument } from "@/lib/api";
-import { AuthUnavailableError } from "@/lib/supabase";
+import { NotSignedInError } from "@/lib/supabase";
 
 export type UploadFailure = {
   title: string;
@@ -63,12 +63,10 @@ export function Uploader({
       try {
         onUploaded(await uploadDocument(file, setProgress), file.name);
       } catch (error) {
-        if (error instanceof AuthUnavailableError) {
+        if (error instanceof NotSignedInError) {
           onFailure({
-            title: t.upload.authDisabledTitle,
-            message: error.anonymousDisabled
-              ? t.upload.authDisabled
-              : t.upload.signInFailed,
+            title: t.account.signInTitle,
+            message: t.account.signInBody,
           });
         } else if (error instanceof ApiError) {
           onFailure({
@@ -108,7 +106,7 @@ export function Uploader({
           const file = event.dataTransfer.files[0];
           if (file && !disabled && !busy) void send(file);
         }}
-        className={`rounded-lg border border-dashed px-3 py-4 text-center transition-colors ${
+        className={`rounded-xl border border-dashed px-3 py-4 text-center transition-colors ${
           dragging
             ? "border-accent bg-accent-soft"
             : "border-line-strong bg-surface"
@@ -139,7 +137,7 @@ export function Uploader({
               type="button"
               disabled={disabled}
               onClick={() => inputRef.current?.click()}
-              className="mt-2 rounded-md border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed"
+              className="mt-2 rounded-lg border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed"
             >
               {t.upload.choose}
             </button>

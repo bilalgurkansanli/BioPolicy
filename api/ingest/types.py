@@ -88,10 +88,43 @@ class ParsedPage:
     ocr_used: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class OcrLine:
+    """One visual row of text on a page that had to be transcribed.
+
+    A page with a text layer needs nothing like this: PDF.js can find any quote
+    in the page itself. A scan cannot — every character is a pixel — so the only
+    geometry that will ever exist for it is what the vision model reports while
+    reading. Storing it is what lets a citation on a scanned page highlight the
+    clause instead of the whole sheet of paper.
+
+    In a table each cell is its own line, which is what makes a coverage row
+    highlightable cell by cell.
+    """
+
+    text: str
+    bbox: BBox
+
+
+@dataclass(frozen=True, slots=True)
+class TranscribedPage:
+    """What a vision model read off one rendered page.
+
+    `lines` carry boxes as **fractions of the page** (0.0-1.0), not points: the
+    provider sees an image and has no idea what size the page is. The parser,
+    which does, converts them.
+    """
+
+    markdown: str
+    lines: tuple[OcrLine, ...] = ()
+
+
 @dataclass(slots=True)
 class ParsedDocument:
     blocks: list[ParsedBlock] = field(default_factory=list)
     pages: list[ParsedPage] = field(default_factory=list)
+    # Only for pages that went through OCR, keyed by 1-based page number.
+    ocr_lines: dict[int, list[OcrLine]] = field(default_factory=dict)
     source_type: SourceType = "native"
     # ISO 639-1, filled in by language detection after parsing.
     detected_lang: str | None = None
@@ -103,6 +136,16 @@ class ParsedDocument:
     @property
     def total_characters(self) -> int:
         return sum(len(b.text) for b in self.blocks)
+
+    @property
+    def full_text(self) -> str:
+        """Every block's text, in reading order, for whole-document scanning.
+
+        Joined with newlines rather than spaces so that a pattern anchored to a
+        sentence cannot run across a block boundary and match two unrelated
+        clauses as though they were one.
+        """
+        return "\n".join(b.text for b in self.blocks)
 
     @property
     def table_count(self) -> int:

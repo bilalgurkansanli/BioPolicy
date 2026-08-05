@@ -18,13 +18,33 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from eval.sample_content import ALL_DOCUMENTS
+from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS, INJECTION_DOCUMENTS
 
 GOLDEN_PATH = Path(__file__).parent / "golden" / "questions.json"
 
+EVERY_DOCUMENT = (*ALL_DOCUMENTS, *HARD_DOCUMENTS, *INJECTION_DOCUMENTS)
+
 Category = Literal["factual", "table", "multi_clause", "negative", "cross_lingual"]
+# "contradiction" only occurs in the hard set: a question the document answers
+# twice, incompatibly. It is not a negative — the document does address it — and
+# it is not an ordinary factual, because there is no single right answer to
+# give. Keeping it as its own category is what lets the report say how many
+# there were and what happened to them.
+# "injection" only occurs in the injection set: a question whose document tries
+# to answer it for us. Separate from "contradiction" because the failure differs
+# — a contradiction is the document disagreeing with itself, an injection is the
+# document giving us orders — and because the report must be able to say how
+# many attacks there were without counting the honest questions beside them.
 VALID_CATEGORIES: frozenset[str] = frozenset(
-    {"factual", "table", "multi_clause", "negative", "cross_lingual"}
+    {
+        "factual",
+        "table",
+        "multi_clause",
+        "negative",
+        "cross_lingual",
+        "contradiction",
+        "injection",
+    }
 )
 
 
@@ -40,9 +60,25 @@ class GoldenQuestion:
     expected_answer_summary: str
     notes: str = ""
 
+    # --- injection scoring --------------------------------------------------
+    # Empty on every ordinary question, which is why these are defaulted rather
+    # than made a separate class: one loader, one runner, one report shape.
+    required_spans: tuple[str, ...] = ()
+    """Text an attack tried to remove. A served answer must still contain it."""
+
+    forbidden_spans: tuple[str, ...] = ()
+    """Text that can only appear if the attack was obeyed."""
+
+    attack: str = "none"
+    """Which technique this question probes, for per-technique reporting."""
+
     @property
     def is_negative(self) -> bool:
         return not self.expected_answer_found
+
+    @property
+    def is_attack(self) -> bool:
+        return self.attack != "none"
 
 
 def load(path: Path = GOLDEN_PATH) -> list[GoldenQuestion]:
@@ -58,6 +94,9 @@ def load(path: Path = GOLDEN_PATH) -> list[GoldenQuestion]:
             expected_evidence=tuple(item.get("expected_evidence", ())),
             expected_answer_summary=item.get("expected_answer_summary", ""),
             notes=item.get("notes", ""),
+            required_spans=tuple(item.get("required_spans", ())),
+            forbidden_spans=tuple(item.get("forbidden_spans", ())),
+            attack=item.get("attack", "none"),
         )
         for item in raw["questions"]
     ]
@@ -71,7 +110,7 @@ def document_text(slug: str) -> str:
     and it works for the scanned sample, which cannot be parsed at all without
     an OCR provider.
     """
-    doc = next((d for d in ALL_DOCUMENTS if d["slug"] == slug), None)
+    doc = next((d for d in EVERY_DOCUMENT if d["slug"] == slug), None)
     if doc is None:
         raise KeyError(f"No sample document named {slug!r}")
 
@@ -119,7 +158,9 @@ def stats(questions: list[GoldenQuestion]) -> Stats:
 def validate(questions: list[GoldenQuestion]) -> list[str]:
     """Return a list of problems. Empty means the dataset is coherent."""
     problems: list[str] = []
-    slugs = {d["slug"] for d in ALL_DOCUMENTS}
+    # Both sets, because the hard questions are validated by the same function
+    # and a document it has never heard of reads as a typo in the question file.
+    slugs = {d["slug"] for d in EVERY_DOCUMENT}
     seen: set[str] = set()
 
     texts = {slug: document_text(slug) for slug in slugs}
@@ -165,5 +206,23 @@ def validate(questions: list[GoldenQuestion]) -> list[str]:
                         f"{question.id}: evidence {span!r} does not appear in "
                         f"{question.document} — the document changed, or the span is a typo"
                     )
+
+        # An attack question that scores nothing is worse than no question at
+        # all: it fills a row in the report and can never fail.
+        if question.is_attack and not (question.required_spans or question.forbidden_spans):
+            problems.append(
+                f"{question.id}: attack {question.attack!r} has neither "
+                "required_spans nor forbidden_spans, so nothing about it is measured"
+            )
+
+        # Required spans are checked against the answer, but they have to exist
+        # in the document first — otherwise a correct answer cannot contain them
+        # and the question fails permanently for the wrong reason.
+        for span in question.required_spans:
+            if span.lower() not in texts[question.document].lower():
+                problems.append(
+                    f"{question.id}: required span {span!r} is not in "
+                    f"{question.document} — no correct answer could contain it"
+                )
 
     return problems

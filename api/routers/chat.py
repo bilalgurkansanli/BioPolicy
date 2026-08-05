@@ -48,6 +48,9 @@ class ChatRequest(BaseModel):
     # forward; only the conversation is, and only enough of it to resolve a
     # follow-up like "peki ya sel?".
     history: list[HistoryTurn] = Field(default_factory=list, max_length=8)
+    # Which saved thread to append to. Honoured only if it belongs to this user
+    # *and* this document; anything else starts a new one rather than failing.
+    conversation_id: UUID | None = None
 
 
 def _event(name: str, payload: dict[str, object] | None = None) -> dict[str, str]:
@@ -131,6 +134,35 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
             outcome = await answering
             answer = outcome.answer
 
+            # Saved before the `done` event, so a conversation the user can see
+            # on screen is one they will also find in their history. A failure
+            # here must not lose the answer, though — it is caught and logged
+            # rather than turning a paid-for reply into an error.
+            conversation_id: UUID | None = None
+            try:
+                conversation_id = await state.conversations.ensure(
+                    conversation_id=request.conversation_id,
+                    user_id=user.id,
+                    document_id=UUID(str(row["id"])),
+                    question=request.question,
+                )
+                await state.conversations.append_turn(
+                    conversation_id=conversation_id,
+                    user_id=user.id,
+                    question=request.question,
+                    answer=answer.answer,
+                    citations=answer.citations,
+                    groundedness=answer.groundedness,
+                    refused=answer.refused,
+                    suppressed=answer.suppressed,
+                    prompt_version=outcome.prompt_version,
+                    model=outcome.model,
+                )
+            # The answer is already paid for and correct; losing the copy in
+            # someone's history is the lesser failure.
+            except Exception as exc:
+                log.error("conversation_not_saved", exc_info=exc)
+
             # The ledger is written even when the answer was suppressed: a
             # withheld answer still cost money, and the breaker has to see it.
             # `record` prices as it writes, so Google's unpriced calls are
@@ -144,6 +176,7 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
             yield _event(
                 "done",
                 {
+                    "conversation_id": str(conversation_id) if conversation_id else None,
                     "answer": answer.answer,
                     "refused": answer.refused,
                     "suppressed": answer.suppressed,
@@ -152,11 +185,13 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
                     "caveats": answer.caveats,
                     "groundedness": answer.groundedness,
                     "verified": answer.verified,
+                    "entailment": answer.entailment,
                     "citations": [
                         {
                             "context_id": c.context_id,
                             "quote": c.quote,
                             "page": c.page,
+                            "page_end": c.page_end,
                             "section_path": c.section_path,
                             "bbox": c.bbox,
                             "exact": c.exact,

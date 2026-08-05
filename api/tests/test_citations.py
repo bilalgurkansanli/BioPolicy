@@ -66,6 +66,31 @@ def test_page_and_geometry_come_from_our_record_not_the_model() -> None:
     assert citation.chunk_id == ctx.chunks[1].chunk_id
 
 
+def test_a_citation_reports_the_whole_page_range_of_its_chunk() -> None:
+    """The quote is not always on the page the chunk starts on.
+
+    A chunk that runs past a page break can be quoted from the far side of it.
+    With only the starting page, the viewer searched one sheet, found nothing,
+    and fell back to highlighting all of it — an exclusion halfway down page two
+    lighting up the whole of page one. The range is what tells it where the
+    quote can possibly be, and where it cannot.
+    """
+    ctx = assemble([chunk(FLOOD, page=4, page_end=5)])
+    outcome = bind(answer(Citation(chunk_id="C1", quote="deniz kabarması")), ctx)
+
+    citation = outcome.kept[0]
+    assert citation.page == 4
+    assert citation.page_end == 5
+
+
+def test_a_single_page_chunk_reports_the_same_page_twice() -> None:
+    """No special case at the other end: the range is always a range."""
+    ctx = assemble([chunk(FLOOD, page=7)])
+    outcome = bind(answer(Citation(chunk_id="C1", quote="deniz kabarması")), ctx)
+
+    assert (outcome.kept[0].page, outcome.kept[0].page_end) == (7, 7)
+
+
 @pytest.mark.parametrize("written", ["C1", "[C1]", "c1", " C1 ", "[c1]"])
 def test_citation_id_formatting_variants_all_resolve(written: str) -> None:
     """Models are inconsistent about this. A format quirk is not a fabrication."""

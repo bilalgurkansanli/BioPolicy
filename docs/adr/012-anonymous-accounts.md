@@ -1,8 +1,15 @@
 # ADR 012 — Anonymous accounts, not sign-up
 
-- **Status:** accepted
+- **Status:** superseded by [ADR 013](./013-google-only-sign-in.md)
 - **Date:** 2026-08-05
 - **Phase:** 6
+
+> **Superseded.** The weakness this ADR named — an anonymous account costs
+> nothing to create, so per-user quotas are a courtesy — became decisive once
+> the allowance dropped to three questions a day and conversations started being
+> saved. See [ADR 013](./013-google-only-sign-in.md). The reasoning below is
+> kept because the trade it describes is still the right one at a larger
+> allowance.
 
 ## Context
 

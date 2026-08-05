@@ -7,6 +7,12 @@
  * `undefined` in a rendered answer.
  */
 
+export type InjectionFinding = {
+  rule: string;
+  why: string;
+  excerpt: string;
+};
+
 export type DocumentSummary = {
   id: string;
   filename: string;
@@ -15,6 +21,15 @@ export type DocumentSummary = {
   detected_lang: string | null;
   status: string;
   is_sample: boolean;
+  /**
+   * Instruction-shaped text found in the document at ingest.
+   *
+   * `null` and `[]` mean different things and the interface must keep them
+   * apart: `null` is a document that was never scanned (it predates the check),
+   * `[]` is one that was scanned and came back clean. Showing a reassuring
+   * badge for the first would be a claim nobody made.
+   */
+  injection_findings?: InjectionFinding[] | null;
 };
 
 export type BBox = {
@@ -27,7 +42,10 @@ export type BBox = {
 export type Citation = {
   context_id: string;
   quote: string;
+  /** Where the chunk starts. */
   page: number;
+  /** Where it ends — a chunk can run past a page break, and so can the quote. */
+  page_end: number;
   section_path: string | null;
   bbox: BBox | null;
   /**
@@ -40,6 +58,8 @@ export type Citation = {
 };
 
 export type Answer = {
+  /** The thread this turn was saved to. Sent back on the next question. */
+  conversation_id: string | null;
   answer: string;
   refused: boolean;
   suppressed: boolean;
@@ -81,6 +101,69 @@ export type DocumentStatus = {
   detected_lang: string | null;
   chunk_count: number;
   error: string | null;
+};
+
+export type Allowance = {
+  unlimited: boolean;
+  questions_used: number;
+  questions_limit: number;
+  /** `null` when unlimited — distinct from zero, and never shown as one. */
+  questions_left: number | null;
+  documents_used: number;
+  documents_limit: number;
+  documents_left: number | null;
+};
+
+export type Me = {
+  id: string;
+  email: string | null;
+  allowance: Allowance;
+};
+
+export type ConversationSummary = {
+  id: string;
+  title: string;
+  document_id: string;
+  document_filename: string;
+  /** False once the document expired. The conversation outlives it. */
+  document_exists: boolean;
+  updated_at: string;
+  message_count: number;
+};
+
+export type StoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations: Citation[];
+  groundedness: number | null;
+  refused: boolean;
+  suppressed: boolean;
+  created_at: string;
+};
+
+export type Conversation = {
+  id: string;
+  messages: StoredMessage[];
+};
+
+export type PageLines = {
+  page: number;
+  /** One visual row of text, boxed. Empty for a page with a text layer. */
+  lines: { text: string; bbox: BBox }[];
+};
+
+export type Spend = {
+  total_usd: number;
+  budget_usd: number;
+  questions: number;
+  /** `null` before the first question, rather than a division by zero. */
+  per_question_usd: number | null;
+  provider_calls: number;
+  priced_calls: number;
+  /** Fraction of provider calls the figure covers. Below 1.0 by design. */
+  priced_share: number;
+  first_call_at: string | null;
 };
 
 export type Capabilities = {

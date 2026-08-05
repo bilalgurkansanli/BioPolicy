@@ -7,16 +7,26 @@
  * legible over a white PDF page in either theme.
  */
 :root {
-  --paper: #fbfbfa;
+  --paper: #f7f9fd;
   --surface: #ffffff;
-  --surface-sunken: #f4f4f3;
-  --ink: #18181b;
-  --ink-muted: #52525b;
-  --ink-faint: #8b8b93;
-  --line: #e4e4e7;
-  --line-strong: #d4d4d8;
-  --accent: #1d4ed8;
-  --accent-soft: #eff4ff;
+  --surface-sunken: #eef2fa;
+  --ink: #0b1220;
+  --ink-muted: #475569;
+  --ink-faint: #7b8aa3;
+  --line: #e2e8f4;
+  --line-strong: #cbd6e9;
+  /* The brand blue is the one in the logo mark, sampled from it. */
+  --accent: #2963e0;
+  --accent-soft: #eaf0fd;
+  /* The filled-button blue is its own pair rather than `--accent`, because
+     `--accent` has to stay readable as text on the page background and in dark
+     mode that pushes it far too light to sit under white button text. The
+     gradient runs light to deep in the same direction as the logo's own, so a
+     button and the mark beside it read as the same object. */
+  --accent-fill-from: #3a72e8;
+  --accent-fill-to: #2963e0;
+  --on-accent: #ffffff;
+  --accent-glow: rgb(41 99 224 / 0.4);
   --highlight: #fde68a;
   --highlight-ring: #d97706;
   --refuse: #7c5e10;
@@ -28,16 +38,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #0b0b0c;
-    --surface: #141416;
-    --surface-sunken: #1c1c1f;
-    --ink: #f4f4f5;
-    --ink-muted: #a1a1aa;
-    --ink-faint: #71717a;
-    --line: #27272a;
-    --line-strong: #3f3f46;
-    --accent: #93b4fd;
-    --accent-soft: #16213c;
+    --paper: #070b14;
+    --surface: #0e1524;
+    --surface-sunken: #151d30;
+    --ink: #eef3fb;
+    --ink-muted: #a3b2ca;
+    --ink-faint: #6f7f99;
+    --line: #1d2740;
+    --line-strong: #2e3b58;
+    --accent: #9bbafc;
+    --accent-soft: #131e3c;
+    --accent-fill-from: #4c86f0;
+    --accent-fill-to: #2963e0;
+    --on-accent: #f8fbff;
+    --accent-glow: rgb(76 134 240 / 0.5);
     --highlight: #fbbf24;
     --highlight-ring: #fbbf24;
     --refuse: #fcd34d;
@@ -59,6 +73,9 @@
   --color-line-strong: var(--line-strong);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-fill-from: var(--accent-fill-from);
+  --color-accent-fill-to: var(--accent-fill-to);
+  --color-on-accent: var(--on-accent);
   --color-highlight: var(--highlight);
   --color-highlight-ring: var(--highlight-ring);
   --color-refuse: var(--refuse);
@@ -70,9 +87,241 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* `clip` rather than `hidden`: it keeps the page-transition slides from adding a
+   horizontal scrollbar without turning the viewport into a scroll container,
+   which is what would break the sticky header. */
+html {
+  overflow-x: clip;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 body {
   background: var(--paper);
   color: var(--ink);
+}
+
+/* Switching language rewrites every string on the page, so the page says so: a
+   soft edge sweeps left to right and the text arrives behind it, the way it
+   would if it were being typed again. Applied to <body> for one shot, because
+   the alternative — remounting the tree on locale change — would throw away an
+   answer the user is in the middle of reading. */
+@keyframes biopolicy-retype {
+  from {
+    opacity: 0.25;
+    mask-position: 100% 0;
+  }
+  to {
+    opacity: 1;
+    mask-position: 0 0;
+  }
+}
+
+.locale-retype {
+  mask-image: linear-gradient(
+    90deg,
+    #000 38%,
+    rgb(0 0 0 / 0.4) 58%,
+    transparent 74%
+  );
+  mask-size: 260% 100%;
+  mask-repeat: no-repeat;
+  animation: biopolicy-retype 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The account menu comes out of the button it belongs to rather than fading in
+   over the page, which is what keeps a header dropdown from reading as a
+   dialogue that has taken over. */
+@keyframes biopolicy-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+.menu-pop {
+  transform-origin: top right;
+  animation: biopolicy-menu-pop 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The workspace is one step to the right of the landing page. Going in, the
+   page leaves to the left and the next one arrives from the right; coming back,
+   both run the other way, so the movement retraces itself instead of pretending
+   the way back is another way forward.
+
+   Both halves play on <body>, which is the one element that survives the
+   navigation — the outgoing page has already been replaced by the time the
+   second half starts. */
+@keyframes biopolicy-slide-out-left {
+  to {
+    transform: translateX(-7%);
+    opacity: 0;
+  }
+}
+
+@keyframes biopolicy-slide-out-right {
+  to {
+    transform: translateX(7%);
+    opacity: 0;
+  }
+}
+
+@keyframes biopolicy-slide-in-right {
+  from {
+    transform: translateX(7%);
+    opacity: 0;
+  }
+}
+
+@keyframes biopolicy-slide-in-left {
+  from {
+    transform: translateX(-7%);
+    opacity: 0;
+  }
+}
+
+/* `will-change` is not a micro-optimisation here: the workspace mounts in the
+   middle of this movement — fetching documents, starting the PDF worker — and
+   an animation the compositor has not been given its own layer for stutters for
+   exactly as long as the main thread is busy. The classes come off once the
+   movement is over, so no layer is held on to. */
+.page-leaving body,
+.page-arriving body {
+  will-change: transform, opacity;
+}
+
+.page-leaving.page-forward body {
+  animation: biopolicy-slide-out-left 280ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.page-leaving.page-back body {
+  animation: biopolicy-slide-out-right 280ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.page-arriving.page-forward body {
+  animation: biopolicy-slide-in-right 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.page-arriving.page-back body {
+  animation: biopolicy-slide-in-left 340ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The landing hero sits on light, painted-on blue rather than a flat panel: two
+   soft radial washes plus a grid that fades out before it reaches the copy, so
+   nothing competes with the headline for attention. Purely decorative, so it is
+   always behind `aria-hidden` markup. */
+.hero-wash {
+  background:
+    radial-gradient(
+      62% 55% at 50% -12%,
+      color-mix(in srgb, var(--accent-fill-from) 26%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      38% 42% at 88% 8%,
+      color-mix(in srgb, var(--accent-fill-from) 16%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      40% 45% at 6% 22%,
+      color-mix(in srgb, var(--accent-fill-from) 12%, transparent),
+      transparent 70%
+    );
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(58% 58% at 50% 4%, #000 0%, transparent 78%);
+}
+
+/* One shadow definition for every filled blue button, so the primary action
+   looks the same in the header as it does in the hero. */
+.accent-glow {
+  box-shadow: 0 10px 26px -12px var(--accent-glow);
+}
+.accent-glow:hover {
+  box-shadow: 0 16px 34px -12px var(--accent-glow);
+}
+
+/* The primary button's fill is a gradient wide enough to travel: the paint
+   slides under the label on hover rather than the whole button changing colour,
+   which is what makes it feel like a surface being lit rather than a state
+   being toggled. */
+.cta-gradient {
+  background-image: linear-gradient(
+    110deg,
+    var(--accent-fill-from) 0%,
+    var(--accent-fill-to) 42%,
+    var(--accent-fill-from) 100%
+  );
+  background-size: 220% 100%;
+  background-position: 0% 0;
+  transition:
+    background-position 550ms ease,
+    box-shadow 300ms ease,
+    transform 200ms ease;
+}
+.cta-gradient:hover {
+  background-position: 100% 0;
+}
+
+/* And a highlight passes across it once, the way light crosses a raised
+   surface. `overflow: hidden` on the button is what keeps it inside the pill. */
+.cta-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.cta-sheen > * {
+  position: relative;
+  z-index: 1;
+}
+.cta-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.28) 50%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+  transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cta-sheen:hover::after {
+  transform: translateX(130%);
+}
+
+/* The header call-to-action carries a slow halo. The workspace is the point of
+   the whole site, and a static link in a row of static links does not say so.
+   Slow enough (3s) to read as a light source rather than a notification badge. */
+@keyframes biopolicy-halo {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+
+.cta-halo {
+  background: linear-gradient(
+    to right,
+    var(--accent-fill-from),
+    var(--accent-fill-to)
+  );
+  filter: blur(10px);
+  animation: biopolicy-halo 3s ease-in-out infinite;
 }
 
 /* The stage list during a wait. Deliberately slow: a fast pulse reads as a
@@ -106,8 +355,31 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .stage-active,
-  .citation-flash {
+  .citation-flash,
+  .cta-halo,
+  .menu-pop,
+  .page-leaving body,
+  .page-arriving body,
+  .locale-retype {
     animation: none;
+  }
+
+  /* The mask is half of the retype effect, not decoration around it: left in
+     place without the animation it would simply hide the page. */
+  .locale-retype {
+    mask-image: none;
+  }
+
+  /* Both halves of the button's hover are movement, so both come off. The
+     gradient stays where it is and the highlight never crosses. */
+  .cta-gradient {
+    transition: box-shadow 300ms ease;
+  }
+  .cta-gradient:hover {
+    background-position: 0% 0;
+  }
+  .cta-sheen::after {
+    display: none;
   }
 }
 

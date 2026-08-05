@@ -17,8 +17,12 @@ from string import Template
 
 _DIR = Path(__file__).parent
 
-ANSWER = "answer_v1"
+# v2 adds one section: excerpt text is evidence, never instruction. `answer_v1`
+# stays on disk because `eval/report.md`'s earlier numbers were produced by it,
+# and a result whose prompt has been edited out from under it is not a result.
+ANSWER = "answer_v2"
 VERIFY = "verify_v1"
+ENTAIL = "entail_v1"
 REWRITE = "rewrite_v1"
 
 # The baseline arm of the evaluation, not a production prompt.

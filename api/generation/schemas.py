@@ -83,6 +83,20 @@ VERIFICATION_JSON_SCHEMA: dict[str, object] = {
 }
 
 
+ENTAILMENT_JSON_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "enum": ["ENTAILED", "RELATED_ONLY", "CONTRADICTED", "UNSURE"],
+        },
+        "reason": {"type": "string"},
+    },
+    "required": ["verdict", "reason"],
+    "additionalProperties": False,
+}
+
+
 class Citation(BaseModel):
     """A claim by the model that some chunk says something.
 
@@ -125,6 +139,17 @@ class BoundCitation(BaseModel):
     context_id: str
     quote: str
     page: int
+    """Where the chunk starts. What the citation chip shows."""
+
+    page_end: int
+    """Where the chunk ends, which is not always where it starts.
+
+    A chunk can run past a page break, and the quote can be on the far side of
+    it — `page` alone sent the viewer looking on the wrong sheet, where it found
+    nothing and fell back to highlighting the whole page. The range is what lets
+    it look everywhere the quote could possibly be, and nowhere it could not.
+    """
+
     section_path: str
     bbox: dict[str, float] | None = None
     exact: bool = True
@@ -141,6 +166,25 @@ class ClaimVerdict(BaseModel):
     claim: str
     support: ClaimSupport
     note: str = ""
+
+
+class EntailmentResult(BaseModel):
+    """Whether the excerpts settle the question, rather than merely touch it."""
+
+    verdict: Literal["ENTAILED", "RELATED_ONLY", "CONTRADICTED", "UNSURE"]
+    reason: str = ""
+
+    @property
+    def licenses_the_answer(self) -> bool:
+        """Only an outright entailment does.
+
+        `UNSURE` is deliberately on the permissive side of this line while
+        `RELATED_ONLY` is not: the first is the checker admitting it cannot
+        tell, and suppressing on it would let a weak checker quietly become a
+        censor. The second is a positive finding that a step was taken which the
+        document does not license.
+        """
+        return self.verdict in ("ENTAILED", "UNSURE")
 
 
 class VerificationResult(BaseModel):
@@ -181,6 +225,9 @@ class GroundedAnswer(BaseModel):
     verified: bool = False
     """False when verification was disabled or did not run."""
 
+    entailment: Literal["ENTAILED", "RELATED_ONLY", "CONTRADICTED", "UNSURE"] | None = None
+    """What the entailment check concluded, or `None` when it did not run."""
+
     suppressed: bool = False
     """True when an answer existed but was withheld.
 
@@ -189,4 +236,6 @@ class GroundedAnswer(BaseModel):
     numbers that makes the product's claim credible.
     """
 
-    suppression_reason: Literal["no_valid_citations", "low_groundedness"] | None = None
+    suppression_reason: Literal["no_valid_citations", "low_groundedness", "not_entailed"] | None = (
+        None
+    )

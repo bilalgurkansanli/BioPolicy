@@ -1,0 +1,160 @@
+{
+  "$schema_notes": [
+    "The hard set. Kept apart from questions.json so the published numbers over",
+    "the original 70 stay comparable across arms — mixing a harder corpus into",
+    "the same denominator would move every metric for reasons that have nothing",
+    "to do with the mechanism being measured.",
+    "",
+    "Two documents, two different ways of being difficult.",
+    "",
+    "celiskili-seyahat-tr contradicts itself, which is what real policies do once",
+    "an endorsement has been bolted onto a base wording. For those questions the",
+    "correct behaviour is to surface BOTH clauses and say the document is not",
+    "consistent. Nothing in the system currently produces that answer, so",
+    "expected_evidence lists both sides: recall then measures the mechanical",
+    "prerequisite — did both halves of the contradiction reach the model — and",
+    "what it does with them is read by hand and reported honestly.",
+    "",
+    "iki-sutun-kasko-tr is ordinary prose in two columns. The parser sorts blocks",
+    "by (top, x0), which interleaves the columns line by line, so these questions",
+    "test whether an answer survives text that has been shuffled into nonsense."
+  ],
+  "questions": [
+    {
+      "id": "hard-cel-001",
+      "document": "celiskili-seyahat-tr",
+      "lang": "tr",
+      "category": "contradiction",
+      "question": "Yurt dışında acil tedavi görürsem masrafım karşılanıyor mu?",
+      "expected_answer_found": true,
+      "expected_evidence": [
+        "Yurt Dışı Acil Tedavi",
+        "50.000 EUR",
+        "Yurt dışında gerçekleşen her türlü tedavi gideri"
+      ],
+      "expected_answer_summary": "The document says both. Article 1.1 and Article 2 grant 50.000 EUR of foreign emergency treatment; Article 5.1 excludes all foreign treatment outright. Neither clause qualifies the other.",
+      "notes": "The flat contradiction, and the one that matters most. An answer citing only the table is wrong in the most dangerous way available: correct, verbatim, and half the document."
+    },
+    {
+      "id": "hard-cel-002",
+      "document": "celiskili-seyahat-tr",
+      "lang": "tr",
+      "category": "contradiction",
+      "question": "Ameliyat için ödenecek azami tutar nedir?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Ameliyat", "100.000 TL", "azami tutar 75.000 TL"],
+      "expected_answer_summary": "Two figures, both stated: the schedule says 100.000 TL and Article 3 says 75.000 TL. The document does not say which governs.",
+      "notes": "A numeric contradiction rather than a coverage one. Whichever figure an answer picks, it is citable — which is exactly why picking one is the failure."
+    },
+    {
+      "id": "hard-cel-003",
+      "document": "celiskili-seyahat-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Bagaj kaybı teminatım hâlâ geçerli mi?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Bagaj Kaybı", "bagaj kaybı teminatı poliçe kapsamından"],
+      "expected_answer_summary": "No. The schedule lists 1.500 EUR, but the endorsement of 01.06.2026 removes the cover.",
+      "notes": "The control for the two above: this one LOOKS like a contradiction and is not. The endorsement explicitly amends, and the document says which wins. An answer that calls this a contradiction is over-triggering."
+    },
+    {
+      "id": "hard-cel-004",
+      "document": "celiskili-seyahat-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Poliçede bekleme süresi var mı, ne kadar?",
+      "expected_answer_found": true,
+      "expected_evidence": ["yedi gün"],
+      "expected_answer_summary": "Seven days from inception, except for emergencies.",
+      "notes": "An uncomplicated question in a complicated document, so a collapse on the others cannot be blamed on the document being hard to read at all."
+    },
+    {
+      "id": "hard-cel-005",
+      "document": "celiskili-seyahat-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Diş tedavisi bu poliçe kapsamında mı?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "The policy never mentions dental treatment, in either the schedule or the exclusions.",
+      "notes": "A refusal in a document full of contradictions. If the contradictions make the system hedge everything, this is where over-refusal shows up."
+    },
+    {
+      "id": "hard-cel-006",
+      "document": "celiskili-seyahat-tr",
+      "lang": "tr",
+      "category": "table",
+      "question": "Yurt içi acil tedavi limiti ve muafiyeti nedir?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Yurt İçi Acil Tedavi", "75.000 TL"],
+      "expected_answer_summary": "75.000 TL, with no deductible.",
+      "notes": "Sits one row away from the contradicted line in the same table. Tests whether the contradiction contaminates its neighbours."
+    },
+    {
+      "id": "hard-col-001",
+      "document": "iki-sutun-kasko-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Her bir hasar için muafiyet ne kadar?",
+      "expected_answer_found": true,
+      "expected_evidence": ["4.000 TL muafiyet"],
+      "expected_answer_summary": "4.000 TL per claim, waived for glass damage.",
+      "notes": "The parser interleaves the two columns, so the sentence carrying this figure arrives spliced together with an unrelated one from the other column."
+    },
+    {
+      "id": "hard-col-002",
+      "document": "iki-sutun-kasko-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Araçtan çalınan kişisel eşyalarım karşılanıyor mu?",
+      "expected_answer_found": true,
+      "expected_evidence": ["kişisel eşyalar bu poliçe kapsamında değildir"],
+      "expected_answer_summary": "No. Personal effects stolen from the vehicle are outside the policy; factory-fitted audio and video equipment is inside it.",
+      "notes": "A negative answer that is stated in the document, which is different from a refusal and must not be reported as one."
+    },
+    {
+      "id": "hard-col-003",
+      "document": "iki-sutun-kasko-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Hasarı kaç gün içinde bildirmem gerekiyor ve geç kalırsam ne olur?",
+      "expected_answer_found": true,
+      "expected_evidence": ["beş iş günü", "artan zarardan sigortalı sorumludur"],
+      "expected_answer_summary": "Five working days. A late notice does not void the claim, but the insured carries whatever additional loss the delay caused.",
+      "notes": "Two spans from consecutive paragraphs of the same article — which the column interleaving separates by a column's worth of unrelated text."
+    },
+    {
+      "id": "hard-col-004",
+      "document": "iki-sutun-kasko-tr",
+      "lang": "tr",
+      "category": "factual",
+      "question": "Anahtarı araçta unutursam hırsızlık teminatı geçerli mi?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Anahtar aracın içinde"],
+      "expected_answer_summary": "No. The theft cover does not apply if the key was left in the vehicle.",
+      "notes": "The clause sits at the end of a paragraph, which is where interleaving does the most damage — the next line belongs to the other column."
+    },
+    {
+      "id": "hard-col-005",
+      "document": "iki-sutun-kasko-tr",
+      "lang": "tr",
+      "category": "negative",
+      "question": "Aracım hasarlıyken ikame araç veriliyor mu?",
+      "expected_answer_found": false,
+      "expected_evidence": [],
+      "expected_answer_summary": "The policy says nothing about a courtesy or replacement vehicle.",
+      "notes": "Refusal has to survive scrambled text too. Interleaved prose is a rich source of plausible-looking fragments to over-read."
+    },
+    {
+      "id": "hard-col-006",
+      "document": "iki-sutun-kasko-tr",
+      "lang": "tr",
+      "category": "multi_clause",
+      "question": "Alkollü araç kullanımı ve yarışa katılma teminat kapsamında mı?",
+      "expected_answer_found": true,
+      "expected_evidence": ["Alkol veya uyuşturucu etkisi", "Yarış ve hız denemeleri"],
+      "expected_answer_summary": "Neither. Both are listed among the exclusions in Article 5.",
+      "notes": "A list, which the two-column flow splits across the column boundary."
+    }
+  ]
+}

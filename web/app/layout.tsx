@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
 import { LocaleProvider } from "@/components/LocaleProvider";
+import { SessionProvider } from "@/components/SessionProvider";
+import { PageTransition } from "@/components/PageTransition";
 import { DEFAULT_LOCALE, dictionaries } from "@/lib/i18n";
 
 import "./globals.css";
@@ -34,7 +36,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans">
-        <LocaleProvider>{children}</LocaleProvider>
+        <PageTransition />
+        <LocaleProvider>
+          <SessionProvider>{children}</SessionProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

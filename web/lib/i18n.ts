@@ -22,8 +22,7 @@ const tr = {
   },
   nav: {
     workspace: "Deneyin",
-    evaluation: "Ölçümler",
-    source: "Kaynak kod",
+    source: "GitHub",
     home: "Ana sayfa",
   },
   language: {
@@ -35,46 +34,28 @@ const tr = {
     eyebrow: "Açık kaynak · TR/EN · alıntıya dayalı",
     thesis:
       "Bir RAG sistemi, ancak “bu bilgi bu belgede yok” diyebildiği kadar güvenilirdir.",
-    lede: "BioPolicy sigorta poliçeleri ve hukuki sözleşmeler hakkındaki soruları yanıtlar, dayandığı maddeyi belgenin üzerinde tam olarak gösterir ve belge cevabı içermiyorsa cevap vermeyi reddeder.",
+    lede: "Poliçenizi sorun: cevabı dayandığı maddeyle birlikte belgenin üzerinde gösterir, belgede yoksa uydurmaz.",
     ctaPrimary: "Örnek bir poliçeyle deneyin",
-    ctaSecondary: "Ölçümleri okuyun",
-    numbersTitle: "70 soruluk değerlendirme kümesinde ölçüldü",
-    numbersNote:
-      "Bu sayıların hepsi python -m eval.run_eval komutunun çıktısıdır; hiçbiri elle yazılmadı. Hoşa gitmeyen sonuçlar da raporda duruyor.",
-    numbers: {
-      refusal: "Doğru ret oranı",
-      refusalNote: "Cevabı belgede olmayan 21 sorunun tamamı reddedildi",
-      falseRefusal: "Yanlış ret oranı",
-      falseRefusalNote: "Cevaplanabilir 49 sorudan 1'i gereksiz yere reddedildi",
-      citations: "Geçerli alıntı",
-      citationsNote: "Sunulan 67 alıntının tamamı belgede bulundu",
-      recall: "Recall@8",
-      recallNote: "Beklenen tüm maddeler modele ulaşan parçalar içinde",
-    },
-    howTitle: "Nasıl çalışıyor",
+    ctaSecondary: "Nasıl çalışıyor",
+    ctaNote: "Kayıt gerekmez · Örnek belgeler hazır · 30 saniyede ilk cevap",
+    howTitle: "Üç adımda",
     how: [
       {
         title: "Belge ayrıştırılır",
-        body: "Metin, tablolar ve her satırın sayfa koordinatları çıkarılır; taranmış sayfalar OCR'dan geçer. Her parça hangi maddenin altında olduğunu bilir, bu yüzden alıntı sayfadaki yerine geri götürülebilir.",
+        body: "Metin, tablolar ve satır koordinatları çıkarılır; taranmış sayfalar OCR'dan geçer.",
       },
       {
         title: "İki arama birlikte koşar",
-        body: "Anlamsal vektör araması ile tam sözcük araması aynı anda çalışır ve sonuçlar RRF ile birleştirilir. Biri “sel hasarı”nı bulur, diğeri “Madde 4.2”yi; tek başına ikisi de yetmez.",
+        body: "Anlamsal arama “sel hasarı”nı bulur, sözcük araması “Madde 4.2”yi; ikisi birleştirilir.",
       },
       {
         title: "Cevap belgeye bağlanır",
-        body: "Model yalnızca getirilen parçalardan cevap üretir. Sonrasında her alıntının belgede gerçekten geçtiği doğrulanır ve cevap kendi kaynağına karşı ayrıca kontrol edilir. Geçemeyen cevap gösterilmez.",
+        body: "Her alıntı belgede doğrulanır. Doğrulamayı geçemeyen cevap hiç gösterilmez.",
       },
     ],
-    limitsTitle: "Bu sistemin yapmadıkları",
-    limits: [
-      "Bu bir hukuki ya da sigortacılık tavsiyesi değildir. Bir poliçenin sizin durumunuzda ne anlama geldiğini söyleyemez; yalnızca metinde ne yazdığını gösterir.",
-      "Örnek belgeler bu proje için yazılmış sentetik metinlerdir. Gerçek bir poliçe değildir ve gerçek bir şirketi temsil etmez.",
-      "Ölçümler 70 soruluk tek bir küme üzerinde yapıldı. Küçük bir kümedir; genel bir kalite iddiası değil, ne ölçtüğü belli olan bir sayıdır.",
-      "Alıntı bağlama ve kendi kendini doğrulama mekanizmaları bu derlemde hiçbir kararı değiştirmedi ve maliyeti ~%55 artırdı. Bu da raporda yazıyor.",
-    ],
-    footerNote:
-      "Yüklenen belgeler ve sorular kalıcı olarak saklanmaz; belgeler 24 saat sonra otomatik silinir.",
+    closingTitle: "Bir belge seçin, ilk sorunuzu sorun.",
+    closingBody:
+      "Cevabı maddesiyle görürsünüz ya da sistem bilmediğini söyler. İkisini de deneyin.",
   },
   workspace: {
     documents: "Örnek belgeler",
@@ -83,6 +64,28 @@ const tr = {
       "Üçü de bu proje için yazılmış sentetik metinlerdir. Biri bilerek taranmış (OCR) olarak hazırlandı.",
     lang: { tr: "Türkçe", en: "İngilizce" },
     sourceType: { native: "dijital metin", scanned: "taranmış · OCR" },
+    injection: {
+      badge: "talimat metni",
+      title: "Bu belge, kendisini okuyan sisteme talimat veriyor",
+      body:
+        "Belgenin içine, bir yapay zekâ sistemine yönelik yazılmış {count} " +
+        "metin parçası yerleştirilmiş. Cevaplar yine belgenin gerçek " +
+        "maddelerinden üretiliyor — bu metinler talimat olarak değil, " +
+        "belgenin içeriği olarak ele alınıyor.",
+      show: "Göster",
+      hide: "Gizle",
+      footer:
+        "Bulunanları kendi PDF'inizde arayıp görebilirsiniz. Belgeyi hazırlayan " +
+        "kişinin niyetine dair bir şey söylemiyoruz; yalnızca metinde ne " +
+        "olduğunu bildiriyoruz.",
+      rules: {
+        rule_override: "kuralları iptal etmeye çalışan metin",
+        addresses_the_model: "okuyucuya değil, yapay zekâya seslenen metin",
+        forged_context: "sistemin kendi biçimini taklit eden metin",
+        orders_an_omission: "bir maddeyi gizlemeyi emreden metin",
+        impersonates_us: "BioPolicy ekibi adına yazılmış gibi görünen metin",
+      },
+    },
     pages: "sayfa",
     loadingDocuments: "Belgeler yükleniyor…",
     loadDocumentsFailed:
@@ -128,11 +131,125 @@ const tr = {
     errorTitle: "Bir şeyler ters gitti",
     errorBody: "Başarısız bir cevap için ücretlendirme yapılmaz.",
     viewerHint: "Bir alıntıya tıklayın, belgede yerini göstersin.",
+    approximateRegion: "yaklaşık bölge",
     viewerLoading: "Belge açılıyor…",
     viewerFailed: "Belge görüntülenemedi.",
     noDocument: "Soldan bir belge seçin.",
     disclaimer:
       "Hukuki veya sigortacılık tavsiyesi değildir. Belgeler sentetiktir.",
+  },
+  account: {
+    signIn: "Google ile giriş yap",
+    signInLink: "Giriş yap",
+    signInTitle: "Devam etmek için giriş yapın",
+    signInBody:
+      "Soru sormak ve belge yüklemek için Google hesabınızla giriş yapmanız gerekiyor. Örnek belgeleri girmeden de inceleyebilirsiniz.",
+    signInWhy:
+      "Neden: her soru gerçek bir model çağrısı ve gerçek bir fatura. Giriş, günlük sınırın kime ait olduğunu belirliyor.",
+    signOut: "Çıkış yap",
+    providerDisabledTitle: "Google girişi kapalı",
+    providerDisabled:
+      "Bu Supabase projesinde Google sağlayıcısı açık değil. Panelde Authentication → Sign In / Providers → Google açıldığında giriş çalışır.",
+    signInFailed: "Giriş başlatılamadı. Sayfayı yenileyip tekrar deneyin.",
+    remaining: "Bugün kalan",
+    questions: "soru",
+    documents: "belge",
+    unlimited: "sınırsız",
+    exhaustedTitle: "Günlük soru hakkınız bitti",
+    exhaustedBody:
+      "Bugün {limit} sorunun tamamını kullandınız. Hak, UTC gece yarısı yenilenir. Belgeleri ve geçmiş sohbetlerinizi incelemeye devam edebilirsiniz.",
+    menu: "Hesabınız",
+    deleteAccount: "Hesabımı sil",
+    deleteTitle: "Hesabınız silinsin mi?",
+    deleteBody:
+      "Yüklediğiniz belgeler, sohbetleriniz ve hesabınız kalıcı olarak silinir. Bu işlem geri alınamaz.",
+    deleteConfirm: "Evet, hesabımı sil",
+    deleteCancel: "Vazgeç",
+    deleting: "Siliniyor…",
+    deleteFailed:
+      "Hesap silinemedi. Belgeleriniz ve hesabınız duruyor; birazdan tekrar deneyin.",
+  },
+  signin: {
+    title: "Poliçenizi sorun",
+    lede: "Devam etmek için Google hesabınızla girin. Örnek belgeleri girmeden de inceleyebilirsiniz.",
+    why: "Her soru gerçek bir model çağrısı ve gerçek bir fatura. Giriş, günlük hakkın kime ait olduğunu belirliyor — başka bir sebebi yok.",
+    browse: "Girmeden incele",
+    signedOut: "Çıkış yaptınız.",
+    legalNote: "Giriş yaparak aşağıdakileri kabul etmiş olursunuz.",
+    updated: "Güncelleme: 5 Ağustos 2026",
+    privacyTitle: "Gizlilik Politikası",
+    privacy: [
+      {
+        title: "Hesabınız",
+        body: "Google ile girdiğinizde adınız, e-posta adresiniz ve profil fotoğrafınız alınır. Başka hiçbir bilgi istenmez.",
+      },
+      {
+        title: "Yüklediğiniz belgeler",
+        body: "Yalnızca siz görebilirsiniz ve 24 saat sonra otomatik silinir. Dilediğiniz an kendiniz de silebilirsiniz.",
+      },
+      {
+        title: "Sorularınız",
+        body: "Sorunuz ve belgenin ilgili bölümleri, cevabı üretmek için yapay zekâ modellerine gönderilir. Model eğitimi için kullanılmaz.",
+      },
+      {
+        title: "Paylaşım",
+        body: "Verileriniz satılmaz, reklam için kullanılmaz, üçüncü kişilere aktarılmaz.",
+      },
+      {
+        title: "Silme",
+        body: "Hesabınızı profil menüsünden silebilirsiniz. Belgeleriniz, sohbetleriniz ve hesabınız birlikte gider.",
+      },
+    ],
+    termsTitle: "Kullanım Koşulları",
+    terms: [
+      {
+        title: "Tavsiye değildir",
+        body: "BioPolicy hukuki ya da sigortacılık tavsiyesi vermez. Bir poliçenin sizin durumunuzda ne anlama geldiğini söyleyemez; yalnızca metinde ne yazdığını gösterir.",
+      },
+      {
+        title: "Örnek belgeler gerçek değildir",
+        body: "Bu proje için yazılmış sentetik metinlerdir ve hiçbir şirketi temsil etmez.",
+      },
+      {
+        title: "Günlük hak",
+        body: "Her hesabın günlük soru ve belge hakkı vardır. Demo, gerçek bir fatura ürettiği için sınırlıdır.",
+      },
+      {
+        title: "Garanti yok",
+        body: "Bu bir portföy projesidir. Kesintisiz çalışacağı ya da her cevabın doğru olacağı garanti edilmez.",
+      },
+    ],
+  },
+  tour: {
+    start: "Reddedişini izleyin (30 saniye)",
+    label: "Kayıtlı gösterim",
+    close: "Kapat",
+    next: "Devam",
+    toEval: "Ölçümlere bakın",
+    recorded: "Kayıt — soru hakkınızdan düşmez",
+    step1Title: "Cevabı belgede olmayan bir soru soruluyor",
+    step1Body:
+      "Konut poliçesine soruluyor: “Evcil hayvanımın komşuya verdiği zarar karşılanıyor mu?” Poliçe bu konuda hiçbir şey söylemiyor — ama yakın maddeler var.",
+    step2Title: "Sistem yakın maddeleri buluyor",
+    step2Body:
+      "Arama, evcil hayvanların geçtiği tek maddeyi getiriyor. Bir dil modeli için buradan “evet/hayır” uydurmak çok kolay: madde gerçek, alıntı gerçek, cümle kulağa doğru gelir.",
+    step2Quote:
+      "Madde 4.5 — Evcil hayvanların sigortalı eşyaya verdiği zararlar teminat dışıdır.",
+    step3Title: "Ve cevap vermiyor",
+    step3Body:
+      "Bu madde sigortalının kendi eşyası hakkında; komşuya verilen zarar farklı bir konu. Sistem yakın bir maddeden çıkarım yapmak yerine “bu belgede yok” diyor. Ürünün tamamı bu davranışın etrafında kurulu — ve 70 soruluk kümede ölçülmüş hâli ölçüm sayfasında.",
+  },
+  conversations: {
+    title: "Sohbetlerim",
+    empty: "Henüz sohbetiniz yok.",
+    newChat: "Yeni sohbet",
+    documentGone: "belge silindi",
+    remove: "Sil",
+    confirmRemove: "Sohbet silinsin mi?",
+    confirmYes: "Evet, sil",
+    confirmNo: "Vazgeç",
+    loadFailed: "Sohbet açılamadı.",
+    messages: "mesaj",
   },
   upload: {
     title: "Kendi belgeniz",
@@ -158,14 +275,10 @@ const tr = {
       ready: "Hazır",
       failed: "Başarısız",
     },
-    authDisabledTitle: "Oturum açılamıyor",
-    authDisabled:
-      "Bu Supabase projesinde anonim girişler kapalı. Panelde Authentication → Sign In / Providers → Anonymous sign-ins açıldığında yükleme çalışır.",
-    signInFailed: "Oturum başlatılamadı. Sayfayı yenileyip tekrar deneyin.",
     quotaTitle: "Günlük sınıra ulaştınız",
     budgetTitle: "Demo şimdilik kapalı",
     retentionNote:
-      "Yüklediğiniz belge {hours} saat sonra otomatik silinir; dilediğiniz an kendiniz de silebilirsiniz.",
+      "Yüklediğiniz belge {hours} saat sonra otomatik silinir; dilediğiniz an kendiniz de silebilirsiniz. O belgeyle yaptığınız sohbet de belgeyle birlikte gider.",
   },
   evaluation: {
     title: "Değerlendirme",
@@ -173,11 +286,31 @@ const tr = {
     missing:
       "Rapor bu derlemede bulunamadı. Depoda eval/report.md dosyasına bakabilirsiniz.",
     regenerate: "Yeniden üretmek için",
+    languageNote:
+      "Rapor, onu üreten komutun yazdığı haliyle duruyor — bu yüzden İngilizce. Çevirmek, sayfanın aracın gerçekten ne yazdığını göstermemesi anlamına gelirdi.",
+    spendTitle: "Bu demo şimdiye kadar ne harcadı",
+    spendTotal: "Toplam",
+    spendPerQuestion: "Soru başına",
+    spendQuestions: "Cevaplanan soru",
+    spendBudget: "Bütçe tavanı",
+    spendCaveat:
+      "Yalnızca Anthropic ücretlendirmesi: sağlayıcı çağrılarının {share} kadarı fiyatlandırılabiliyor. Gömme ve sorgu yeniden yazma için kullanılan Google modellerinin fiyatı bu projede doğrulanmadı, o yüzden gerçek fatura bu rakamdan yüksek.",
+    historyTitle: "Sayılar zaman içinde",
+    historyNote:
+      "Yayımlanan yapılandırma (katı prompt + mekanizmalar), 70 soruluk küme üzerinde. Her nokta bir koşum.",
+    historyEmpty:
+      "Henüz kayıt yok. Geçmiş, ölçüm koştukça birikir; ilk koşum bu özellikten sonra yapılacak.",
+    historyTooShort: "Tek bir koşum var. İki nokta olmadan çizilecek bir eğilim yok.",
+    historySeries: {
+      balanced_accuracy: "Dengeli doğruluk",
+      refusal_accuracy: "Doğru ret",
+      false_refusal_rate: "Yanlış ret",
+    },
   },
   footer: {
     disclaimer:
       "BioPolicy bir portföy projesidir. Hukuki ya da sigortacılık tavsiyesi vermez.",
-    retention: "Belgeler 24 saat sonra otomatik silinir",
+    retention: "Belgeler 24 saat sonra silinir · sohbetler hesabınızda kalır",
     license: "MIT lisanslı",
   },
 };
@@ -192,8 +325,7 @@ const en: Dictionary = {
   },
   nav: {
     workspace: "Try it",
-    evaluation: "Evaluation",
-    source: "Source",
+    source: "GitHub",
     home: "Home",
   },
   language: {
@@ -205,46 +337,28 @@ const en: Dictionary = {
     eyebrow: "Open source · TR/EN · citation-grounded",
     thesis:
       "A RAG system is only as trustworthy as its ability to say “that isn't in this document.”",
-    lede: "BioPolicy answers questions about insurance policies and legal contracts, shows you the exact clause it relied on inside the document, and refuses to answer when the document does not contain one.",
+    lede: "Ask your policy: every answer comes with the clause it rests on, shown in the document — and nothing is invented when the document does not say.",
     ctaPrimary: "Try it on a sample policy",
-    ctaSecondary: "Read the numbers",
-    numbersTitle: "Measured on a 70-question evaluation set",
-    numbersNote:
-      "Every figure is the output of python -m eval.run_eval. None are hand-written, and the unflattering ones are still in the report.",
-    numbers: {
-      refusal: "Refusal accuracy",
-      refusalNote: "All 21 questions the document cannot answer were refused",
-      falseRefusal: "False-refusal rate",
-      falseRefusalNote: "1 of 49 answerable questions was refused needlessly",
-      citations: "Citation validity",
-      citationsNote: "All 67 offered citations were found in the document",
-      recall: "Recall@8",
-      recallNote: "Every expected clause reached the model, not merely the index",
-    },
-    howTitle: "How it works",
+    ctaSecondary: "How it works",
+    ctaNote: "No sign-up · Sample documents ready · First answer in 30 seconds",
+    howTitle: "In three steps",
     how: [
       {
         title: "The document is parsed",
-        body: "Text, tables and the page coordinates of every line are extracted; scanned pages go through OCR. Each chunk knows which article it sits under, which is what lets a citation point back at its place on the page.",
+        body: "Text, tables and line coordinates are extracted; scanned pages go through OCR.",
       },
       {
         title: "Two searches run together",
-        body: "Semantic vector search and exact keyword search run at once and are fused with RRF. One finds “flood damage”, the other finds “Article 4.2”; neither is sufficient alone.",
+        body: "Semantic search finds “flood damage”, keyword search finds “Article 4.2”; the two are fused.",
       },
       {
         title: "The answer is bound to the document",
-        body: "The model may only answer from the retrieved chunks. Afterwards every quote is checked against the text it claims to come from, and the answer is verified against its own source. An answer that fails is never shown.",
+        body: "Every quote is verified against the text. An answer that fails is never shown.",
       },
     ],
-    limitsTitle: "What this system does not do",
-    limits: [
-      "This is not legal or insurance advice. It cannot tell you what a policy means for your situation — only what the text says.",
-      "The sample documents are synthetic, written for this project. They are not real policies and do not represent any real company.",
-      "The numbers come from a single 70-question set. That is small; it is a figure with a known scope, not a general claim about quality.",
-      "Citation binding and self-verification changed no decisions on this corpus and added about 55% to the cost. That is in the report too.",
-    ],
-    footerNote:
-      "Questions and uploaded documents are not kept: documents are deleted automatically after 24 hours.",
+    closingTitle: "Pick a document, ask your first question.",
+    closingBody:
+      "You either get the answer with its clause, or the system tells you it does not know. Try both.",
   },
   workspace: {
     documents: "Sample documents",
@@ -253,6 +367,28 @@ const en: Dictionary = {
       "All three are synthetic, written for this project. One is deliberately a scan, so OCR is on the critical path.",
     lang: { tr: "Turkish", en: "English" },
     sourceType: { native: "digital text", scanned: "scanned · OCR" },
+    injection: {
+      badge: "instruction text",
+      title: "This document gives orders to the system reading it",
+      body:
+        "{count} passage(s) inside this document are written at an AI system " +
+        "rather than at a reader. Answers are still produced from the real " +
+        "clauses — that text is treated as the document's content, not as " +
+        "instructions.",
+      show: "Show",
+      hide: "Hide",
+      footer:
+        "You can find each passage in your own PDF and judge it yourself. This " +
+        "says nothing about what whoever prepared the document intended; it " +
+        "reports only what the text contains.",
+      rules: {
+        rule_override: "text cancelling the reader's instructions",
+        addresses_the_model: "text speaking to an AI rather than to a reader",
+        forged_context: "text imitating the system's own format",
+        orders_an_omission: "text ordering a clause to be left out",
+        impersonates_us: "text claiming to come from the BioPolicy team",
+      },
+    },
     pages: "pages",
     loadingDocuments: "Loading documents…",
     loadDocumentsFailed:
@@ -298,10 +434,124 @@ const en: Dictionary = {
     errorTitle: "Something went wrong",
     errorBody: "Nothing is charged for a failed answer.",
     viewerHint: "Click a citation to see where it sits in the document.",
+    approximateRegion: "approximate region",
     viewerLoading: "Opening the document…",
     viewerFailed: "The document could not be displayed.",
     noDocument: "Pick a document on the left.",
     disclaimer: "Not legal or insurance advice. The documents are synthetic.",
+  },
+  account: {
+    signIn: "Sign in with Google",
+    signInLink: "Sign in",
+    signInTitle: "Sign in to continue",
+    signInBody:
+      "Asking questions and uploading documents needs a Google account. The sample documents are readable without one.",
+    signInWhy:
+      "Why: every question is a real model call against a real bill. Signing in is what the daily limit is counted against.",
+    signOut: "Sign out",
+    providerDisabledTitle: "Google sign-in is off",
+    providerDisabled:
+      "The Google provider is not enabled for this Supabase project. Sign-in works once Authentication → Sign In / Providers → Google is turned on.",
+    signInFailed: "Could not start sign-in. Reload the page and try again.",
+    remaining: "Left today",
+    questions: "questions",
+    documents: "documents",
+    unlimited: "unlimited",
+    exhaustedTitle: "You have used today's questions",
+    exhaustedBody:
+      "All {limit} of them. The allowance resets at midnight UTC. You can still read the documents and your earlier conversations.",
+    menu: "Your account",
+    deleteAccount: "Delete my account",
+    deleteTitle: "Delete your account?",
+    deleteBody:
+      "Your uploaded documents, your conversations and your account are removed for good. This cannot be undone.",
+    deleteConfirm: "Yes, delete my account",
+    deleteCancel: "Cancel",
+    deleting: "Deleting…",
+    deleteFailed:
+      "The account could not be deleted. Your documents and account are still there; try again shortly.",
+  },
+  signin: {
+    title: "Ask your policy",
+    lede: "Sign in with Google to continue. The sample documents are readable without an account.",
+    why: "Every question is a real model call against a real bill. Signing in is what the daily allowance is counted against — that is the whole reason for it.",
+    browse: "Look around first",
+    signedOut: "You are signed out.",
+    legalNote: "By signing in you accept the following.",
+    updated: "Updated: 5 August 2026",
+    privacyTitle: "Privacy Policy",
+    privacy: [
+      {
+        title: "Your account",
+        body: "Signing in with Google gives us your name, email address and profile picture. Nothing else is asked for.",
+      },
+      {
+        title: "Documents you upload",
+        body: "Only you can see them, and they are deleted automatically after 24 hours. You can also delete them yourself at any time.",
+      },
+      {
+        title: "Your questions",
+        body: "Your question and the relevant parts of the document are sent to AI models to produce the answer. They are not used to train anything.",
+      },
+      {
+        title: "Sharing",
+        body: "Your data is not sold, not used for advertising, and not passed to third parties.",
+      },
+      {
+        title: "Deleting",
+        body: "You can delete your account from the profile menu. Your documents, your conversations and your account go together.",
+      },
+    ],
+    termsTitle: "Terms of Use",
+    terms: [
+      {
+        title: "Not advice",
+        body: "BioPolicy does not give legal or insurance advice. It cannot tell you what a policy means for your situation — only what the text says.",
+      },
+      {
+        title: "The samples are not real",
+        body: "They are synthetic documents written for this project and represent no real company.",
+      },
+      {
+        title: "Daily allowance",
+        body: "Each account has a daily allowance of questions and uploads. The demo is limited because it produces a real bill.",
+      },
+      {
+        title: "No guarantees",
+        body: "This is a portfolio project. It is not guaranteed to stay up, nor is every answer guaranteed to be right.",
+      },
+    ],
+  },
+  tour: {
+    start: "Watch it refuse (30 seconds)",
+    label: "Recorded walkthrough",
+    close: "Close",
+    next: "Next",
+    toEval: "See the numbers",
+    recorded: "A recording — it does not use one of your questions",
+    step1Title: "A question the document cannot answer",
+    step1Body:
+      "The home policy is asked: “is damage my pet caused to a neighbour covered?” The policy says nothing about it — but it does have passages nearby.",
+    step2Title: "The system finds the nearby clause",
+    step2Body:
+      "Search returns the one article that mentions pets at all. Inventing a yes or no from here is easy: the clause is real, the quote is real, and the sentence sounds right.",
+    step2Quote:
+      "Article 4.5 — Damage caused by pets to the insured contents is excluded.",
+    step3Title: "And it declines to answer",
+    step3Body:
+      "That clause is about the policyholder's own contents; damage to a neighbour is a different subject. Rather than reason from an adjacent article, the system says it is not in this document. The whole product is built around that behaviour — and the evaluation page measures it over seventy questions.",
+  },
+  conversations: {
+    title: "Your chats",
+    empty: "No conversations yet.",
+    newChat: "New chat",
+    documentGone: "document deleted",
+    remove: "Delete",
+    confirmRemove: "Delete this chat?",
+    confirmYes: "Yes, delete",
+    confirmNo: "Cancel",
+    loadFailed: "Could not open that conversation.",
+    messages: "messages",
   },
   upload: {
     title: "Your own document",
@@ -327,14 +577,10 @@ const en: Dictionary = {
       ready: "Ready",
       failed: "Failed",
     },
-    authDisabledTitle: "Cannot start a session",
-    authDisabled:
-      "Anonymous sign-ins are switched off for this Supabase project. Uploading works once Authentication → Sign In / Providers → Anonymous sign-ins is enabled.",
-    signInFailed: "Could not start a session. Reload the page and try again.",
     quotaTitle: "You have reached the daily limit",
     budgetTitle: "The demo is paused",
     retentionNote:
-      "Your document is deleted automatically after {hours} hours, and you can delete it yourself at any time.",
+      "Your document is deleted automatically after {hours} hours, and you can delete it yourself at any time. The conversation about it goes when it does.",
   },
   evaluation: {
     title: "Evaluation",
@@ -342,11 +588,31 @@ const en: Dictionary = {
     missing:
       "The report was not found in this build. It lives at eval/report.md in the repository.",
     regenerate: "To regenerate it",
+    languageNote:
+      "The report is shown exactly as the command wrote it, which is why it is in English.",
+    spendTitle: "What this demo has spent",
+    spendTotal: "Total",
+    spendPerQuestion: "Per question",
+    spendQuestions: "Questions answered",
+    spendBudget: "Budget ceiling",
+    spendCaveat:
+      "Anthropic billing only: {share} of provider calls can be priced. The Google models used for embedding and query rewriting were never price-verified for this project, so the real bill is higher than this figure.",
+    historyTitle: "The numbers over time",
+    historyNote:
+      "The shipped configuration (strict prompt + mechanisms) over the 70-question set. One point per run.",
+    historyEmpty:
+      "Nothing recorded yet. History accrues as the evaluation runs; the first entry lands after this feature.",
+    historyTooShort: "One run so far. Two points are needed before there is a trend to draw.",
+    historySeries: {
+      balanced_accuracy: "Balanced accuracy",
+      refusal_accuracy: "Refusal accuracy",
+      false_refusal_rate: "False-refusal rate",
+    },
   },
   footer: {
     disclaimer:
       "BioPolicy is a portfolio project. It does not give legal or insurance advice.",
-    retention: "Documents are deleted automatically after 24 hours",
+    retention: "Documents deleted after 24 hours · chats kept in your account",
     license: "MIT licensed",
   },
 };

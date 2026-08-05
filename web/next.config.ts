@@ -35,6 +35,16 @@ const nextConfig: NextConfig = {
     };
   },
 
+  images: {
+    // Profile pictures come from Google, which is the only sign-in provider
+    // (ADR 013) and serves avatars from a numbered `lh*` host. Nothing else is
+    // allowed through the optimiser: an open image proxy is a way to make this
+    // deployment fetch arbitrary URLs on someone's behalf.
+    remotePatterns: [
+      { protocol: "https", hostname: "**.googleusercontent.com", pathname: "/**" },
+    ],
+  },
+
   async headers() {
     return [
       {

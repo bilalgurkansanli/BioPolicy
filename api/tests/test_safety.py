@@ -9,7 +9,7 @@ counts.
 from __future__ import annotations
 
 from typing import Any, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -23,7 +23,12 @@ USER = uuid4()
 
 
 def _guard(
-    *, asked: int = 0, uploaded: int = 0, questions: int = 3, documents: int = 2
+    *,
+    asked: int = 0,
+    uploaded: int = 0,
+    questions: int = 3,
+    documents: int = 2,
+    unlimited: bool = False,
 ) -> QuotaGuard:
     # Two fetchrow results: the first answers `questions_today`, the second the
     # upload count. Each test only exercises one of them.
@@ -32,9 +37,20 @@ def _guard(
     return QuotaGuard(
         cast(Any, pool),
         usage,
+        cast(Any, StubAccounts(unlimited)),
         daily_questions=questions,
         daily_documents=documents,
     )
+
+
+class StubAccounts:
+    """Stands in for the allowlist lookup, which is tested on its own."""
+
+    def __init__(self, unlimited: bool) -> None:
+        self._unlimited = unlimited
+
+    async def is_unlimited(self, user_id: UUID) -> bool:
+        return self._unlimited
 
 
 # -----------------------------------------------------------------------------
@@ -80,6 +96,7 @@ async def test_the_upload_count_ignores_samples() -> None:
     guard = QuotaGuard(
         cast(Any, pool),
         UsageRepository(cast(Any, pool)),
+        cast(Any, StubAccounts(False)),
         daily_questions=10,
         daily_documents=10,
     )
@@ -87,6 +104,42 @@ async def test_the_upload_count_ignores_samples() -> None:
     await guard.ensure_can_upload(USER)
 
     assert "not is_sample" in pool.queries[0]
+
+
+async def test_an_allowlisted_account_is_not_counted() -> None:
+    """The owner's own account, so the demo can be tested without burning it.
+
+    Note what is *not* consulted: the token. Whether an account is exempt is
+    decided against the account row (`api/accounts.py`), so this guard only ever
+    sees the answer, never the address.
+    """
+    guard = _guard(asked=99, uploaded=99, unlimited=True)
+
+    await guard.ensure_can_ask(USER)
+    await guard.ensure_can_upload(USER)
+
+
+async def test_the_allowance_reports_unlimited_as_none_not_zero() -> None:
+    """Zero left and no limit at all must not render the same."""
+    allowance = await _guard(asked=99, unlimited=True).allowance(USER)
+
+    assert allowance.unlimited is True
+    assert allowance.questions_left is None
+    assert allowance.documents_left is None
+
+
+async def test_the_allowance_counts_down_and_stops_at_zero() -> None:
+    allowance = await _guard(asked=2, uploaded=1, questions=3, documents=1).allowance(USER)
+
+    assert allowance.questions_left == 1
+    assert allowance.documents_left == 0
+
+
+async def test_the_allowance_never_reports_a_negative_remainder() -> None:
+    """A count can exceed the limit — concurrent requests land together."""
+    allowance = await _guard(asked=9, questions=3).allowance(USER)
+
+    assert allowance.questions_left == 0
 
 
 # -----------------------------------------------------------------------------

@@ -42,7 +42,7 @@ export function MyDocumentList({
         return (
           <li
             key={document.id}
-            className={`rounded-lg border px-3 py-2.5 transition-colors ${
+            className={`rounded-xl border px-3 py-2.5 transition-colors ${
               selected ? "border-accent bg-accent-soft" : "border-line bg-surface"
             }`}
           >

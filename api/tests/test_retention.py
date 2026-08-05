@@ -128,3 +128,43 @@ async def test_deleting_an_unknown_document_reports_failure_rather_than_success(
 
     assert await service.purge_document(uuid4()) is False
     assert storage.removed == []
+
+
+async def test_closing_an_account_empties_the_bucket_before_the_account_goes() -> None:
+    """The account is only safe to delete once every file of its own is gone.
+
+    Rows cascade from `auth.users`; storage objects do not. If the account went
+    first, the PDFs would be left with no row pointing at them, no owner to ask
+    for them and no expiry to catch them — findable only by someone who already
+    knew the path.
+    """
+    second = uuid4()
+    pool = FakePool(
+        fetch=[
+            [
+                {"id": DOC, "storage_path": PATH},
+                {"id": second, "storage_path": f"uploads/{USER}/{second}.pdf"},
+            ]
+        ],
+        fetchval=2,
+    )
+    storage = FakeStorage()
+    storage.share_log(pool.log)
+    service = RetentionService(cast(Any, pool), cast(Any, storage))
+
+    assert await service.purge_user_documents(USER) is True
+
+    assert len(storage.removed) == 2
+    order = pool.statements
+    assert order.index("storage.remove") < order.index("delete from")
+
+
+async def test_a_bucket_that_refuses_a_delete_keeps_the_account_alive() -> None:
+    """A false here is what stops the route from deleting the account."""
+    pool = FakePool(fetch=[[{"id": DOC, "storage_path": PATH}]], fetchval=1)
+    storage = FakeStorage(removable=False)
+    storage.share_log(pool.log)
+    service = RetentionService(cast(Any, pool), cast(Any, storage))
+
+    assert await service.purge_user_documents(USER) is False
+    assert "delete from" not in pool.statements

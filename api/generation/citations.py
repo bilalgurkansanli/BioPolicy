@@ -237,6 +237,7 @@ def bind(payload: AnswerPayload, context: AssembledContext) -> BindingOutcome:
                 quote=citation.quote,
                 # Page and geometry come from our record, never the model's.
                 page=chunk.page_start,
+                page_end=chunk.page_end,
                 section_path=chunk.section_path,
                 bbox=chunk.bbox.as_dict() if chunk.bbox else None,
                 exact=exact,

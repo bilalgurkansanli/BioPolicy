@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from api.generation import prompts
 from eval.dataset import Stats
 from eval.metrics import Report
 
@@ -71,6 +72,44 @@ def _limitations(
             f"the size of the documents, not the quality of the search. MRR still says "
             f"something about ranking; recall does not. Fixing this needs longer "
             f"documents, not a better retriever."
+        )
+
+    # 1b. Provider failures, because they are indistinguishable from refusals.
+    errored = {name: report.errors for name, report in arms.items() if report.errors}
+    if errored:
+        notes.append(
+            f"**{sum(errored.values())} question(s) failed with a provider error and are "
+            f"counted as refusals.** A question the provider never answered looks "
+            f"identical, in every metric here, to one the system declined — so a bad "
+            f"afternoon at the API arrives as a false-refusal rate. The arms carrying the "
+            f"entailment check make three serial provider calls per question instead of "
+            f"two, and they are the arms with errors: "
+            + ", ".join(f"`{name}` ({count})" for name, count in sorted(errored.items()))
+            + ". Read every false-refusal figure below with that subtracted."
+        )
+
+    # 1c. Does the fourth mechanism earn its call?
+    strict_ent, guarded = arms.get("strict_entailed"), arms.get("strict_guarded")
+    if strict_ent and guarded:
+        caught = strict_ent.refusal.refusal_accuracy - guarded.refusal.refusal_accuracy
+        cost_in_false = strict_ent.refusal.false_refusal_rate - guarded.refusal.false_refusal_rate
+        extra = (
+            strict_ent.cost.mean_cost_per_query_usd / guarded.cost.mean_cost_per_query_usd - 1
+            if guarded.cost.mean_cost_per_query_usd
+            else 0.0
+        )
+        notes.append(
+            f"**The entailment check did not do what it was built to do.** It exists "
+            f"because an earlier run of this report diagnosed the previous mechanisms as "
+            f"blind to unwarranted inference, and it is the only pass that is shown the "
+            f"question. On this corpus it moved refusal accuracy by {caught:+.0%}, moved "
+            f"the false-refusal rate by {cost_in_false:+.0%}, and added {extra:.0%} to the "
+            f"cost of every question. Subtract the provider errors above and it changed no "
+            f"decisions — the same finding as the two mechanisms before it, reached the "
+            f"same way. It does catch something on the adversarial set "
+            f"(`report_hard.md`), and nothing here; shipping it always would be paying on "
+            f"every question for a check that fires on documents this corpus does not "
+            f"contain."
         )
 
     # 2. Which lever actually moved the numbers?
@@ -200,12 +239,58 @@ def render_report(
     add(f"| Commit | `{commit}` |")
     add(f"| Answering model | `{model}` |")
     add(f"| Embedding model | `{embedding_model}` (1536 dimensions) |")
-    add("| Prompts | `answer_v1`, `verify_v1` |")
+    # Read from the module rather than written here. A report that hard-codes
+    # its own prompt version keeps printing the old one the day the prompt
+    # changes, which is the single most misleading thing this table could do.
+    add(f"| Prompts | `{prompts.ANSWER}`, `{prompts.VERIFY}` |")
     add(f"| Questions | {dataset.total} |")
     add(
         f"| Adversarial negatives | {dataset.by_category.get('negative', 0)} ({dataset.negative_share:.0%}) |"
     )
     add("")
+
+    # --- the injection set --------------------------------------------------
+    # Placed above the ablation because when this section exists it is the whole
+    # reason the run happened, and because its verdict is binary in a way the
+    # rest of the report is not: an obeyed instruction is not a percentage point.
+    if primary.injection:
+        add("## Did the document manage to give us orders?")
+        add("")
+        add(
+            "Every question below is asked of a policy that contains an attack "
+            "aimed at whatever reads it. The metric is not accuracy. An attack "
+            "that produced a refusal did **not** succeed — the reader learned "
+            "nothing false, which is the entire promise — so only an *obeyed* "
+            "instruction counts against us. That asymmetry is deliberate: "
+            "counting refusals as successes would reward an attacker for merely "
+            "making the system nervous."
+        )
+        add("")
+        add("| arm | attacks | obeyed | blocked | of which by refusing |")
+        add("|---|---:|---:|---:|---:|")
+        for name, arm in arms.items():
+            inj = arm.injection
+            if inj is None:
+                continue
+            add(
+                f"| `{name}` | {inj.attacks} | **{inj.obeyed}** | "
+                f"{_pct(inj.block_rate)} | {inj.refused} |"
+            )
+        add("")
+        add("Per technique, for the shipped configuration — `true` means obeyed:")
+        add("")
+        add("| technique | obeyed |")
+        add("|---|---|")
+        for technique, obeyed in sorted(primary.injection.by_technique.items()):
+            mark = "**yes**" if obeyed else "no"
+            add(f"| `{technique}` | {mark} |")
+        add("")
+        add(
+            "One question per technique, so these are single observations, not "
+            "rates. They are reported that way on purpose: a percentage over six "
+            "attacks would imply a precision the sample size cannot carry."
+        )
+        add("")
 
     # --- the ablation -------------------------------------------------------
     if len(arms) > 1:

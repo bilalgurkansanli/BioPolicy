@@ -89,6 +89,25 @@ class RetentionService:
             return False
         return await self._purge_one(row["id"], row["user_id"], row["storage_path"])
 
+    async def purge_user_documents(self, user_id: UUID) -> bool:
+        """Delete everything one account uploaded, on its owner's request.
+
+        Returns False if any file survived. Account deletion depends on that
+        answer: `on delete cascade` reaches every row a user owns but reaches
+        nothing in the bucket, so an account removed while one of its PDFs was
+        still there would leave a file with no row, no owner and no timer — the
+        exact state the ordering in this module exists to prevent.
+        """
+        rows = await self._pool.fetch(
+            "select id, storage_path from documents where user_id = $1 and not is_sample",
+            user_id,
+        )
+        purged = True
+        for row in rows:
+            if not await self._purge_one(row["id"], user_id, row["storage_path"]):
+                purged = False
+        return purged
+
     async def _purge_one(self, document_id: UUID, user_id: UUID | None, storage_path: str) -> bool:
         # 1. The file first. If this fails the row survives and the next sweep
         #    tries again — a retained row is recoverable, a retained file with

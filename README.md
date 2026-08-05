@@ -48,10 +48,57 @@ switchable so the evaluation harness can measure what it actually contributes:
 | 1 | Strict grounding prompt + structured output | The model answering from world knowledge instead of the document |
 | 2 | Citation binding | Quotes that sound right but appear nowhere in the retrieved text |
 | 3 | Self-verification & groundedness scoring | Answers whose individual claims aren't supported, even when the citations are real |
+| 4 | Entailment check *(off by default)* | An answer whose every claim is supported and which still does not follow — a theft clause answering a question about a car |
+
+Mechanism 4 exists because the evaluation said mechanisms 2 and 3 were not
+earning their keep, and diagnosed exactly why. It was built to close that gap,
+measured, and **switched off by its own numbers**: no decisions changed, 24%
+added to every question, and a third serial provider call that showed up as
+errors the other arms did not have.
+
+It stays in the codebase because on the adversarial corpus it caught a
+contradiction the shipped configuration answered confidently and wrongly. One
+environment variable turns it on. The whole experiment — including the part
+where the metric was too coarse to represent the right answer — is
+[ADR 014](./docs/adr/014-entailment-check.md).
 
 If all citations on an answer fail verification, the answer is **not shown**. It
 is downgraded to a refusal and counted. Those caught hallucinations appear in the
 metrics below rather than in front of a user.
+
+### When the document is the attacker
+
+The mechanisms above assume the document is honest and the model might not be.
+The reverse is also a real case: a policy prepared by a broker, an employer or a
+landlord, with text inside it aimed at whatever AI reads it.
+
+A corpus of six such attacks was written and measured. The baseline result was
+not the expected one — the planted text mostly did not hijack the answer, it
+**collapsed** it: 57% of answerable questions came back as "cannot determine",
+with no mechanism involved. A hostile document made the system useless rather
+than making it lie.
+
+Two fixes, neither of which adds a model call:
+
+| | |
+|---|---|
+| `answer_v2` | Excerpt text is evidence, never instruction — and explicitly neither permission to refuse nor permission to hide |
+| Id removal | Text imitating an excerpt marker is stripped in code before the model sees it, because asking the model not to fall for it measurably did not work |
+
+| Injection set | before | after |
+|---|---:|---:|
+| attacks obeyed | 1 of 6 | **0 of 6** |
+| false-refusal | 57% | **14%** |
+
+The 70-question demo set is **unchanged** — 100% refusal accuracy, 4%
+false-refusal, 98% balanced — at +9% per question in prompt tokens.
+
+Uploaded documents are also scanned at ingest for instruction-shaped text and
+the user is **told**, with the sentence quoted so they can find it in their own
+PDF. That check blocks nothing and is not the defence; it fires on 5 of 5 rules
+for the injection document and on none of the five honest ones. The whole
+experiment, including the fix that failed and two metrics that had to be
+corrected after the fact, is [ADR 015](./docs/adr/015-hostile-documents.md).
 
 ## Measured results
 
@@ -161,12 +208,17 @@ natural thing to write, and it loses the storage path — the purge reports
 success, the audit table agrees, and the PDF is still on disk with nothing left
 pointing at it.
 
-Spending is bounded in three layers: per-user daily quotas, a global budget
+Spending is bounded in three layers: per-account daily quotas, a global budget
 breaker that counts spend the moment it happens rather than when the ledger
 catches up, and the provider console's own limit — the only one that still works
-when this code is wrong. The quotas are a courtesy: anonymous accounts are free
-to create, so they slow a determined visitor down rather than stopping one. The
-breaker is what actually bounds the bill.
+when this code is wrong.
+
+One account is exempt from the quotas, by email address, configured in the
+environment. The exemption is decided against the account row rather than the
+token — a signed `email` claim is only as trustworthy as the provider that
+issued it, and it must have come from a confirmed Google account that is not
+banned or deleted. There is a test per clause, each written as the way somebody
+who does not own the address would otherwise get in.
 
 ## The interface
 
@@ -183,9 +235,13 @@ Three surfaces, all statically prerendered:
 You can also upload your own PDF. The file goes straight from the browser to
 object storage against a signed URL — it never passes through the API — and
 ingestion runs asynchronously with the real pipeline stages visible while it
-works. There is no signup: the session is an anonymous Supabase account created
-on first use, because a system that deletes your document tomorrow has no
-business keeping your email address ([ADR 012](./docs/adr/012-anonymous-accounts.md)).
+works. Conversations are saved to your account, so you can come back to one.
+
+Reading the samples needs no account. Asking a question does: **Google, and only
+Google** ([ADR 013](./docs/adr/013-google-only-sign-in.md)). The allowance is
+three questions and one document a day, which is small enough to be worth
+evading — and an identity that costs nothing to create is not a limit, it is a
+speed bump with a counter attached.
 
 Turkish and English, switched from the header. The locale is a stored preference
 rather than a URL segment, because the interface language and the *document's*

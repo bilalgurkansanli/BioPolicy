@@ -1,0 +1,388 @@
+/**
+ * Finding a cited quote's actual position on a rendered page.
+ *
+ * Citations carry the bounding box of the *chunk* they came from, because that
+ * is what ingestion stored. For a chunk that happens to be a coverage table,
+ * that box is the whole table: the chip says "Sigorta Süresi | 01.03.2026 –
+ * 01.03.2027" and the highlight covers forty lines around it. The citation is
+ * correct and the highlight is useless, which is the worst combination — it
+ * looks like the system found the clause and cannot point at it.
+ *
+ * So the quote is located in the page's own text layer at click time. Nothing
+ * is re-ingested and nothing is stored; the geometry comes from the PDF the
+ * user is looking at.
+ *
+ * ## Why the quote is searched in pieces
+ *
+ * A table row reaches the model as Markdown — `| Sigorta Süresi | 01.03.2026 –
+ * 01.03.2027 |` — and the model quotes it that way. Those pipes exist nowhere
+ * in the PDF: the row is two independent text runs with a gap between them.
+ * Searching for the quote as one string finds nothing on exactly the documents
+ * where precise highlighting matters most, so the quote is split on its
+ * separators and each piece located separately.
+ *
+ * ## …and why the pieces are then tied back together
+ *
+ * Separately is not independently. `%20` occurs in every row of a coverage
+ * table, so a piece looked up on its own lands on whichever row happens to come
+ * first — highlighting the right label and limit alongside a participation rate
+ * borrowed from the row above. The pieces of one quote came from one place, so
+ * they are resolved as a set: the rarest piece anchors, every other piece takes
+ * the occurrence nearest that anchor, and a piece that lands somewhere no other
+ * piece agrees with is dropped rather than drawn.
+ *
+ * ## Two sources, one search
+ *
+ * A page with a text layer is searched through `getTextContent`. A scan has no
+ * text layer — every character is a pixel — so its geometry comes from the OCR
+ * pass instead, which reports one box per visual line and is stored at
+ * ingestion (`supabase/migrations/0008_page_lines.sql`). Both arrive here as
+ * positioned runs and go through exactly the same matching, so the OCR path
+ * inherits every case the text-layer path was fixed for.
+ *
+ * ## What this does not handle
+ *
+ * Rotated pages. Those still fall back to the chunk box.
+ */
+
+export type Rect = { x0: number; top: number; x1: number; bottom: number };
+
+/** The shape of a `getTextContent()` item, narrowed to what is used here. */
+export type TextItem = {
+  str: string;
+  /** `[a, b, c, d, e, f]` — text space to PDF space, at scale 1. */
+  transform: number[];
+  width: number;
+  height: number;
+};
+
+/** A piece of text that knows where it is. Both sources reduce to this. */
+export type PositionedRun = { text: string; rect: Rect };
+
+/** Below this, a fragment matches too much to be worth highlighting. */
+const MIN_SEGMENT_CHARS = 3;
+
+/** Glyphs sit slightly outside their reported box; a little air avoids clipping. */
+const PADDING = 1.5;
+
+/** Two runs whose tops differ by less than this are on the same line. */
+const LINE_TOLERANCE = 3;
+
+/**
+ * The same, for OCR boxes.
+ *
+ * Wider because a vision model's boxes wobble by a point or two across a row,
+ * and two cells of one coverage row that fail to merge draw as two rectangles
+ * with a seam down the middle. Still far below the ~17pt between rows, so
+ * neighbouring rows cannot merge into each other.
+ */
+const OCR_LINE_TOLERANCE = 6;
+
+function isSpace(character: string): boolean {
+  return /[\s ]/.test(character);
+}
+
+function isIgnorable(character: string): boolean {
+  // Quotation marks are added by the interface and by the model, and are not in
+  // the document. Matching them would fail on every quoted span.
+  return "“”\"'«»".includes(character);
+}
+
+/**
+ * Case folding that survives Turkish.
+ *
+ * `"İ".toLowerCase()` is `"i"` followed by a combining dot above — two code
+ * points, not one — so `"SİGORTA"` folds to something that never equals
+ * `"sigorta"`. The dotless `"ı"` fails the same comparison from the other side:
+ * `"SIGORTALI"` and `"Sigortalı"` are the same word and disagree on their last
+ * letter once lowercased.
+ *
+ * Both are collapsed onto plain `i`. Every other letter is left alone, so `ü`,
+ * `ş`, `ğ`, `ç` and `ö` still have to match exactly — folding those away would
+ * buy nothing and start matching words the document does not contain.
+ *
+ * One character in, one character out, because the index map back to the page
+ * depends on it.
+ */
+const FOLDED: Record<string, string> = { "İ": "i", I: "i", "ı": "i" };
+
+function fold(character: string): string {
+  const mapped = FOLDED[character];
+  if (mapped) return mapped;
+  const lowered = character.toLowerCase();
+  return lowered.length === 1 ? lowered : character;
+}
+
+/**
+ * A searchable form of the page text, plus the map back to where it came from.
+ *
+ * Normalisation has to happen without losing position, so every kept character
+ * records the index it occupied in the concatenated original.
+ */
+type Haystack = {
+  text: string;
+  /** `origin[i]` is the index in `raw` of normalised character `i`. */
+  origin: number[];
+  /** `[start, end)` in `raw` for each run, in order. */
+  spans: { start: number; end: number; run: PositionedRun }[];
+};
+
+export function buildHaystack(runs: PositionedRun[]): Haystack {
+  let raw = "";
+  const spans: Haystack["spans"] = [];
+
+  for (const run of runs) {
+    if (!run.text) continue;
+    const start = raw.length;
+    raw += run.text;
+    spans.push({ start, end: raw.length, run });
+    // A separator between runs, so two adjacent cells cannot accidentally join
+    // into a word that appears in neither.
+    raw += " ";
+  }
+
+  let text = "";
+  const origin: number[] = [];
+  for (let index = 0; index < raw.length; index += 1) {
+    const character = raw[index];
+    if (isIgnorable(character)) continue;
+    if (isSpace(character)) {
+      if (text.length > 0 && !text.endsWith(" ")) {
+        text += " ";
+        origin.push(index);
+      }
+      continue;
+    }
+    text += fold(character);
+    origin.push(index);
+  }
+
+  return { text, origin, spans };
+}
+
+function normalizeNeedle(value: string): string {
+  let out = "";
+  for (const character of value) {
+    if (isIgnorable(character)) continue;
+    if (isSpace(character)) {
+      if (out.length > 0 && !out.endsWith(" ")) out += " ";
+      continue;
+    }
+    out += fold(character);
+  }
+  return out.trim();
+}
+
+/**
+ * Split a quote into the fragments worth searching for separately.
+ *
+ * Pipes and newlines are Markdown table structure, not document text. Anything
+ * that survives as its own fragment is a run the PDF really contains.
+ */
+export function segments(quote: string): string[] {
+  return quote
+    .split(/[|\n]+/)
+    .map(normalizeNeedle)
+    .filter((piece) => piece.length >= MIN_SEGMENT_CHARS);
+}
+
+function runsInRange(
+  haystack: Haystack,
+  from: number,
+  to: number,
+): PositionedRun[] {
+  return haystack.spans
+    .filter((span) => span.start < to && span.end > from)
+    .map((span) => span.run);
+}
+
+function rectFor(item: TextItem, pageHeight: number): Rect {
+  const [, b, , d, x, baseline] = item.transform;
+  // `d` is the vertical scale for upright text; `b` covers the skewed case.
+  const height = item.height || Math.hypot(b, d) || 0;
+  // PDF space has its origin bottom-left and measures y upward; every stored
+  // box in this project is top-left, matching pdfplumber and the viewer.
+  return {
+    x0: x - PADDING,
+    x1: x + item.width + PADDING,
+    top: pageHeight - baseline - height - PADDING,
+    bottom: pageHeight - baseline + height * 0.25 + PADDING,
+  };
+}
+
+/**
+ * Merge runs that sit on the same line into one rectangle each.
+ *
+ * A quote spanning three lines should read as three highlighted lines, not as
+ * one box swallowing the margin between them.
+ */
+function mergeByLine(rects: Rect[], tolerance: number): Rect[] {
+  const lines: Rect[] = [];
+  for (const rect of [...rects].sort((a, b) => a.top - b.top || a.x0 - b.x0)) {
+    const line = lines.find(
+      (candidate) => Math.abs(candidate.top - rect.top) <= tolerance,
+    );
+    if (line) {
+      line.x0 = Math.min(line.x0, rect.x0);
+      line.x1 = Math.max(line.x1, rect.x1);
+      line.top = Math.min(line.top, rect.top);
+      line.bottom = Math.max(line.bottom, rect.bottom);
+    } else {
+      lines.push({ ...rect });
+    }
+  }
+  return lines;
+}
+
+/** One place a needle was found, and the line it was found on. */
+type Occurrence = { runs: PositionedRun[]; top: number };
+
+/** Every place `needle` occurs, not merely the first. */
+function occurrencesOf(haystack: Haystack, needle: string): Occurrence[] {
+  const found: Occurrence[] = [];
+  for (
+    let at = haystack.text.indexOf(needle);
+    at !== -1;
+    at = haystack.text.indexOf(needle, at + 1)
+  ) {
+    const runs = runsInRange(
+      haystack,
+      haystack.origin[at],
+      haystack.origin[at + needle.length - 1] + 1,
+    );
+    if (runs.length > 0) {
+      found.push({ runs, top: Math.min(...runs.map((run) => run.rect.top)) });
+    }
+  }
+  return found;
+}
+
+/**
+ * Pick one occurrence per needle, treating them as pieces of a single quote.
+ *
+ * The needle with the fewest occurrences anchors, because it is the one least
+ * likely to be somewhere else on the page. Every other needle takes whichever
+ * of its occurrences sits closest to that anchor.
+ *
+ * A needle that lands on a line no other needle agrees with is dropped. That is
+ * the case where its own text was never found — a cell OCR missed, say — and
+ * the nearest match belongs to a different row. Drawing it would put a
+ * highlight on a clause that was not cited, which is a worse outcome than a
+ * highlight missing one cell.
+ */
+function resolve(groups: Occurrence[][], tolerance: number): Occurrence[] {
+  const [anchors, ...rest] = [...groups].sort((a, b) => a.length - b.length);
+
+  let best: Occurrence[] = [];
+  let bestSpread = Infinity;
+
+  for (const anchor of anchors) {
+    const nearest = rest.map((group) =>
+      group.reduce((closest, candidate) =>
+        Math.abs(candidate.top - anchor.top) < Math.abs(closest.top - anchor.top)
+          ? candidate
+          : closest,
+      ),
+    );
+
+    const onAnchorLine = (occurrence: Occurrence) =>
+      Math.abs(occurrence.top - anchor.top) <= tolerance;
+
+    // Two needles agreeing on a line is corroboration; one is a coincidence.
+    const corroborated = (occurrence: Occurrence) =>
+      nearest.filter((other) => Math.abs(other.top - occurrence.top) <= tolerance)
+        .length >= 2;
+
+    const picked = [
+      anchor,
+      ...nearest.filter((occurrence) => onAnchorLine(occurrence) || corroborated(occurrence)),
+    ];
+
+    const tops = picked.map((occurrence) => occurrence.top);
+    const spread = Math.max(...tops) - Math.min(...tops);
+    if (
+      picked.length > best.length ||
+      (picked.length === best.length && spread < bestSpread)
+    ) {
+      best = picked;
+      bestSpread = spread;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Where `quote` sits, given runs of text that already know their own positions.
+ *
+ * `null` is a real answer and the caller is expected to fall back to the chunk
+ * box rather than showing nothing: a coarse highlight is worth more than none,
+ * and both are worth more than a precise highlight on the wrong clause.
+ */
+export function locateInRuns(
+  runs: PositionedRun[],
+  quote: string,
+  tolerance: number = LINE_TOLERANCE,
+): Rect[] | null {
+  if (!quote.trim() || runs.length === 0) return null;
+
+  const haystack = buildHaystack(runs);
+  if (!haystack.text) return null;
+
+  // The whole quote first. When it is prose it appears verbatim, and matching
+  // it in one piece keeps the highlight to exactly the sentence cited.
+  const whole = normalizeNeedle(quote);
+  const wholeOccurrences = whole ? occurrencesOf(haystack, whole) : [];
+
+  const groups = wholeOccurrences.length
+    ? [wholeOccurrences]
+    : segments(quote)
+        .map((segment) => occurrencesOf(haystack, segment))
+        .filter((group) => group.length > 0);
+
+  if (groups.length === 0) return null;
+
+  // One piece, found in several places, and nothing to say which was meant.
+  // Guessing here is how a highlight ends up on the wrong row.
+  if (groups.length === 1 && groups[0].length > 1) return null;
+
+  const chosen = resolve(groups, tolerance);
+  return mergeByLine(
+    chosen.flatMap((occurrence) => occurrence.runs.map((run) => run.rect)),
+    tolerance,
+  );
+}
+
+/**
+ * The text-layer entry point: pdf.js items, positioned by their baselines.
+ */
+export function locateQuote(
+  items: TextItem[],
+  pageHeight: number,
+  quote: string,
+): Rect[] | null {
+  return locateInRuns(
+    items
+      .filter((item) => item.str)
+      .map((item) => ({ text: item.str, rect: rectFor(item, pageHeight) })),
+    quote,
+  );
+}
+
+/**
+ * The OCR entry point: lines that already carry a box in page points.
+ *
+ * No conversion, because the geometry was normalised when it was stored. What
+ * it shares with the text-layer path is everything that matters — the folding,
+ * the segment splitting, the merge — so a fix to one is a fix to both.
+ */
+export function locateQuoteInLines(
+  lines: { text: string; bbox: Rect }[],
+  quote: string,
+): Rect[] | null {
+  return locateInRuns(
+    lines.map((line) => ({ text: line.text, rect: line.bbox })),
+    quote,
+    OCR_LINE_TOLERANCE,
+  );
+}

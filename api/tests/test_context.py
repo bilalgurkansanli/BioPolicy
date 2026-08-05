@@ -15,14 +15,19 @@ from api.retrieval.types import RetrievedChunk
 
 
 def chunk(
-    content: str, *, page: int = 1, section: str = "Madde 1", kind: str = "text"
+    content: str,
+    *,
+    page: int = 1,
+    page_end: int | None = None,
+    section: str = "Madde 1",
+    kind: str = "text",
 ) -> RetrievedChunk:
     return RetrievedChunk(
         chunk_id=uuid4(),
         content=content,
         content_type=kind,
         page_start=page,
-        page_end=page,
+        page_end=page if page_end is None else page_end,
         section_path=section,
         bbox=BBox(10, 20, 300, 60),
     )

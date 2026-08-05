@@ -35,7 +35,7 @@ from api.constants import (
     VECTOR_CANDIDATES,
 )
 from api.ingest.chunker import Chunk
-from api.ingest.types import BBox
+from api.ingest.types import BBox, OcrLine
 from api.logging_config import get_logger
 from api.retrieval.types import RetrievedChunk
 
@@ -228,9 +228,85 @@ class ChunkStore:
         log.info("chunks_written", document_id=str(document_id), count=len(rows))
         return len(rows)
 
+    async def replace_page_lines(
+        self,
+        *,
+        document_id: UUID,
+        user_id: UUID,
+        lines_by_page: dict[int, list[OcrLine]],
+    ) -> int:
+        """Write the line geometry for a document's OCR'd pages.
+
+        Delete-then-insert for the same reason `replace_chunks` does it:
+        ingestion is retryable (ADR 007), and a retry that appended would leave
+        two boxes for every line, each drawn on top of the other.
+
+        A document with a text layer calls this with nothing and gets a delete,
+        which is correct — a re-ingest that no longer needs OCR should not leave
+        the previous run's geometry behind.
+        """
+        rows = [
+            (
+                document_id,
+                user_id,
+                page,
+                line.text,
+                line.bbox.x0,
+                line.bbox.top,
+                line.bbox.x1,
+                line.bbox.bottom,
+            )
+            for page, lines in sorted(lines_by_page.items())
+            for line in lines
+        ]
+
+        async with self._pool.acquire() as connection, connection.transaction():
+            await connection.execute("delete from page_lines where document_id = $1", document_id)
+            if rows:
+                await connection.executemany(
+                    """
+                    insert into page_lines (
+                        document_id, user_id, page, content, x0, top, x1, bottom
+                    ) values ($1, $2, $3, $4, $5, $6, $7, $8)
+                    """,
+                    rows,
+                )
+
+        if rows:
+            log.info("page_lines_written", document_id=str(document_id), count=len(rows))
+        return len(rows)
+
     # -------------------------------------------------------------------------
     # read
     # -------------------------------------------------------------------------
+
+    async def page_lines(self, document_id: UUID, page: int) -> list[tuple[str, dict[str, float]]]:
+        """Every OCR'd line on one page, in reading order.
+
+        Ordered top-to-bottom then left-to-right so the client can merge
+        adjacent runs without sorting them itself.
+        """
+        rows = await self._pool.fetch(
+            """
+            select content, x0, top, x1, bottom from page_lines
+             where document_id = $1 and page = $2
+             order by top, x0
+            """,
+            document_id,
+            page,
+        )
+        return [
+            (
+                row["content"],
+                {
+                    "x0": float(row["x0"]),
+                    "top": float(row["top"]),
+                    "x1": float(row["x1"]),
+                    "bottom": float(row["bottom"]),
+                },
+            )
+            for row in rows
+        ]
 
     async def hybrid_search(
         self,

@@ -37,10 +37,14 @@ from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
     KeepTogether,
     ListFlowable,
     ListItem,
+    NextPageTemplate,
     PageBreak,
+    PageTemplate,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -48,7 +52,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from eval.sample_content import ALL_DOCUMENTS
+from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS, INJECTION_DOCUMENTS
 
 OUTPUT_DIR = Path(__file__).parent / "golden" / "samples"
 
@@ -243,6 +247,82 @@ def _render_native(doc: dict[str, Any], st: dict[str, ParagraphStyle]) -> bytes:
     return buffer.getvalue()
 
 
+def _render_two_column(doc: dict[str, Any], st: dict[str, ParagraphStyle]) -> bytes:
+    """The same content, flowed through two frames instead of one.
+
+    This is the layout `api/ingest/parsers/native.py` gets wrong: it sorts
+    blocks by `(top, x0)`, so a two-column page comes back as left line 1, right
+    line 1, left line 2 — interleaved into prose that reads like nothing. The
+    parser has always done this and the evaluation has never been able to see
+    it, because every document in the corpus was one column.
+
+    The header spans the full width, as it does on a real policy, so the
+    document also exercises a page whose top is one column and whose body is
+    two.
+    """
+    buffer = io.BytesIO()
+    template = BaseDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm,
+        topMargin=20 * mm,
+        bottomMargin=20 * mm,
+        title=doc["title"],
+        author="BioPolicy synthetic sample",
+        subject="Synthetic policy document for evaluation. Not a real insurance policy.",
+    )
+
+    usable_width = template.width
+    gutter = 8 * mm
+    column_width = (usable_width - gutter) / 2
+
+    header_height = 52 * mm
+    header = Frame(
+        template.leftMargin,
+        template.bottomMargin + template.height - header_height,
+        usable_width,
+        header_height,
+        id="header",
+    )
+    columns = [
+        Frame(
+            template.leftMargin + index * (column_width + gutter),
+            template.bottomMargin,
+            column_width,
+            template.height - header_height,
+            id=f"column{index}",
+        )
+        for index in range(2)
+    ]
+
+    template.addPageTemplates(
+        [
+            PageTemplate(id="first", frames=[header, *columns]),
+            # Later pages are two columns all the way up: only the first page
+            # carries the title block.
+            PageTemplate(
+                id="rest",
+                frames=[
+                    Frame(
+                        template.leftMargin + index * (column_width + gutter),
+                        template.bottomMargin,
+                        column_width,
+                        template.height,
+                        id=f"rest{index}",
+                    )
+                    for index in range(2)
+                ],
+            ),
+        ]
+    )
+
+    story = _build_story(doc, st)
+    story.insert(0, NextPageTemplate("rest"))
+    template.build(story)
+    return buffer.getvalue()
+
+
 def _rasterise(pdf_bytes: bytes, dpi: int = SCAN_DPI) -> bytes:
     """Turn a native-text PDF into an image-only PDF.
 
@@ -281,16 +361,26 @@ def _rasterise(pdf_bytes: bytes, dpi: int = SCAN_DPI) -> bytes:
     return out.getvalue()
 
 
-def generate(output_dir: Path = OUTPUT_DIR) -> list[Path]:
+def generate(output_dir: Path = OUTPUT_DIR, *, which: str = "all") -> list[Path]:
     regular, bold = _register_fonts()
     st = _styles(regular, bold)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    documents = {
+        "demo": ALL_DOCUMENTS,
+        "hard": HARD_DOCUMENTS,
+        "injection": INJECTION_DOCUMENTS,
+        "all": [*ALL_DOCUMENTS, *HARD_DOCUMENTS, *INJECTION_DOCUMENTS],
+    }[which]
+
     written: list[Path] = []
-    for doc in ALL_DOCUMENTS:
-        pdf_bytes = _render_native(doc, st)
-        if doc["render"] == "scanned":
-            pdf_bytes = _rasterise(pdf_bytes)
+    for doc in documents:
+        if doc["render"] == "two_column":
+            pdf_bytes = _render_two_column(doc, st)
+        else:
+            pdf_bytes = _render_native(doc, st)
+            if doc["render"] == "scanned":
+                pdf_bytes = _rasterise(pdf_bytes)
 
         path = output_dir / f"{doc['slug']}.pdf"
         path.write_bytes(pdf_bytes)
@@ -313,10 +403,20 @@ def main() -> int:
         default=OUTPUT_DIR,
         help="Where to write the PDFs (default: eval/golden/samples).",
     )
+    parser.add_argument(
+        "--set",
+        choices=("demo", "hard", "injection", "all"),
+        default="all",
+        help=(
+            "demo: the three bundled documents. "
+            "hard: the two adversarial ones. "
+            "all: both (default)."
+        ),
+    )
     args = parser.parse_args()
 
     print(f"Generating sample documents into {args.output_dir}{os.sep}")
-    written = generate(args.output_dir)
+    written = generate(args.output_dir, which=args.set)
     print(f"\n{len(written)} documents written.")
     return 0
 

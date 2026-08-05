@@ -145,28 +145,47 @@ cd web && npm run dev
 The frontend proxies `/api/*` to `http://127.0.0.1:8000` by default; override
 with `API_ORIGIN` in `web/.env.local`.
 
-### Before uploads will work: enable anonymous sign-ins
+### Before anyone can sign in: enable Google
 
-Uploading needs an identity, and this project uses anonymous accounts rather
-than a signup form ([ADR 012](./adr/012-anonymous-accounts.md)). Anonymous
-sign-ins are **off by default** on a new Supabase project.
+Google is the only way in ([ADR 013](./adr/013-google-only-sign-in.md)), and the
+provider is **off by default** on a new Supabase project. Until it is on,
+nobody can ask a question or upload anything; the samples and the evaluation
+stay readable.
 
-Dashboard → **Authentication** → **Sign In / Providers** → enable **Anonymous
-sign-ins**.
+1. **Google Cloud console** → *APIs & Services* → *Credentials* → create an
+   **OAuth client ID** of type *Web application*.
+   - Authorised redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback`
+2. **Supabase dashboard** → *Authentication* → *Sign In / Providers* → **Google**
+   → enable, paste the client ID and secret.
+3. Add every origin the app is served from to *Authentication* → *URL
+   Configuration* → **Redirect URLs**: `http://localhost:3000/**` for local work
+   and the deployed origin. A missing entry fails *after* Google, with the
+   visitor bounced back to a blank page — the most confusing possible symptom.
 
-Until that is on, `signInAnonymously()` returns `anonymous_provider_disabled`
-and every upload fails. The interface detects that specific error and names the
-setting, so the symptom is a sentence pointing at the toggle rather than a
-generic sign-in failure. Verify from the shell:
-
-```bash
-curl -s -X POST "$SUPABASE_URL/auth/v1/signup" -H "apikey: $SUPABASE_ANON_KEY" -H 'Content-Type: application/json' -d '{}'
-```
-
-A JSON body containing `access_token` means it is on; `anonymous_provider_disabled` means it is not.
+The interface detects a disabled provider specifically and names the setting, so
+that failure reads as a sentence rather than a generic sign-in error.
 
 `web/.env.local` also has to exist, holding `NEXT_PUBLIC_SUPABASE_URL` and
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` — see `.env.example`.
+
+### The unlimited account
+
+`UNLIMITED_EMAILS` exempts addresses from the daily limits. It is matched
+against `auth.users` at check time — never taken from a token — and only for a
+**confirmed Google** account that is not banned, deleted or anonymous. An empty
+value grants nothing, which is what an unconfigured deployment gets.
+
+To check what the server thinks of an account:
+
+```sql
+select email, email_confirmed_at is not null as confirmed,
+       raw_app_meta_data ->> 'provider' as provider, banned_until
+  from auth.users where email = 'you@example.com';
+```
+
+`provider` must read `google`. If it reads `email`, that row was created by a
+password sign-up and will not be exempt no matter what the address says — which
+is the intended behaviour, not a bug.
 
 Quality gates, all of which CI also runs:
 
@@ -177,6 +196,59 @@ uv run ruff check api eval && uv run ruff format --check api eval && uv run mypy
 ---
 
 ## Deploying
+
+> Not deployed yet, deliberately. This section is the checklist for when it is.
+
+### What `vercel.json` does and does not cover
+
+The repository root carries a `vercel.json` with **security headers for `/api/*`
+only**. Everything else about the API deployment is a *project setting*, not a
+file:
+
+| Setting | Value | Where |
+|---|---|---|
+| Framework Preset | **Container** | dashboard |
+| Root Directory | `.` | dashboard |
+| Region | wherever the Supabase project lives | dashboard |
+
+Three things were **not** written into the file on purpose, because guessing
+them is worse than leaving them to the dashboard:
+
+* **`framework`** — the published `vercel.json` reference does not list the
+  slug for container deployments, and a wrong slug fails the build with a
+  message about a framework rather than about a typo.
+* **`regions`** — the right answer is "next to Supabase", which depends on where
+  that project was created. The default is `iad1`; a database on another
+  continent turns every query into a transatlantic round trip.
+* **The Dockerfile name.** The Container preset looks for a `Dockerfile`; ours
+  is `Dockerfile.vercel`, from before that preset existed. Either rename it or
+  point the project at it — but check which one the existing working
+  configuration expects before changing anything.
+
+### Environment variables
+
+Both projects need their own set. The API project takes everything in
+`.env.example` **except** the `NEXT_PUBLIC_` block; the web project takes only:
+
+    NEXT_PUBLIC_SUPABASE_URL
+    NEXT_PUBLIC_SUPABASE_ANON_KEY
+    API_ORIGIN            → the api project's own *.vercel.app hostname
+
+`API_ORIGIN` is read at build time by `web/next.config.ts`, so changing it needs
+a redeploy of the web project rather than a restart.
+
+### After the first deploy
+
+1. Point `app_settings.api_base_url` at the API hostname, and
+   `app_settings.purge_job_secret` at the same value as `PURGE_JOB_SECRET` —
+   the scheduled jobs do nothing until both rows exist.
+2. Add the deployed origin to Supabase → *Authentication* → *URL Configuration*
+   → **Redirect URLs**, or Google sign-in returns to a blank page.
+3. Run `python -m api.scripts.seed_samples` against the deployed environment so
+   the demo has its three documents.
+4. Check `/api/health` reports every provider as `configured`.
+
+### The topology
 
 Two Vercel projects from one repository ([ADR 006](./adr/006-deployment-topology.md)):
 
