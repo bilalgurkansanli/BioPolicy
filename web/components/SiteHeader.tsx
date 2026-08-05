@@ -10,6 +10,9 @@ import { LOCALES } from "@/lib/i18n";
 
 const REPO_URL = "https://github.com/bilalgurkansanli/BioPolicy";
 
+/** Where this project sits among the others. Not part of this site. */
+const PROJECTS_URL = "https://projects.bilalgurkansanli.com";
+
 /**
  * The workspace is the point of the site, so it does not sit in a row of links:
  * it is a filled button on the right, with a slow halo behind it. Everything
@@ -23,10 +26,53 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-paper/80 backdrop-blur-md">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:gap-5 sm:px-6">
+      {/* `gap-2` below `sm`, not `gap-3`. The row had no room to spare on a
+          phone, so adding anything to it has to take the space from somewhere,
+          and four pixels of gap twice over is the cheapest thing in here to
+          spend. Measured at 375px: with `gap-3` the row overflowed its own
+          width by 8px, and `html { overflow-x: clip }` then hid the overflow —
+          content cut off with no scrollbar to reveal that it had been, which is
+          the worse half of that failure. With `gap-2` it fits.
+
+          Below roughly 372px it overflows either way, with or without the link
+          to the left. That predates this and is left alone rather than fixed by
+          quietly shrinking somebody else's call-to-action. */}
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-4 sm:gap-5 sm:px-6">
+        {/* The way back out of the project entirely, left of the mark because
+            that is where a step backwards belongs and because it is not part of
+            this site — putting it in the row on the right would file it beside
+            the pages of this project, which it is not.
+
+            A plain anchor, not a SlideLink: the slide is this app's router
+            moving between its own pages, and running it against a different
+            origin would animate the page out and then sit on a blank frame
+            while a full document load happens underneath.
+
+            Same tab, no `target="_blank"`. "Back to projects" is a departure,
+            and a departure that leaves the thing you departed from open behind
+            you is not one. The label folds away on a phone for the same reason
+            the wordmark does; the arrow keeps the meaning on its own. */}
+        <a
+          href={PROJECTS_URL}
+          className="group -ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink sm:px-2.5"
+        >
+          <BackArrow />
+          <span className="hidden md:inline">{t.nav.backToProjects}</span>
+        </a>
+
         {/* The way out of the workspace, and the only one: the slide runs
             backwards here so leaving retraces the step that got you in. */}
-        <SlideLink href="/" direction="back" className="flex items-center gap-2.5">
+        {/* `shrink-0` because the mark is an image with an aspect ratio, and a
+            flex item that shrinks does not narrow it, it squashes it. Adding the
+            link to the left of this took the logo from 26px wide to 6px on a
+            phone — still 32 tall, so the shield simply became a sliver. Nothing
+            in the row is elastic enough to absorb a squeeze correctly, so
+            nothing in it should be asked to. */}
+        <SlideLink
+          href="/"
+          direction="back"
+          className="flex shrink-0 items-center gap-2.5"
+        >
           {/* Sized from its height: the shield is taller than it is wide, and
               pinning the width instead would leave it short of the wordmark. */}
           <Image
@@ -202,6 +248,30 @@ function LocaleSwitch({
         </button>
       ))}
     </div>
+  );
+}
+
+/**
+ * Nudges left on hover, which is the whole affordance.
+ *
+ * The arrow moves rather than the label, so the text it sits beside does not
+ * shift under a reader who is only passing over it. `motion-reduce` drops the
+ * movement and leaves the colour change, which is enough on its own.
+ */
+function BackArrow() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-[15px] transition-transform group-hover:-translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+    >
+      <path d="M10 3.5 5.5 8l4.5 4.5" />
+    </svg>
   );
 }
 

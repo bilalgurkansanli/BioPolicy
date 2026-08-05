@@ -25,6 +25,7 @@ const tr = {
     source: "GitHub",
     home: "Ana sayfa",
     backHome: "Ana sayfaya dön",
+    backToProjects: "Projelere dön",
   },
   language: {
     label: "Dil",
@@ -90,6 +91,49 @@ const tr = {
         orders_an_omission: "bir maddeyi gizlemeyi emreden metin",
         impersonates_us: "BioPolicy ekibi adına yazılmış gibi görünen metin",
       },
+    },
+    profile: {
+      title: "Poliçe künyesi",
+      lede:
+        "Soru sormadan, belgenin tamamı sabit bir şemaya çıkarılır. Her satır, " +
+        "dayandığı maddeye bağlıdır — tıklayın, belgede görün.",
+      build: "Belgeyi şemaya çıkar",
+      building: "Belge okunuyor…",
+      buildNote: "Belge başına bir kez çalışır, sonra herkes için hazırdır.",
+      signInToBuild: "Bunun için giriş yapmanız gerekiyor.",
+      buildFailed: "Künye çıkarılamadı. Biraz sonra tekrar deneyin.",
+      show: "Göster",
+      hide: "Gizle",
+      fields: {
+        insured: "Sigortalı",
+        policy_period: "Poliçe süresi",
+        territorial_scope: "Coğrafi kapsam",
+        covered_peril: "Teminatlar",
+        sub_limit: "Alt limitler",
+        deductible: "Muafiyetler",
+        waiting_period: "Bekleme süreleri",
+        notification_deadline: "İhbar süreleri",
+        exclusion: "İstisnalar",
+      },
+      absentTitle: "Bu belgede yer almayanlar",
+      absentNote:
+        "Bu başlıklarda tek bir madde bulunamadı. Bir sigorta poliçesinde " +
+        "genellikle bulunurlar — bu belgede bulunmuyorlar.",
+      emptyTitle: "Şemadaki hiçbir alan dolmadı",
+      emptyBody:
+        "Belge okundu ve sabit alanların hiçbirini karşılayan bir madde " +
+        "bulunamadı.",
+      // Coverage is stated rather than assumed: a slot nobody read must never
+      // look like a slot the document is silent on.
+      partialTitle: "Belgenin tamamı okunmadı",
+      partialBody:
+        "{seen} / {total} parça okundu. Okunmayan bölümlerde bu başlıklara ait " +
+        "maddeler bulunabilir; “yer almayanlar” listesi bu yüzden gösterilmiyor.",
+      failedTitle: "Bazı bölümler okunamadı",
+      failedBody:
+        "{count} bölüm sağlayıcı hatası nedeniyle okunamadı. Eksik olan, " +
+        "belgede olmayan demek değildir.",
+      dropped: "{count} satır, alıntısı belgede doğrulanamadığı için gösterilmiyor.",
     },
     pages: "sayfa",
     loadingDocuments: "Belgeler yükleniyor…",
@@ -368,6 +412,7 @@ const en: Dictionary = {
     source: "GitHub",
     home: "Home",
     backHome: "Back to home",
+    backToProjects: "Back to projects",
   },
   language: {
     label: "Language",
@@ -428,6 +473,47 @@ const en: Dictionary = {
         orders_an_omission: "text ordering a clause to be left out",
         impersonates_us: "text claiming to come from the BioPolicy team",
       },
+    },
+    profile: {
+      title: "Policy profile",
+      lede:
+        "The whole document read into a fixed schema, without asking anything. " +
+        "Every row is bound to the clause it came from — click one to see it.",
+      build: "Read this document into the schema",
+      building: "Reading the document…",
+      buildNote: "Runs once per document, then it is ready for everyone.",
+      signInToBuild: "You need to be signed in for this.",
+      buildFailed: "The profile could not be built. Try again shortly.",
+      show: "Show",
+      hide: "Hide",
+      fields: {
+        insured: "Insured",
+        policy_period: "Policy period",
+        territorial_scope: "Territorial scope",
+        covered_peril: "Cover",
+        sub_limit: "Sub-limits",
+        deductible: "Deductibles",
+        waiting_period: "Waiting periods",
+        notification_deadline: "Notification deadlines",
+        exclusion: "Exclusions",
+      },
+      absentTitle: "Not in this document",
+      absentNote:
+        "Not one clause was found under these headings. A policy usually has " +
+        "them — this one does not.",
+      emptyTitle: "No field in the schema was filled",
+      emptyBody:
+        "The document was read and no clause matched any of the fixed fields.",
+      partialTitle: "The whole document was not read",
+      partialBody:
+        "{seen} of {total} passages were read. The rest may contain clauses " +
+        "under these headings, which is why the “not in this document” list is " +
+        "withheld.",
+      failedTitle: "Some passages could not be read",
+      failedBody:
+        "{count} batch(es) failed at the provider. Missing is not the same as " +
+        "absent from the document.",
+      dropped: "{count} row(s) are not shown: their quote could not be verified.",
     },
     pages: "pages",
     loadingDocuments: "Loading documents…",
