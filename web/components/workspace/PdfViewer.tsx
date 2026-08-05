@@ -82,6 +82,16 @@ export function PdfViewer({
   // 32px throughout is the container's horizontal padding.
   const measure = useCallback((element: HTMLDivElement | null) => {
     if (!element) return;
+
+    // Every reported width is acted on, with no debounce and no oscillation
+    // guard. One was written — refuse a width used two updates ago within
+    // 250ms, on the theory that only a feedback loop produces that pattern —
+    // and it was removed after measurement, because a genuine window resize
+    // produces it too: the layout settles through 343 → 433 → 343, the third
+    // value matches the pattern, and the viewer strands itself permanently at
+    // the middle one with the page overflowing its pane. A guard that turns a
+    // transient into a permanent wrong answer is worse than the hang it was
+    // insuring against, which `overflow-y-scroll` below already prevents.
     setWidth(Math.max(0, element.clientWidth - 32));
     const observer = new ResizeObserver(([entry]) => {
       setWidth(Math.max(0, entry.contentRect.width - 32));
@@ -191,7 +201,25 @@ export function PdfViewer({
   return (
     <div
       ref={measure}
-      className="h-full overflow-y-auto overscroll-contain bg-surface-sunken px-4 py-4"
+      // `overflow-y-scroll`, never `auto`, and this is load-bearing.
+      //
+      // The pages are sized from this element's own content-box width. With
+      // `auto`, that width depends on whether a scrollbar is showing — measured
+      // on Windows Chrome at 480px without one and 465px with one. So: render
+      // narrow → content gets shorter → scrollbar disappears → element gets
+      // 15px wider → render wider → content gets taller → scrollbar returns →
+      // 15px narrower → render narrow. An infinite re-render at frame rate,
+      // which pins a core and hangs the tab.
+      //
+      // It needs the rendered height to land within that 15px band of the
+      // container height, so it never appeared on the bundled samples — they
+      // are 3 and 4 pages, always far taller than the pane. A **one-page**
+      // upload sits exactly there, and that is how it was found.
+      //
+      // Always reserving the scrollbar makes the width a constant and removes
+      // the feedback path entirely. Browsers with overlay scrollbars were never
+      // affected — theirs take no space — and are unharmed by this.
+      className="h-full overflow-y-scroll overscroll-contain bg-surface-sunken px-4 py-4"
     >
       {!url && (
         <p className="pt-12 text-center text-sm text-ink-faint">

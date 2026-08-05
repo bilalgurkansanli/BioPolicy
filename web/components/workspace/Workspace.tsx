@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { BrandAvatar, UserAvatar } from "@/components/Avatar";
 import { useLocale } from "@/components/LocaleProvider";
@@ -13,7 +19,10 @@ import { InjectionNotice } from "@/components/workspace/InjectionNotice";
 import { RefusalTour } from "@/components/workspace/RefusalTour";
 import { SignInGate } from "@/components/workspace/SignInGate";
 import { PdfViewer, type Highlight } from "@/components/workspace/PdfViewer";
-import { StageProgress, type Stage } from "@/components/workspace/StageProgress";
+import {
+  StageProgress,
+  type Stage,
+} from "@/components/workspace/StageProgress";
 import { Uploader, type UploadFailure } from "@/components/workspace/Uploader";
 import {
   ApiError,
@@ -50,6 +59,9 @@ const STATUS_POLL_MS = 2000;
 const PANES = ["documents", "chat", "viewer"] as const;
 type Pane = (typeof PANES)[number];
 
+/** The two halves of the sidebar. */
+const SIDEBAR_TABS = ["documents", "chats"] as const;
+
 type Message =
   | { kind: "question"; id: string; text: string }
   | { kind: "answer"; id: string; answer: Answer }
@@ -78,9 +90,13 @@ export function Workspace() {
   const [conversationId, setConversationId] = useState<string | null>(null);
 
   const [mine, setMine] = useState<DocumentSummary[]>([]);
-  const [ingesting, setIngesting] = useState<Record<string, DocumentStatus>>({});
+  const [ingesting, setIngesting] = useState<Record<string, DocumentStatus>>(
+    {},
+  );
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
-  const [uploadFailure, setUploadFailure] = useState<UploadFailure | null>(null);
+  const [uploadFailure, setUploadFailure] = useState<UploadFailure | null>(
+    null,
+  );
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [stage, setStage] = useState<Stage | null>(null);
@@ -89,6 +105,12 @@ export function Workspace() {
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const [activeCitation, setActiveCitation] = useState<string | null>(null);
   const [mobilePane, setMobilePane] = useState<Pane>("chat");
+  // The sidebar holds two things that grow without limit — the documents
+  // and the conversations — and stacking them made one column that scrolled
+  // past everything else. One at a time, each with its own scroll.
+  const [sidebarTab, setSidebarTab] = useState<"documents" | "chats">(
+    "documents",
+  );
 
   const abortRef = useRef<AbortController | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -276,7 +298,10 @@ export function Workspace() {
       } catch (error) {
         if ((error as Error).name === "AbortError") {
           // Stopped on purpose. Not a failure to report.
-        } else if (error instanceof ApiError && (error.isQuota || error.isBudget)) {
+        } else if (
+          error instanceof ApiError &&
+          (error.isQuota || error.isBudget)
+        ) {
           setMessages((current) => [
             ...current,
             {
@@ -327,23 +352,20 @@ export function Workspace() {
     ]);
   }, []);
 
-  const removeDocument = useCallback(
-    async (documentId: string) => {
-      try {
-        await deleteDocument(documentId);
-      } catch {
-        // Deleting something already gone is the outcome we wanted anyway.
-      }
-      setMine((current) => current.filter((item) => item.id !== documentId));
-      setIngesting((current) => {
-        const next = { ...current };
-        delete next[documentId];
-        return next;
-      });
-      setSelected((current) => (current?.id === documentId ? null : current));
-    },
-    [],
-  );
+  const removeDocument = useCallback(async (documentId: string) => {
+    try {
+      await deleteDocument(documentId);
+    } catch {
+      // Deleting something already gone is the outcome we wanted anyway.
+    }
+    setMine((current) => current.filter((item) => item.id !== documentId));
+    setIngesting((current) => {
+      const next = { ...current };
+      delete next[documentId];
+      return next;
+    });
+    setSelected((current) => (current?.id === documentId ? null : current));
+  }, []);
 
   const openConversation = useCallback(
     async (conversation: ConversationSummary) => {
@@ -418,22 +440,19 @@ export function Workspace() {
     setStage(null);
   }, []);
 
-  const showCitation = useCallback(
-    (citation: Citation, key: string) => {
-      setActiveCitation(key);
-      if (citation.bbox) {
-        setHighlight({
-          page: citation.page,
-          pageEnd: citation.page_end,
-          bbox: citation.bbox,
-          quote: citation.quote,
-          nonce: Date.now(),
-        });
-      }
-      setMobilePane("viewer");
-    },
-    [],
-  );
+  const showCitation = useCallback((citation: Citation, key: string) => {
+    setActiveCitation(key);
+    if (citation.bbox) {
+      setHighlight({
+        page: citation.page,
+        pageEnd: citation.page_end,
+        bbox: citation.bbox,
+        quote: citation.quote,
+        nonce: Date.now(),
+      });
+    }
+    setMobilePane("viewer");
+  }, []);
 
   // `null` means unlimited, which is why this is not `?? 0`. Treating an
   // absent number as zero would lock the owner's own account out of the demo.
@@ -485,93 +504,149 @@ export function Workspace() {
       <div className="grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] gap-3 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1fr)]">
         {/* Document picker */}
         <aside
-          className={`min-h-0 overflow-y-auto ${
+          className={`flex min-h-0 flex-col ${
             mobilePane === "documents" ? "" : "hidden"
-          } lg:block`}
+          } lg:flex`}
         >
-          <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">
-            {t.workspace.documents}
-          </h2>
-          {documentsFailed && (
-            <p className="text-sm text-danger">
-              {t.workspace.loadDocumentsFailed}
-            </p>
-          )}
-          {documents === null && !documentsFailed && (
-            <p className="text-sm text-ink-faint">
-              {t.workspace.loadingDocuments}
-            </p>
-          )}
-          {documents && (
-            <DocumentList
-              documents={documents}
-              selectedId={selected?.id ?? null}
-              onSelect={selectDocument}
-            />
-          )}
-          <p className="mt-3 text-xs leading-5 text-ink-faint">
-            {t.workspace.documentsNote}
-          </p>
-
-          <h2 className="mb-2 mt-6 text-xs font-medium uppercase tracking-wide text-ink-faint">
-            {t.upload.title}
-          </h2>
-          <Uploader
-            maxBytes={capabilities?.max_upload_bytes ?? 25 * 1024 * 1024}
-            retentionHours={capabilities?.retention_hours ?? 24}
-            disabled={!configured || !signedIn || documentsLeft === 0}
-            onUploaded={onUploaded}
-            onFailure={setUploadFailure}
-          />
-          {signedIn && documentsLeft !== null && (
-            <p className="mt-1.5 text-[11px] text-ink-faint">
-              {t.account.remaining}: {documentsLeft} {t.account.documents}
-            </p>
-          )}
-
-          {uploadFailure && (
-            <div className="mt-2 rounded-xl border border-danger/40 bg-danger-soft p-2.5">
-              <p className="text-xs font-medium text-danger">
-                {uploadFailure.title}
-              </p>
-              <p className="mt-1 text-[11px] leading-4 text-ink-muted">
-                {uploadFailure.message}
-              </p>
+          {/* Only worth a switcher once there is a second thing to switch to:
+              signed out, there are no conversations and the tabs would be a
+              control with one option. */}
+          {signedIn && (
+            <div
+              role="tablist"
+              className="mb-3 flex shrink-0 gap-1 rounded-full border border-line p-0.5"
+            >
+              {SIDEBAR_TABS.map((tab) => {
+                const active = sidebarTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setSidebarTab(tab)}
+                    className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                      active
+                        ? "bg-accent-soft text-accent"
+                        : "text-ink-muted hover:text-ink"
+                    }`}
+                  >
+                    {tab === "documents"
+                      ? t.workspace.panes.documents
+                      : t.conversations.title}
+                    {tab === "chats" && conversations.length > 0 && (
+                      <span className="ml-1.5 font-mono text-[11px] tabular-nums opacity-70">
+                        {conversations.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
 
-          {signedIn && (
-            <div className="mt-6">
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {signedIn && sidebarTab === "chats" ? (
               <ConversationList
                 conversations={conversations}
                 activeId={conversationId}
                 onOpen={(conversation) => void openConversation(conversation)}
                 onDelete={(id) => void removeConversation(id)}
                 onNew={startNewChat}
+                titled={false}
               />
-            </div>
-          )}
-
-          {mine.length > 0 && (
-            <>
-              <h2 className="mb-2 mt-6 text-xs font-medium uppercase tracking-wide text-ink-faint">
-                {t.upload.yours}
-              </h2>
-              <MyDocumentList
-                documents={mine}
-                progress={ingesting}
-                selectedId={selected?.id ?? null}
-                onSelect={selectDocument}
-                onDelete={(id) => void removeDocument(id)}
-              />
-              <p className="mt-2 text-[11px] leading-4 text-ink-faint">
-                {t.upload.retentionNote.replace(
-                  "{hours}",
-                  String(capabilities?.retention_hours ?? 24),
+            ) : (
+              // A column, not a stack: the samples and the uploader are a fixed
+              // height and stay put, and the one part that grows without limit
+              // — what this visitor has uploaded — takes the space that is left
+              // and scrolls inside it. Stacked, a fourth upload pushed the
+              // samples off the top and the panel became one long scroll.
+              <div className="flex h-full min-h-0 flex-col">
+                <h2 className="mb-2 shrink-0 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                  {t.workspace.documents}
+                </h2>
+                {documentsFailed && (
+                  <p className="text-sm text-danger">
+                    {t.workspace.loadDocumentsFailed}
+                  </p>
                 )}
-              </p>
-            </>
-          )}
+                {documents === null && !documentsFailed && (
+                  <p className="text-sm text-ink-faint">
+                    {t.workspace.loadingDocuments}
+                  </p>
+                )}
+                {documents && (
+                  <DocumentList
+                    documents={documents}
+                    selectedId={selected?.id ?? null}
+                    onSelect={selectDocument}
+                  />
+                )}
+                <p className="mt-3 shrink-0 text-xs leading-5 text-ink-faint">
+                  {t.workspace.documentsNote}
+                </p>
+
+                {/* Two headings for one concern once there are uploads: the
+                    dropzone becomes the first row of the visitor's own list
+                    rather than a section of its own. */}
+                <h2 className="mb-2 mt-6 shrink-0 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                  {mine.length > 0 ? t.upload.yours : t.upload.title}
+                </h2>
+                <div className="shrink-0">
+                  <Uploader
+                    maxBytes={capabilities?.max_upload_bytes ?? 25 * 1024 * 1024}
+                    retentionHours={capabilities?.retention_hours ?? 24}
+                    disabled={!configured || !signedIn || documentsLeft === 0}
+                    onUploaded={onUploaded}
+                    onFailure={setUploadFailure}
+                    compact={mine.length > 0}
+                  />
+                  {signedIn && documentsLeft !== null && mine.length === 0 && (
+                    <p className="mt-1.5 text-[11px] text-ink-faint">
+                      {t.account.remaining}: {documentsLeft} {t.account.documents}
+                    </p>
+                  )}
+
+                  {uploadFailure && (
+                    <div className="mt-2 rounded-xl border border-danger/40 bg-danger-soft p-2.5">
+                      <p className="text-xs font-medium text-danger">
+                        {uploadFailure.title}
+                      </p>
+                      <p className="mt-1 text-[11px] leading-4 text-ink-muted">
+                        {uploadFailure.message}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {mine.length > 0 && (
+                  <>
+                    <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+                      <MyDocumentList
+                        documents={mine}
+                        progress={ingesting}
+                        selectedId={selected?.id ?? null}
+                        onSelect={selectDocument}
+                        onDelete={(id) => void removeDocument(id)}
+                      />
+                    </div>
+                    <p className="mt-2 shrink-0 text-[11px] leading-4 text-ink-faint">
+                      {signedIn && documentsLeft !== null && (
+                        <>
+                          {t.account.remaining}: {documentsLeft}{" "}
+                          {t.account.documents} ·{" "}
+                        </>
+                      )}
+                      {t.upload.retentionNote.replace(
+                        "{hours}",
+                        String(capabilities?.retention_hours ?? 24),
+                      )}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </aside>
 
         {/* Conversation */}
@@ -790,7 +865,9 @@ function Turn({
 }) {
   const user = side === "user";
   return (
-    <div className={`flex items-start gap-2.5 ${user ? "flex-row-reverse" : ""}`}>
+    <div
+      className={`flex items-start gap-2.5 ${user ? "flex-row-reverse" : ""}`}
+    >
       <div className="mt-0.5">
         {user ? <UserAvatar size={28} /> : <BrandAvatar size={28} />}
       </div>

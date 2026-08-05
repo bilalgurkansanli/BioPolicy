@@ -25,12 +25,19 @@ export function Uploader({
   disabled,
   onUploaded,
   onFailure,
+  compact = false,
 }: {
   maxBytes: number;
   retentionHours: number;
   disabled: boolean;
   onUploaded: (documentId: string, filename: string) => void;
   onFailure: (failure: UploadFailure | null) => void;
+  /**
+   * One line instead of a panel, for the visitor who has already uploaded
+   * something. The invitation has been accepted; what is left is a way to add
+   * another, and the space it gives back goes to the list of what is there.
+   */
+  compact?: boolean;
 }) {
   const { t } = useLocale();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,6 +45,9 @@ export function Uploader({
   const [dragging, setDragging] = useState(false);
 
   const megabytes = Math.round(maxBytes / (1024 * 1024));
+  const limits = t.upload.limits
+    .replace("{mb}", String(megabytes))
+    .replace("{hours}", String(retentionHours));
 
   const send = useCallback(
     async (file: File) => {
@@ -106,7 +116,9 @@ export function Uploader({
           const file = event.dataTransfer.files[0];
           if (file && !disabled && !busy) void send(file);
         }}
-        className={`rounded-xl border border-dashed px-3 py-4 text-center transition-colors ${
+        className={`rounded-xl border border-dashed text-center transition-colors ${
+          compact ? "px-3 py-2" : "px-3 py-4"
+        } ${
           dragging
             ? "border-accent bg-accent-soft"
             : "border-line-strong bg-surface"
@@ -132,15 +144,29 @@ export function Uploader({
           </div>
         ) : (
           <>
-            <p className="text-xs text-ink-muted">{t.upload.drop}</p>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={() => inputRef.current?.click()}
-              className="mt-2 rounded-lg border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed"
-            >
-              {t.upload.choose}
-            </button>
+            {compact ? (
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => inputRef.current?.click()}
+                title={limits}
+                className="w-full text-xs font-medium text-ink-muted transition-colors hover:text-accent disabled:cursor-not-allowed"
+              >
+                + {t.upload.choose}
+              </button>
+            ) : (
+              <>
+                <p className="text-xs text-ink-muted">{t.upload.drop}</p>
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => inputRef.current?.click()}
+                  className="mt-2 rounded-lg border border-line-strong px-2.5 py-1 text-xs font-medium text-ink transition-colors hover:bg-surface-sunken disabled:cursor-not-allowed"
+                >
+                  {t.upload.choose}
+                </button>
+              </>
+            )}
           </>
         )}
         <input
@@ -154,11 +180,11 @@ export function Uploader({
           }}
         />
       </div>
-      <p className="mt-2 text-[11px] leading-4 text-ink-faint">
-        {t.upload.limits
-          .replace("{mb}", String(megabytes))
-          .replace("{hours}", String(retentionHours))}
-      </p>
+      {/* Read once, on the way in. Beside a list of documents it is a line of
+          small print between the visitor and what they came back for. */}
+      {!compact && (
+        <p className="mt-2 text-[11px] leading-4 text-ink-faint">{limits}</p>
+      )}
     </div>
   );
 }

@@ -34,7 +34,10 @@ export default function Home() {
             className="hero-grid pointer-events-none absolute inset-0 -z-10 opacity-70"
           />
 
-          <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-20 text-center sm:px-6 sm:pb-32 sm:pt-28">
+          {/* Wider than the lede below it: the headline is set at 60px, and at
+              max-w-3xl the English second sentence wrapped for the sake of ~30
+              pixels. The body copy keeps its own narrower measure. */}
+          <div className="mx-auto w-full max-w-4xl px-4 pb-24 pt-20 text-center sm:px-6 sm:pb-32 sm:pt-28">
             <span className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-surface/70 px-3.5 py-1.5 text-xs font-medium text-ink-muted backdrop-blur">
               <span
                 aria-hidden
@@ -43,8 +46,15 @@ export default function Home() {
               {t.landing.eyebrow}
             </span>
 
+            {/* One block per sentence, so the break falls where the tagline is
+                written to break. Each line still balances internally, which is
+                what the Turkish second sentence needs at this size. */}
             <h1 className="mt-7 text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-ink sm:text-6xl">
-              {t.landing.thesis}
+              {t.landing.thesis.map((line) => (
+                <span key={line} className="block">
+                  {line}
+                </span>
+              ))}
             </h1>
 
             <p className="mx-auto mt-6 max-w-xl text-pretty text-base leading-7 text-ink-muted sm:text-lg sm:leading-8">

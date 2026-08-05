@@ -31,13 +31,17 @@ const tr = {
     en: "English",
   },
   landing: {
-    eyebrow: "Açık kaynak · TR/EN · alıntıya dayalı",
-    thesis:
-      "Bir RAG sistemi, ancak “bu bilgi bu belgede yok” diyebildiği kadar güvenilirdir.",
-    lede: "Poliçenizi sorun: cevabı dayandığı maddeyle birlikte belgenin üzerinde gösterir, belgede yoksa uydurmaz.",
+    eyebrow: "Açık kaynak · sayıları yayımlanmış · TR/EN",
+    // Two sentences, authored as two lines rather than left to `text-balance`.
+    // The balancer optimises for even line widths, not for meaning, and on this
+    // string it breaks mid-sentence — the English reads "Ask your policy. Get /
+    // the clause, not a guess", which is the dangling word the balancer exists
+    // to prevent. A line per sentence is the couplet the tagline is written as.
+    thesis: ["Poliçenize sorun.", "Tahmin değil, maddenin kendisini alın."],
+    lede: "Her cevap, dayandığı maddeyle birlikte belgenin üzerinde işaretli gelir. “Bu bilgi bu belgede yok” da bir cevaptır.",
     ctaPrimary: "Örnek bir poliçeyle deneyin",
     ctaSecondary: "Nasıl çalışıyor",
-    ctaNote: "Kayıt gerekmez · Örnek belgeler hazır · 30 saniyede ilk cevap",
+    ctaNote: "Örnekler hesapsız okunur · Soru sormak için Google ile giriş · Günde 3 soru",
     howTitle: "Üç adımda",
     how: [
       {
@@ -362,13 +366,12 @@ const en: Dictionary = {
     en: "English",
   },
   landing: {
-    eyebrow: "Open source · TR/EN · citation-grounded",
-    thesis:
-      "A RAG system is only as trustworthy as its ability to say “that isn't in this document.”",
-    lede: "Ask your policy: every answer comes with the clause it rests on, shown in the document — and nothing is invented when the document does not say.",
+    eyebrow: "Open source · every number published · TR/EN",
+    thesis: ["Ask your policy.", "Get the clause, not a guess."],
+    lede: "Every answer arrives with its clause, highlighted in the document. “That isn't in this document” is an answer too.",
     ctaPrimary: "Try it on a sample policy",
     ctaSecondary: "How it works",
-    ctaNote: "No sign-up · Sample documents ready · First answer in 30 seconds",
+    ctaNote: "Samples readable without an account · Google sign-in to ask · 3 questions a day",
     howTitle: "In three steps",
     how: [
       {

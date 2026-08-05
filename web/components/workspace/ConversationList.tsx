@@ -19,30 +19,45 @@ export function ConversationList({
   onOpen,
   onDelete,
   onNew,
+  titled = true,
 }: {
   conversations: ConversationSummary[];
   activeId: string | null;
   onOpen: (conversation: ConversationSummary) => void;
   onDelete: (id: string) => void;
   onNew: () => void;
+  /** False where a tab already names the panel, so the heading would repeat it. */
+  titled?: boolean;
 }) {
   const { t } = useLocale();
   const [confirming, setConfirming] = useState<string | null>(null);
 
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-xs font-medium uppercase tracking-wide text-ink-faint">
-          {t.conversations.title}
-        </h2>
+      {titled ? (
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-medium uppercase tracking-wide text-ink-faint">
+            {t.conversations.title}
+          </h2>
+          <button
+            type="button"
+            onClick={onNew}
+            className="rounded-lg border border-line px-2 py-0.5 text-[11px] text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+          >
+            {t.conversations.newChat}
+          </button>
+        </div>
+      ) : (
+        // Named by the tab, so the row is the action alone — and with the whole
+        // width to itself it reads as the thing to do here.
         <button
           type="button"
           onClick={onNew}
-          className="rounded-lg border border-line px-2 py-0.5 text-[11px] text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+          className="mb-2.5 w-full rounded-xl border border-dashed border-line-strong py-2 text-xs font-medium text-ink-muted transition-colors hover:border-accent/50 hover:text-accent"
         >
-          {t.conversations.newChat}
+          + {t.conversations.newChat}
         </button>
-      </div>
+      )}
 
       {conversations.length === 0 ? (
         <p className="text-xs text-ink-faint">{t.conversations.empty}</p>
