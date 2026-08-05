@@ -37,6 +37,33 @@ These were ruled out before the build started. Listed so the reasoning survives.
 - **Table continuation across page breaks.** A coverage schedule that spans
   pages 12–13 currently becomes two chunks. Detecting and stitching them is
   meaningful work and meaningfully better.
+- **Multi-column reading order.** `native.py` sorts blocks by `(top, x0)`, which
+  is correct for one column and wrong for two: a two-column page comes out as
+  left line 1, right line 1, left line 2, interleaved into nonsense. Every
+  sample document is single-column, so the eval cannot see this at all. It is
+  the largest *unmeasured* gap in parsing.
+- **Evaluate [`pdf-inspector`](https://github.com/firecrawl/pdf-inspector) as an
+  alternative parser and detector.** MIT, Rust with abi3 manylinux wheels on
+  PyPI, so no toolchain in the build. `classify_pdf` returns
+  text_based/scanned/image_based/mixed with a confidence score and
+  `pages_needing_ocr` — the same shape `detector.py` computes — and
+  `extract_text_with_positions` returns per-item `x, y, width, height, font,
+  font_size, page, is_bold, item_type`. That last one is the interesting part:
+  it would replace the median-glyph-size heading heuristic with real font
+  metadata, and it claims multi-column reading order, which is the gap above.
+
+  **Not swapped, deliberately.** Chunk boundaries would change, invalidating
+  every stored embedding, and this project's own rule is that pipeline changes
+  get measured. The corpus cannot measure this one: three synthetic
+  single-column documents where the table category already scores 100%. Swapping
+  a parser we cannot evaluate for another we cannot evaluate is not an
+  improvement, it is a coin flip with a re-ingestion attached.
+
+  **The trigger** is a real-world PDF corpus that the current parser visibly
+  fails on — a two-column policy would do it. At that point the swap is cheap:
+  the `DocumentParser` interface exists for exactly this ([ADR 002](./adr/002-pdf-parsing-stack.md)),
+  and the honest experiment is both parsers over the same golden set with the
+  retrieval numbers published side by side.
 
 ### Retrieval
 - **A real cross-encoder reranker.** v1 ships a no-op or a cheap LLM filter, and
