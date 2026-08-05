@@ -4,14 +4,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
 
 import { useLocale } from "@/components/LocaleProvider";
+import { locateQuote, type Rect, type TextItem } from "@/lib/locate-quote";
 import type { BBox } from "@/lib/types";
 
 export type Highlight = {
   /** 1-based, matching the citation and the database. */
   page: number;
+  /** The chunk's box. Used only when the quote cannot be located precisely. */
   bbox: BBox;
+  /** What was actually cited. Located in the page's text layer on click. */
+  quote: string;
   /** Changes on every click so re-clicking the same citation re-flashes it. */
   nonce: number;
+};
+
+/** Where the highlight came from, because the two mean different things. */
+type Located = {
+  nonce: number;
+  rects: Rect[];
+  /** False when the quote was not found and this is the surrounding block. */
+  precise: boolean;
 };
 
 /**
@@ -44,6 +56,7 @@ export function PdfViewer({
   } | null>(null);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const [width, setWidth] = useState(0);
+  const [located, setLocated] = useState<Located | null>(null);
 
   const pdf = loaded && loaded.url === url ? loaded.pdf : null;
   const failed = failedUrl === url;
@@ -88,6 +101,45 @@ export function PdfViewer({
     };
   }, [url]);
 
+  useEffect(() => {
+    if (!pdf || !highlight) return;
+    let cancelled = false;
+
+    void (async () => {
+      const fallback: Located = {
+        nonce: highlight.nonce,
+        rects: [highlight.bbox],
+        precise: false,
+      };
+      try {
+        const page = await pdf.getPage(highlight.page);
+        const content = await page.getTextContent();
+        const height = page.getViewport({ scale: 1 }).height;
+        const rects = locateQuote(
+          content.items as TextItem[],
+          height,
+          highlight.quote,
+        );
+        if (!cancelled) {
+          setLocated(
+            rects ? { nonce: highlight.nonce, rects, precise: true } : fallback,
+          );
+        }
+      } catch {
+        // A page with no text layer is a scan, not a failure. The block box is
+        // still the right region, just a coarser one.
+        if (!cancelled) setLocated(fallback);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdf, highlight]);
+
+  const resolved =
+    highlight && located && located.nonce === highlight.nonce ? located : null;
+
   return (
     <div
       ref={measure}
@@ -119,6 +171,9 @@ export function PdfViewer({
               highlight={
                 highlight && highlight.page === index + 1 ? highlight : null
               }
+              located={
+                highlight && highlight.page === index + 1 ? resolved : null
+              }
             />
           ))}
         </div>
@@ -132,12 +187,15 @@ function PdfPage({
   pageNumber,
   width,
   highlight,
+  located,
 }: {
   pdf: PDFDocumentProxy;
   pageNumber: number;
   width: number;
   highlight: Highlight | null;
+  located: Located | null;
 }) {
+  const { t } = useLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0);
@@ -201,22 +259,38 @@ function PdfPage({
       data-page={pageNumber}
     >
       <canvas ref={canvasRef} className="block bg-white" />
-      {highlight && scale > 0 && (
-        <div
-          key={highlight.nonce}
-          className="citation-flash pointer-events-none absolute rounded-[2px] mix-blend-multiply"
+      {located && scale > 0 &&
+        located.rects.map((rect, index) => (
+          <div
+            key={`${located.nonce}:${index}`}
+            className="citation-flash pointer-events-none absolute rounded-[2px] mix-blend-multiply"
+            style={{
+              left: rect.x0 * scale,
+              top: rect.top * scale,
+              width: Math.max(4, (rect.x1 - rect.x0) * scale),
+              height: Math.max(4, (rect.bottom - rect.top) * scale),
+              backgroundColor:
+                "color-mix(in srgb, var(--highlight) 55%, transparent)",
+              // Dashed when this is the surrounding block rather than the quote
+              // itself, so a coarse highlight is not passed off as a precise
+              // one. The caption below says which.
+              outline: located.precise
+                ? "1px solid var(--highlight-ring)"
+                : "1px dashed var(--highlight-ring)",
+            }}
+          />
+        ))}
+
+      {located && !located.precise && scale > 0 && (
+        <span
+          className="pointer-events-none absolute rounded bg-refuse-soft px-1.5 py-0.5 text-[10px] font-medium text-refuse ring-1 ring-highlight-ring"
           style={{
-            left: highlight.bbox.x0 * scale,
-            top: highlight.bbox.top * scale,
-            width: Math.max(4, (highlight.bbox.x1 - highlight.bbox.x0) * scale),
-            height: Math.max(
-              4,
-              (highlight.bbox.bottom - highlight.bbox.top) * scale,
-            ),
-            backgroundColor: "color-mix(in srgb, var(--highlight) 55%, transparent)",
-            outline: "1px solid var(--highlight-ring)",
+            left: located.rects[0].x0 * scale,
+            top: Math.max(0, located.rects[0].top * scale - 18),
           }}
-        />
+        >
+          {t.workspace.approximateRegion}
+        </span>
       )}
       <span className="absolute -bottom-0.5 right-1 font-mono text-[10px] text-ink-faint">
         {pageNumber}

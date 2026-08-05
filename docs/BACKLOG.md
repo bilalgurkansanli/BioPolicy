@@ -92,10 +92,16 @@ These were ruled out before the build started. Listed so the reasoning survives.
   demo visitors.
 
 ### Frontend
-- **Highlighting the exact quote span** within a page, rather than the chunk's
-  bounding box. Requires mapping the verified quote back to character offsets in
-  the parsed text. This is the single largest quality gap in the workspace: the
-  citation chip names one clause and the highlight covers the block around it.
+- **Precise highlighting on scanned pages.** Quotes are located in the page's
+  text layer at click time (`web/lib/locate-quote.ts`), which a scan does not
+  have — every character is a pixel. Those citations fall back to the chunk box,
+  drawn dashed and labelled "approximate region" so a coarse highlight is not
+  passed off as a precise one. Fixing it properly means storing per-line
+  geometry from the OCR pass, which returns Markdown today and would have to
+  return positions.
+- **Quotes that span a page break.** The chunk's box is confined to its first
+  page, and the locator only searches the cited page. A quote continuing onto
+  the next page highlights the part that fits.
 - **Keyboard navigation between citations.**
 - **A text layer over the PDF canvas**, so the document is selectable and
   searchable. pdf.js renders one; the viewer currently draws pixels only.

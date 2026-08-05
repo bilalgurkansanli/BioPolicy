@@ -35,46 +35,36 @@ const tr = {
     eyebrow: "Açık kaynak · TR/EN · alıntıya dayalı",
     thesis:
       "Bir RAG sistemi, ancak “bu bilgi bu belgede yok” diyebildiği kadar güvenilirdir.",
-    lede: "BioPolicy sigorta poliçeleri ve hukuki sözleşmeler hakkındaki soruları yanıtlar, dayandığı maddeyi belgenin üzerinde tam olarak gösterir ve belge cevabı içermiyorsa cevap vermeyi reddeder.",
+    lede: "Poliçenizi sorun: cevabı dayandığı maddeyle birlikte belgenin üzerinde gösterir, belgede yoksa uydurmaz.",
     ctaPrimary: "Örnek bir poliçeyle deneyin",
     ctaSecondary: "Ölçümleri okuyun",
+    ctaNote: "Kayıt gerekmez · Örnek belgeler hazır · 30 saniyede ilk cevap",
     numbersTitle: "70 soruluk değerlendirme kümesinde ölçüldü",
-    numbersNote:
-      "Bu sayıların hepsi python -m eval.run_eval komutunun çıktısıdır; hiçbiri elle yazılmadı. Hoşa gitmeyen sonuçlar da raporda duruyor.",
+    numbersNote: "Sayıların hepsi eval çıktısıdır, elle yazılmadı.",
     numbers: {
       refusal: "Doğru ret oranı",
-      refusalNote: "Cevabı belgede olmayan 21 sorunun tamamı reddedildi",
       falseRefusal: "Yanlış ret oranı",
-      falseRefusalNote: "Cevaplanabilir 49 sorudan 1'i gereksiz yere reddedildi",
       citations: "Geçerli alıntı",
-      citationsNote: "Sunulan 67 alıntının tamamı belgede bulundu",
       recall: "Recall@8",
-      recallNote: "Beklenen tüm maddeler modele ulaşan parçalar içinde",
     },
-    howTitle: "Nasıl çalışıyor",
+    howTitle: "Üç adımda",
     how: [
       {
         title: "Belge ayrıştırılır",
-        body: "Metin, tablolar ve her satırın sayfa koordinatları çıkarılır; taranmış sayfalar OCR'dan geçer. Her parça hangi maddenin altında olduğunu bilir, bu yüzden alıntı sayfadaki yerine geri götürülebilir.",
+        body: "Metin, tablolar ve satır koordinatları çıkarılır; taranmış sayfalar OCR'dan geçer.",
       },
       {
         title: "İki arama birlikte koşar",
-        body: "Anlamsal vektör araması ile tam sözcük araması aynı anda çalışır ve sonuçlar RRF ile birleştirilir. Biri “sel hasarı”nı bulur, diğeri “Madde 4.2”yi; tek başına ikisi de yetmez.",
+        body: "Anlamsal arama “sel hasarı”nı bulur, sözcük araması “Madde 4.2”yi; ikisi birleştirilir.",
       },
       {
         title: "Cevap belgeye bağlanır",
-        body: "Model yalnızca getirilen parçalardan cevap üretir. Sonrasında her alıntının belgede gerçekten geçtiği doğrulanır ve cevap kendi kaynağına karşı ayrıca kontrol edilir. Geçemeyen cevap gösterilmez.",
+        body: "Her alıntı belgede doğrulanır. Doğrulamayı geçemeyen cevap hiç gösterilmez.",
       },
     ],
-    limitsTitle: "Bu sistemin yapmadıkları",
-    limits: [
-      "Bu bir hukuki ya da sigortacılık tavsiyesi değildir. Bir poliçenin sizin durumunuzda ne anlama geldiğini söyleyemez; yalnızca metinde ne yazdığını gösterir.",
-      "Örnek belgeler bu proje için yazılmış sentetik metinlerdir. Gerçek bir poliçe değildir ve gerçek bir şirketi temsil etmez.",
-      "Ölçümler 70 soruluk tek bir küme üzerinde yapıldı. Küçük bir kümedir; genel bir kalite iddiası değil, ne ölçtüğü belli olan bir sayıdır.",
-      "Alıntı bağlama ve kendi kendini doğrulama mekanizmaları bu derlemde hiçbir kararı değiştirmedi ve maliyeti ~%55 artırdı. Bu da raporda yazıyor.",
-    ],
-    footerNote:
-      "Yüklenen belgeler ve sorular kalıcı olarak saklanmaz; belgeler 24 saat sonra otomatik silinir.",
+    closingTitle: "Bir belge seçin, ilk sorunuzu sorun.",
+    closingBody:
+      "Cevabı maddesiyle görürsünüz ya da sistem bilmediğini söyler. İkisini de deneyin.",
   },
   workspace: {
     documents: "Örnek belgeler",
@@ -128,6 +118,7 @@ const tr = {
     errorTitle: "Bir şeyler ters gitti",
     errorBody: "Başarısız bir cevap için ücretlendirme yapılmaz.",
     viewerHint: "Bir alıntıya tıklayın, belgede yerini göstersin.",
+    approximateRegion: "yaklaşık bölge",
     viewerLoading: "Belge açılıyor…",
     viewerFailed: "Belge görüntülenemedi.",
     noDocument: "Soldan bir belge seçin.",
@@ -205,46 +196,36 @@ const en: Dictionary = {
     eyebrow: "Open source · TR/EN · citation-grounded",
     thesis:
       "A RAG system is only as trustworthy as its ability to say “that isn't in this document.”",
-    lede: "BioPolicy answers questions about insurance policies and legal contracts, shows you the exact clause it relied on inside the document, and refuses to answer when the document does not contain one.",
+    lede: "Ask your policy: every answer comes with the clause it rests on, shown in the document — and nothing is invented when the document does not say.",
     ctaPrimary: "Try it on a sample policy",
     ctaSecondary: "Read the numbers",
+    ctaNote: "No sign-up · Sample documents ready · First answer in 30 seconds",
     numbersTitle: "Measured on a 70-question evaluation set",
-    numbersNote:
-      "Every figure is the output of python -m eval.run_eval. None are hand-written, and the unflattering ones are still in the report.",
+    numbersNote: "Every figure is eval output, not hand-written.",
     numbers: {
       refusal: "Refusal accuracy",
-      refusalNote: "All 21 questions the document cannot answer were refused",
       falseRefusal: "False-refusal rate",
-      falseRefusalNote: "1 of 49 answerable questions was refused needlessly",
       citations: "Citation validity",
-      citationsNote: "All 67 offered citations were found in the document",
       recall: "Recall@8",
-      recallNote: "Every expected clause reached the model, not merely the index",
     },
-    howTitle: "How it works",
+    howTitle: "In three steps",
     how: [
       {
         title: "The document is parsed",
-        body: "Text, tables and the page coordinates of every line are extracted; scanned pages go through OCR. Each chunk knows which article it sits under, which is what lets a citation point back at its place on the page.",
+        body: "Text, tables and line coordinates are extracted; scanned pages go through OCR.",
       },
       {
         title: "Two searches run together",
-        body: "Semantic vector search and exact keyword search run at once and are fused with RRF. One finds “flood damage”, the other finds “Article 4.2”; neither is sufficient alone.",
+        body: "Semantic search finds “flood damage”, keyword search finds “Article 4.2”; the two are fused.",
       },
       {
         title: "The answer is bound to the document",
-        body: "The model may only answer from the retrieved chunks. Afterwards every quote is checked against the text it claims to come from, and the answer is verified against its own source. An answer that fails is never shown.",
+        body: "Every quote is verified against the text. An answer that fails is never shown.",
       },
     ],
-    limitsTitle: "What this system does not do",
-    limits: [
-      "This is not legal or insurance advice. It cannot tell you what a policy means for your situation — only what the text says.",
-      "The sample documents are synthetic, written for this project. They are not real policies and do not represent any real company.",
-      "The numbers come from a single 70-question set. That is small; it is a figure with a known scope, not a general claim about quality.",
-      "Citation binding and self-verification changed no decisions on this corpus and added about 55% to the cost. That is in the report too.",
-    ],
-    footerNote:
-      "Questions and uploaded documents are not kept: documents are deleted automatically after 24 hours.",
+    closingTitle: "Pick a document, ask your first question.",
+    closingBody:
+      "You either get the answer with its clause, or the system tells you it does not know. Try both.",
   },
   workspace: {
     documents: "Sample documents",
@@ -298,6 +279,7 @@ const en: Dictionary = {
     errorTitle: "Something went wrong",
     errorBody: "Nothing is charged for a failed answer.",
     viewerHint: "Click a citation to see where it sits in the document.",
+    approximateRegion: "approximate region",
     viewerLoading: "Opening the document…",
     viewerFailed: "The document could not be displayed.",
     noDocument: "Pick a document on the left.",

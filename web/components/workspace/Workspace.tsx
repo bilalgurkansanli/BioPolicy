@@ -328,6 +328,7 @@ export function Workspace() {
         setHighlight({
           page: citation.page,
           bbox: citation.bbox,
+          quote: citation.quote,
           nonce: Date.now(),
         });
       }
