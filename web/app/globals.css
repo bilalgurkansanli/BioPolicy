@@ -92,6 +92,69 @@
    which is what would break the sticky header. */
 html {
   overflow-x: clip;
+
+  /* The scrollbar is part of the interface, and the platform default is the one
+     element on the page that never got the memo about dark mode — a pale track
+     and a grey thumb sitting inside a near-black sidebar.
+
+     The colours come from the theme tokens, so the thumb tracks light and dark
+     without a second declaration. The track is transparent rather than tinted:
+     a visible groove draws the eye to the furniture instead of the content, and
+     over the PDF pane's sunken background a tinted one would read as a seam.
+
+     `scrollbar-color` is inherited, so declaring it once here reaches every
+     scroll container in the app, including ones nobody has written yet.
+
+     The thumb is `--ink-faint`, flat. Two other candidates were measured first
+     and both failed. `--line-strong`, the obvious "it's a border" choice, came
+     out at 1.5–1.8:1 against the three backgrounds a scrollbar sits on here — a
+     control nobody can find is not restraint, it is a control that has been
+     hidden. A `color-mix` to 60% transparent looked softer and measured 2.3–2.4,
+     still under. Contrast rises as the mix approaches opaque, and the light
+     theme only clears 3:1 — the WCAG threshold for a non-text control — at full
+     strength: 3.3:1 on the page, 3.1:1 on the PDF pane's sunken background, and
+     4.1–4.9:1 everywhere in dark. So the simple declaration is also the only
+     correct one, which is not usually how this goes. */
+  scrollbar-color: var(--ink-faint) transparent;
+}
+
+/* `scrollbar-width` is **not** inherited — unlike `scrollbar-color`, which is.
+   Setting it on `html` alone was measured doing nothing: the three scroll
+   containers all reported the themed colour and a computed width of `auto`.
+   Hence the universal selector. It is the whole reason this is two rules rather
+   than one. */
+* {
+  scrollbar-width: thin;
+}
+
+/* Older WebKit — Safari before 18.2 — has no standard scrollbar properties and
+   needs the pseudo-elements instead. Gated on `@supports` rather than declared
+   alongside, because Chrome ignores `::-webkit-scrollbar` entirely once
+   `scrollbar-width` is set, so declaring both unconditionally leaves dead rules
+   that read as though they were doing something.
+
+   The transparent border plus `background-clip` is what makes the thumb narrower
+   than its track without the track becoming a visible column. */
+@supports not (scrollbar-width: thin) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--ink-faint);
+    background-clip: content-box;
+    border: 3px solid transparent;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
