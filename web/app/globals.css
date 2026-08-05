@@ -168,6 +168,45 @@ body {
   color: var(--ink);
 }
 
+/* Anything you can click says so under the pointer.
+ *
+ * Links already do — that is a browser default — but `<button>` computes to
+ * `cursor: default`, which is the platform's own convention for a native
+ * control and reads as inert on a web page where everything else that responds
+ * to a click is a link. Measured on `/eval` before this rule: seven anchors at
+ * `pointer`, four buttons at `default`, including the language switch.
+ *
+ * `@layer base`, not a bare rule, and that part is load-bearing. Several
+ * components deliberately say the opposite with a utility — a citation chip
+ * whose quote could not be located, a conversation that is still ingesting —
+ * and an unlayered rule here would outrank every one of them, because layered
+ * styles lose to unlayered ones no matter how specific. In the base layer the
+ * utilities win, which is the whole point of them.
+ *
+ * Disabled controls get `not-allowed` rather than `pointer`: they are the one
+ * case where "you can click this" would be a lie, and two components had
+ * already reached for `disabled:cursor-not-allowed` by hand, which is the
+ * design decision this generalises.
+ */
+@layer base {
+  button,
+  summary,
+  [role="button"],
+  select,
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  input[type="submit"],
+  input[type="reset"] {
+    cursor: pointer;
+  }
+
+  :disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 /* Switching language rewrites every string on the page, so the page is written
    again: each block of text fills in from the left, in steps, one after another
    down the page. See lib/retype.ts for why it is stepped and why nothing fades
