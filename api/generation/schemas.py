@@ -125,6 +125,17 @@ class BoundCitation(BaseModel):
     context_id: str
     quote: str
     page: int
+    """Where the chunk starts. What the citation chip shows."""
+
+    page_end: int
+    """Where the chunk ends, which is not always where it starts.
+
+    A chunk can run past a page break, and the quote can be on the far side of
+    it — `page` alone sent the viewer looking on the wrong sheet, where it found
+    nothing and fell back to highlighting the whole page. The range is what lets
+    it look everywhere the quote could possibly be, and nowhere it could not.
+    """
+
     section_path: str
     bbox: dict[str, float] | None = None
     exact: bool = True

@@ -92,9 +92,6 @@ These were ruled out before the build started. Listed so the reasoning survives.
   demo visitors.
 
 ### Frontend
-- **Quotes that span a page break.** The chunk's box is confined to its first
-  page, and the locator only searches the cited page. A quote continuing onto
-  the next page highlights the part that fits.
 - **Keyboard navigation between citations.**
 - **A text layer over the PDF canvas**, so the document is selectable and
   searchable. pdf.js renders one; the viewer currently draws pixels only.

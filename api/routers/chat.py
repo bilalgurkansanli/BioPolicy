@@ -157,6 +157,7 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
                             "context_id": c.context_id,
                             "quote": c.quote,
                             "page": c.page,
+                            "page_end": c.page_end,
                             "section_path": c.section_path,
                             "bbox": c.bbox,
                             "exact": c.exact,

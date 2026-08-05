@@ -27,7 +27,10 @@ export type BBox = {
 export type Citation = {
   context_id: string;
   quote: string;
+  /** Where the chunk starts. */
   page: number;
+  /** Where it ends — a chunk can run past a page break, and so can the quote. */
+  page_end: number;
   section_path: string | null;
   bbox: BBox | null;
   /**

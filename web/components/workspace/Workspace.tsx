@@ -327,6 +327,7 @@ export function Workspace() {
       if (citation.bbox) {
         setHighlight({
           page: citation.page,
+          pageEnd: citation.page_end,
           bbox: citation.bbox,
           quote: citation.quote,
           nonce: Date.now(),

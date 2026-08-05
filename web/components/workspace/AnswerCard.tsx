@@ -174,9 +174,14 @@ function CitationChip({
       } ${locatable ? "cursor-pointer" : "cursor-default"}`}
     >
       <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-ink-faint">
+        {/* A range when the chunk crosses a page break. The quote can be on
+            either side of it, so naming only the first page would contradict
+            the highlight the chip is about to put on the second. */}
         <span className="font-mono font-medium text-ink-muted">
           {t.workspace.page}
-          {citation.page}
+          {citation.page_end > citation.page
+            ? `${citation.page}–${citation.page_end}`
+            : citation.page}
         </span>
         {citation.section_path && (
           <>

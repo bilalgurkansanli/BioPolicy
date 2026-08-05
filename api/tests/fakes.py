@@ -39,9 +39,7 @@ class FakeOCRProvider:
 
     name = "fake-ocr"
 
-    def __init__(
-        self, markdown: str | None = None, lines: tuple[OcrLine, ...] = ()
-    ) -> None:
+    def __init__(self, markdown: str | None = None, lines: tuple[OcrLine, ...] = ()) -> None:
         self.markdown = markdown if markdown is not None else _DEFAULT_MARKDOWN
         self.lines = lines
         self.calls: list[int] = []  # byte length of each image received

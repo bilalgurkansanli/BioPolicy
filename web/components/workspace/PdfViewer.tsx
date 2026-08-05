@@ -16,9 +16,11 @@ import type { BBox } from "@/lib/types";
 export type Highlight = {
   /** 1-based, matching the citation and the database. */
   page: number;
+  /** Last page of the chunk. Equal to `page` for a chunk that fits on one. */
+  pageEnd: number;
   /** The chunk's box. Used only when the quote cannot be located precisely. */
   bbox: BBox;
-  /** What was actually cited. Located in the page's text layer on click. */
+  /** What was actually cited. Located in the document itself on click. */
   quote: string;
   /** Changes on every click so re-clicking the same citation re-flashes it. */
   nonce: number;
@@ -27,6 +29,8 @@ export type Highlight = {
 /** Where the highlight came from, because the two mean different things. */
 type Located = {
   nonce: number;
+  /** The page it was actually found on, which is not always the cited one. */
+  page: number;
   rects: Rect[];
   /** False when the quote was not found and this is the surrounding block. */
   precise: boolean;
@@ -118,32 +122,57 @@ export function PdfViewer({
     void (async () => {
       const fallback: Located = {
         nonce: highlight.nonce,
+        page: highlight.page,
         rects: [highlight.bbox],
         precise: false,
       };
+
+      // Every page the chunk covers, because the citation names where the
+      // chunk *starts*. A chunk that runs past a page break can be quoted from
+      // the far side of it, and searching only the cited page found nothing —
+      // which is how a clause halfway down page two ended up highlighting the
+      // whole of page one.
+      const pages: number[] = [];
+      for (
+        let page = highlight.page;
+        page <= Math.min(highlight.pageEnd, pdf.numPages);
+        page += 1
+      ) {
+        pages.push(page);
+      }
+
       try {
-        const page = await pdf.getPage(highlight.page);
-        const content = await page.getTextContent();
-        const height = page.getViewport({ scale: 1 }).height;
-        let rects = locateQuote(
-          content.items as TextItem[],
-          height,
-          highlight.quote,
-        );
-
-        // No text layer, or a quote that is not in it: the page was scanned.
-        // Its geometry exists, but it was produced by the OCR pass and lives on
-        // the server rather than in the file the browser is holding.
-        if (!rects && documentId) {
-          const { lines } = await fetchPageLines(documentId, highlight.page);
-          rects = locateQuoteInLines(lines, highlight.quote);
-        }
-
-        if (!cancelled) {
-          setLocated(
-            rects ? { nonce: highlight.nonce, rects, precise: true } : fallback,
+        for (const number of pages) {
+          const page = await pdf.getPage(number);
+          const content = await page.getTextContent();
+          const height = page.getViewport({ scale: 1 }).height;
+          let rects = locateQuote(
+            content.items as TextItem[],
+            height,
+            highlight.quote,
           );
+
+          // No text layer, or a quote that is not in it: the page was scanned.
+          // Its geometry exists, but it came from the OCR pass and lives on the
+          // server rather than in the file the browser is holding.
+          if (!rects && documentId) {
+            const { lines } = await fetchPageLines(documentId, number);
+            rects = locateQuoteInLines(lines, highlight.quote);
+          }
+
+          if (rects) {
+            if (!cancelled) {
+              setLocated({
+                nonce: highlight.nonce,
+                page: number,
+                rects,
+                precise: true,
+              });
+            }
+            return;
+          }
         }
+        if (!cancelled) setLocated(fallback);
       } catch {
         // Nothing found and nothing to ask. The block box is still the right
         // region, just a coarser one.
@@ -187,12 +216,7 @@ export function PdfViewer({
               pdf={pdf}
               pageNumber={index + 1}
               width={Math.min(width, 900)}
-              highlight={
-                highlight && highlight.page === index + 1 ? highlight : null
-              }
-              located={
-                highlight && highlight.page === index + 1 ? resolved : null
-              }
+              located={resolved?.page === index + 1 ? resolved : null}
             />
           ))}
         </div>
@@ -205,13 +229,11 @@ function PdfPage({
   pdf,
   pageNumber,
   width,
-  highlight,
   located,
 }: {
   pdf: PDFDocumentProxy;
   pageNumber: number;
   width: number;
-  highlight: Highlight | null;
   located: Located | null;
 }) {
   const { t } = useLocale();
@@ -265,10 +287,12 @@ function PdfPage({
     };
   }, [pdf, pageNumber, width]);
 
+  // Scrolls once the quote has been placed, not when it was clicked: the page
+  // it lands on is only known after the search.
   useEffect(() => {
-    if (!highlight) return;
+    if (!located) return;
     wrapperRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [highlight]);
+  }, [located]);
 
   return (
     <div
