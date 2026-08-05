@@ -143,7 +143,30 @@ cd web && npm run dev
 ```
 
 The frontend proxies `/api/*` to `http://127.0.0.1:8000` by default; override
-with `API_ORIGIN`.
+with `API_ORIGIN` in `web/.env.local`.
+
+### Before uploads will work: enable anonymous sign-ins
+
+Uploading needs an identity, and this project uses anonymous accounts rather
+than a signup form ([ADR 012](./adr/012-anonymous-accounts.md)). Anonymous
+sign-ins are **off by default** on a new Supabase project.
+
+Dashboard → **Authentication** → **Sign In / Providers** → enable **Anonymous
+sign-ins**.
+
+Until that is on, `signInAnonymously()` returns `anonymous_provider_disabled`
+and every upload fails. The interface detects that specific error and names the
+setting, so the symptom is a sentence pointing at the toggle rather than a
+generic sign-in failure. Verify from the shell:
+
+```bash
+curl -s -X POST "$SUPABASE_URL/auth/v1/signup" -H "apikey: $SUPABASE_ANON_KEY" -H 'Content-Type: application/json' -d '{}'
+```
+
+A JSON body containing `access_token` means it is on; `anonymous_provider_disabled` means it is not.
+
+`web/.env.local` also has to exist, holding `NEXT_PUBLIC_SUPABASE_URL` and
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` — see `.env.example`.
 
 Quality gates, all of which CI also runs:
 
@@ -283,3 +306,26 @@ that is a broken promise, not a bug backlog item.
    API rather than raw SQL.
 5. If documents outlived their window, that is worth a note in the README's
    honesty section. This project does not get to hide its own failures.
+
+Both scheduled jobs call back into the API rather than running SQL, so they need
+`app_settings` populated:
+
+```sql
+insert into app_settings (key, value) values
+  ('api_base_url', 'https://your-api-host'),
+  ('purge_job_secret', 'the same value as PURGE_JOB_SECRET')
+on conflict (key) do update set value = excluded.value, updated_at = now();
+```
+
+Until both rows exist the jobs log a warning and do nothing, which is deliberate
+— migrations must apply cleanly to an unconfigured project. To check the purge
+end to end by hand:
+
+```bash
+curl -s -X POST "$API_BASE/api/internal/purge" -H "X-Job-Secret: $PURGE_JOB_SECRET"
+```
+
+It answers `{"purged": n, "chunks_deleted": n, "failed": n}`. A non-zero
+`failed` means the storage object could not be deleted; those rows are kept
+deliberately and retried on the next sweep, because a row without its file is
+the one state retention must never produce.

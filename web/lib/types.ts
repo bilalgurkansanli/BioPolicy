@@ -69,3 +69,31 @@ export type ChatEvent =
   | { event: "error"; data: { code: string; message: string } };
 
 export type HistoryTurn = { role: "user" | "assistant"; content: string };
+
+export type DocumentStatus = {
+  id: string;
+  status: string;
+  /** Position in the pipeline, so progress is real rather than a spinner. */
+  stage_index: number;
+  stage_count: number;
+  page_count: number | null;
+  source_type: string | null;
+  detected_lang: string | null;
+  chunk_count: number;
+  error: string | null;
+};
+
+export type Capabilities = {
+  stages: string[];
+  max_upload_bytes: number;
+  retention_hours: number;
+};
+
+export type UploadTicket = {
+  document_id: string;
+  storage_path: string;
+  upload_url: string;
+  token: string;
+  expires_in: number;
+  max_bytes: number;
+};

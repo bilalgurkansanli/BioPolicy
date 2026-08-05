@@ -150,9 +150,23 @@ BioPolicy summarises what a document says. It is **not legal or insurance
 advice**, it does not tell you whether to file a claim or sign anything, and it
 can be wrong. The citation is there so you can check it in one click.
 
-Uploaded documents are irreversibly deleted — file and vectors — after 24 hours.
-That promise is enforced by a scheduled job and
-[proven by an automated test](./api/tests), not by assertion.
+Uploaded documents are irreversibly deleted — file and vectors — after 24 hours,
+and you can delete one yourself at any time. That promise is enforced by a
+scheduled job and [proven by automated tests](./api/tests/test_retention.py),
+not by assertion.
+
+The order those tests pin is the whole guarantee: the file leaves object storage
+*first*, then the rows, then the audit entry. Deleting the rows first is the
+natural thing to write, and it loses the storage path — the purge reports
+success, the audit table agrees, and the PDF is still on disk with nothing left
+pointing at it.
+
+Spending is bounded in three layers: per-user daily quotas, a global budget
+breaker that counts spend the moment it happens rather than when the ledger
+catches up, and the provider console's own limit — the only one that still works
+when this code is wrong. The quotas are a courtesy: anonymous accounts are free
+to create, so they slow a determined visitor down rather than stopping one. The
+breaker is what actually bounds the bill.
 
 ## The interface
 
@@ -165,6 +179,13 @@ Three surfaces, all statically prerendered:
   was verbatim or matched approximately, and what it cost.
 - **`/eval`** — [`eval/report.md`](./eval/report.md) rendered verbatim, including
   the finding that the mechanisms changed no decisions.
+
+You can also upload your own PDF. The file goes straight from the browser to
+object storage against a signed URL — it never passes through the API — and
+ingestion runs asynchronously with the real pipeline stages visible while it
+works. There is no signup: the session is an anonymous Supabase account created
+on first use, because a system that deletes your document tomorrow has no
+business keeping your email address ([ADR 012](./docs/adr/012-anonymous-accounts.md)).
 
 Turkish and English, switched from the header. The locale is a stored preference
 rather than a URL segment, because the interface language and the *document's*

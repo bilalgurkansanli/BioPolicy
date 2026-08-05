@@ -342,12 +342,24 @@ async def delete_document(document_id: UUID, user: CurrentUser, state: State) ->
         )
 
 
-class Health(BaseModel):
+class Capabilities(BaseModel):
     stages: list[str]
+    max_upload_bytes: int
+    retention_hours: int
     kind: Literal["pipeline"] = "pipeline"
 
 
-@router.get("/meta/stages", response_model=Health, summary="Pipeline stage names")
-async def stages() -> Health:
-    """Stage names, so the UI labels match the backend rather than duplicating it."""
-    return Health(stages=list(PIPELINE_STAGES))
+@router.get("/meta/stages", response_model=Capabilities, summary="Limits and stage names")
+async def capabilities(settings: Config) -> Capabilities:
+    """What the interface would otherwise have to hard-code.
+
+    The upload screen prints the size limit and the retention window, and both
+    are promises. A copy of them in the frontend is a copy that drifts, and the
+    first symptom is a screen confidently stating a limit the API does not
+    enforce.
+    """
+    return Capabilities(
+        stages=list(PIPELINE_STAGES),
+        max_upload_bytes=settings.max_upload_bytes,
+        retention_hours=settings.retention_hours,
+    )

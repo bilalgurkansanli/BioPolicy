@@ -5,21 +5,43 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale } from "@/components/LocaleProvider";
 import { AnswerCard } from "@/components/workspace/AnswerCard";
 import { DocumentList } from "@/components/workspace/DocumentList";
+import { MyDocumentList } from "@/components/workspace/MyDocumentList";
 import { PdfViewer, type Highlight } from "@/components/workspace/PdfViewer";
 import { StageProgress, type Stage } from "@/components/workspace/StageProgress";
-import { askQuestion, fetchSamples, fetchViewingUrl } from "@/lib/api";
+import { Uploader, type UploadFailure } from "@/components/workspace/Uploader";
+import {
+  ApiError,
+  askQuestion,
+  deleteDocument,
+  fetchCapabilities,
+  fetchDocumentStatus,
+  fetchMyDocuments,
+  fetchSamples,
+  fetchViewingUrl,
+} from "@/lib/api";
 import { SUGGESTIONS } from "@/lib/i18n";
+import { AuthUnavailableError, isConfigured } from "@/lib/supabase";
 import type {
   Answer,
+  Capabilities,
   Citation,
+  DocumentStatus,
   DocumentSummary,
   HistoryTurn,
   RetrievalComplete,
 } from "@/lib/types";
 
+// How often an in-flight ingestion is re-checked. Ingestion of a native PDF
+// finishes in a few seconds and a scanned one in tens of seconds, so this is
+// frequent enough to feel live without polling a finished document to death.
+const STATUS_POLL_MS = 2000;
+
 type Message =
   | { kind: "question"; id: string; text: string }
   | { kind: "answer"; id: string; answer: Answer }
+  // A limit is not a failure: the system worked and declined. Rendered as its
+  // own kind so it does not look like something broke.
+  | { kind: "refused"; id: string; title: string; message: string }
   | { kind: "error"; id: string };
 
 export function Workspace() {
@@ -35,6 +57,11 @@ export function Workspace() {
     documentId: string;
     url: string;
   } | null>(null);
+
+  const [mine, setMine] = useState<DocumentSummary[]>([]);
+  const [ingesting, setIngesting] = useState<Record<string, DocumentStatus>>({});
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
+  const [uploadFailure, setUploadFailure] = useState<UploadFailure | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [stage, setStage] = useState<Stage | null>(null);
@@ -59,6 +86,68 @@ export function Workspace() {
       });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCapabilities(controller.signal)
+      .then(setCapabilities)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  // Only if a session already exists. Listing "your documents" must not be the
+  // thing that silently creates an account for someone who came to read the
+  // samples (ADR 012).
+  useEffect(() => {
+    if (!isConfigured()) return;
+    const controller = new AbortController();
+    void (async () => {
+      const { currentUserId } = await import("@/lib/supabase");
+      if (!(await currentUserId()) || controller.signal.aborted) return;
+      try {
+        setMine(await fetchMyDocuments(controller.signal));
+      } catch {
+        // A signed-out or expired session is not an error worth showing here.
+      }
+    })();
+    return () => controller.abort();
+  }, []);
+
+  // Poll anything still moving through the pipeline.
+  useEffect(() => {
+    const pending = mine.filter(
+      (document) =>
+        (ingesting[document.id]?.status ?? document.status) !== "ready" &&
+        (ingesting[document.id]?.status ?? document.status) !== "failed",
+    );
+    if (pending.length === 0) return;
+
+    const timer = setInterval(() => {
+      for (const document of pending) {
+        void fetchDocumentStatus(document.id)
+          .then((status) => {
+            setIngesting((current) => ({ ...current, [document.id]: status }));
+            if (status.status === "ready") {
+              setMine((current) =>
+                current.map((item) =>
+                  item.id === document.id
+                    ? {
+                        ...item,
+                        status: "ready",
+                        page_count: status.page_count,
+                        source_type: status.source_type,
+                        detected_lang: status.detected_lang,
+                      }
+                    : item,
+                ),
+              );
+            }
+          })
+          .catch(() => undefined);
+      }
+    }, STATUS_POLL_MS);
+    return () => clearInterval(timer);
+  }, [mine, ingesting]);
 
   useEffect(() => {
     if (!selected) return;
@@ -155,7 +244,31 @@ export function Workspace() {
           }
         }
       } catch (error) {
-        if ((error as Error).name !== "AbortError") {
+        if ((error as Error).name === "AbortError") {
+          // Stopped on purpose. Not a failure to report.
+        } else if (error instanceof ApiError && (error.isQuota || error.isBudget)) {
+          setMessages((current) => [
+            ...current,
+            {
+              kind: "refused",
+              id: `${id}:l`,
+              title: error.isQuota ? t.upload.quotaTitle : t.upload.budgetTitle,
+              message: error.message,
+            },
+          ]);
+        } else if (error instanceof AuthUnavailableError) {
+          setMessages((current) => [
+            ...current,
+            {
+              kind: "refused",
+              id: `${id}:l`,
+              title: t.upload.authDisabledTitle,
+              message: error.anonymousDisabled
+                ? t.upload.authDisabled
+                : t.upload.signInFailed,
+            },
+          ]);
+        } else {
           setMessages((current) => [
             ...current,
             { kind: "error", id: `${id}:e` },
@@ -166,7 +279,42 @@ export function Workspace() {
         setStage(null);
       }
     },
-    [locale, messages, selected, stage],
+    [locale, messages, selected, stage, t],
+  );
+
+  const onUploaded = useCallback((documentId: string, filename: string) => {
+    // Shown immediately as `queued` rather than waiting for a refetch: the file
+    // has landed and the visitor should see that before ingestion finishes.
+    setMine((current) => [
+      {
+        id: documentId,
+        filename,
+        page_count: null,
+        source_type: null,
+        detected_lang: null,
+        status: "queued",
+        is_sample: false,
+      },
+      ...current,
+    ]);
+  }, []);
+
+  const removeDocument = useCallback(
+    async (documentId: string) => {
+      try {
+        await deleteDocument(documentId);
+      } catch {
+        // Deleting something already gone is the outcome we wanted anyway.
+      }
+      setMine((current) => current.filter((item) => item.id !== documentId));
+      setIngesting((current) => {
+        const next = { ...current };
+        delete next[documentId];
+        return next;
+      });
+      setSelected((current) => (current?.id === documentId ? null : current));
+    },
+    [],
   );
 
   const showCitation = useCallback(
@@ -238,6 +386,49 @@ export function Workspace() {
           <p className="mt-3 text-xs leading-5 text-ink-faint">
             {t.workspace.documentsNote}
           </p>
+
+          <h2 className="mb-2 mt-6 text-xs font-medium uppercase tracking-wide text-ink-faint">
+            {t.upload.title}
+          </h2>
+          <Uploader
+            maxBytes={capabilities?.max_upload_bytes ?? 25 * 1024 * 1024}
+            retentionHours={capabilities?.retention_hours ?? 24}
+            disabled={!isConfigured()}
+            onUploaded={onUploaded}
+            onFailure={setUploadFailure}
+          />
+
+          {uploadFailure && (
+            <div className="mt-2 rounded-lg border border-danger/40 bg-danger-soft p-2.5">
+              <p className="text-xs font-medium text-danger">
+                {uploadFailure.title}
+              </p>
+              <p className="mt-1 text-[11px] leading-4 text-ink-muted">
+                {uploadFailure.message}
+              </p>
+            </div>
+          )}
+
+          {mine.length > 0 && (
+            <>
+              <h2 className="mb-2 mt-6 text-xs font-medium uppercase tracking-wide text-ink-faint">
+                {t.upload.yours}
+              </h2>
+              <MyDocumentList
+                documents={mine}
+                progress={ingesting}
+                selectedId={selected?.id ?? null}
+                onSelect={selectDocument}
+                onDelete={(id) => void removeDocument(id)}
+              />
+              <p className="mt-2 text-[11px] leading-4 text-ink-faint">
+                {t.upload.retentionNote.replace(
+                  "{hours}",
+                  String(capabilities?.retention_hours ?? 24),
+                )}
+              </p>
+            </>
+          )}
         </aside>
 
         {/* Conversation */}
@@ -289,6 +480,21 @@ export function Workspace() {
                   >
                     {message.text}
                   </p>
+                );
+              }
+              if (message.kind === "refused") {
+                return (
+                  <div
+                    key={message.id}
+                    className="rounded-lg border border-refuse/35 bg-refuse-soft p-4"
+                  >
+                    <h3 className="text-sm font-semibold text-refuse">
+                      {message.title}
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-ink-muted">
+                      {message.message}
+                    </p>
+                  </div>
                 );
               }
               if (message.kind === "error") {
