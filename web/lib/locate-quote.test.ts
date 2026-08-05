@@ -202,3 +202,99 @@ describe("locateQuoteInLines", () => {
     expect(locateQuoteInLines(COVERAGE_TABLE, "Doğum teminatı")).toBeNull();
   });
 });
+
+
+/**
+ * Pieces of one quote resolved against each other.
+ *
+ * This is the failure the anchoring exists for, and it was reported from the
+ * running app: the label and limit of one coverage row highlighted correctly,
+ * with the participation rate taken from the row above. `%20` occurs in every
+ * row, so looked up on its own it lands on whichever comes first.
+ *
+ * Positions are the real ones from page 1 of the scanned sample.
+ */
+describe("resolving repeated fragments", () => {
+  const cell = (text: string, top: number, x0: number, x1: number) => ({
+    text,
+    bbox: { x0, top, x1, bottom: top + 9 } as Rect,
+  });
+
+  const ROWS = [
+    cell("Ameliyat", 381.4, 75.1, 111.4),
+    cell("Limitsiz", 381.4, 315.1, 357.0),
+    cell("Yok", 381.4, 428.9, 446.8),
+    cell("Ayakta Tedavi (muayene)", 399.9, 75.1, 182.9),
+    cell("Yılda 8 kez", 399.9, 314.5, 366.0),
+    cell("%20", 399.9, 428.9, 446.8),
+    cell("Ayakta Tedavi (tahlil ve görüntüleme)", 418.4, 75.1, 262.0),
+    cell("12.000 TL", 418.4, 315.1, 366.0),
+    cell("%20", 418.4, 428.9, 446.8),
+    cell("Fizik Tedavi", 437.0, 75.1, 122.7),
+    cell("Yılda 20 seans", 437.0, 315.1, 380.0),
+    cell("%20", 437.0, 428.9, 446.8),
+  ];
+
+  it("takes the repeated fragment from the cited row, not the first row", () => {
+    const rects = locateQuoteInLines(
+      ROWS,
+      "Ayakta Tedavi (tahlil ve görüntüleme) | 12.000 TL | %20",
+    )!;
+
+    expect(rects).toHaveLength(1);
+    expect(rects[0].top).toBeCloseTo(418.4, 0);
+    // The row above owns a %20 too. Reaching it is the reported bug.
+    expect(rects[0].top).toBeGreaterThan(399.9 + 9);
+  });
+
+  it("still resolves when the cited row is the first one", () => {
+    const rects = locateQuoteInLines(
+      ROWS,
+      "Ayakta Tedavi (muayene) | Yılda 8 kez | %20",
+    )!;
+
+    expect(rects).toHaveLength(1);
+    expect(rects[0].top).toBeCloseTo(399.9, 0);
+  });
+
+  it("drops a fragment that only matches on someone else's line", () => {
+    // OCR missed the rate on the cited row. Its nearest %20 belongs to a
+    // neighbour, and no other fragment agrees with that line — so nothing is
+    // drawn there. A highlight missing a cell beats one on the wrong clause.
+    const missing = ROWS.filter(
+      (line) => !(line.text === "%20" && line.bbox.top === 418.4),
+    );
+
+    const rects = locateQuoteInLines(
+      missing,
+      "Ayakta Tedavi (tahlil ve görüntüleme) | 12.000 TL | %20",
+    )!;
+
+    expect(rects).toHaveLength(1);
+    expect(rects[0].top).toBeCloseTo(418.4, 0);
+    expect(rects[0].x1).toBeLessThan(428.9); // the rate column is not touched
+  });
+
+  it("keeps a quote that genuinely spans two rows", () => {
+    // Two fragments agreeing on the second line corroborate each other, so it
+    // is kept even though it is not the anchor's line.
+    const rects = locateQuoteInLines(
+      ROWS,
+      "Ayakta Tedavi (muayene) | Yılda 8 kez | Ayakta Tedavi (tahlil ve görüntüleme) | 12.000 TL",
+    )!;
+
+    expect(rects).toHaveLength(2);
+    expect(rects.map((r) => Math.round(r.top))).toEqual([400, 418]);
+  });
+
+  it("refuses to place a lone fragment that occurs many times", () => {
+    // "%20" alone identifies three rows equally well. There is nothing to
+    // resolve it against, so the caller gets the coarse box instead of a
+    // one-in-three guess.
+    expect(locateQuoteInLines(ROWS, "%20")).toBeNull();
+  });
+
+  it("places a lone fragment that occurs once", () => {
+    expect(locateQuoteInLines(ROWS, "Fizik Tedavi")).toHaveLength(1);
+  });
+});

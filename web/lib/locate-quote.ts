@@ -19,7 +19,17 @@
  * in the PDF: the row is two independent text runs with a gap between them.
  * Searching for the quote as one string finds nothing on exactly the documents
  * where precise highlighting matters most, so the quote is split on its
- * separators and each piece located on its own.
+ * separators and each piece located separately.
+ *
+ * ## …and why the pieces are then tied back together
+ *
+ * Separately is not independently. `%20` occurs in every row of a coverage
+ * table, so a piece looked up on its own lands on whichever row happens to come
+ * first — highlighting the right label and limit alongside a participation rate
+ * borrowed from the row above. The pieces of one quote came from one place, so
+ * they are resolved as a set: the rarest piece anchors, every other piece takes
+ * the occurrence nearest that anchor, and a piece that lands somewhere no other
+ * piece agrees with is dropped rather than drawn.
  *
  * ## Two sources, one search
  *
@@ -224,11 +234,90 @@ function mergeByLine(rects: Rect[], tolerance: number): Rect[] {
   return lines;
 }
 
+/** One place a needle was found, and the line it was found on. */
+type Occurrence = { runs: PositionedRun[]; top: number };
+
+/** Every place `needle` occurs, not merely the first. */
+function occurrencesOf(haystack: Haystack, needle: string): Occurrence[] {
+  const found: Occurrence[] = [];
+  for (
+    let at = haystack.text.indexOf(needle);
+    at !== -1;
+    at = haystack.text.indexOf(needle, at + 1)
+  ) {
+    const runs = runsInRange(
+      haystack,
+      haystack.origin[at],
+      haystack.origin[at + needle.length - 1] + 1,
+    );
+    if (runs.length > 0) {
+      found.push({ runs, top: Math.min(...runs.map((run) => run.rect.top)) });
+    }
+  }
+  return found;
+}
+
+/**
+ * Pick one occurrence per needle, treating them as pieces of a single quote.
+ *
+ * The needle with the fewest occurrences anchors, because it is the one least
+ * likely to be somewhere else on the page. Every other needle takes whichever
+ * of its occurrences sits closest to that anchor.
+ *
+ * A needle that lands on a line no other needle agrees with is dropped. That is
+ * the case where its own text was never found — a cell OCR missed, say — and
+ * the nearest match belongs to a different row. Drawing it would put a
+ * highlight on a clause that was not cited, which is a worse outcome than a
+ * highlight missing one cell.
+ */
+function resolve(groups: Occurrence[][], tolerance: number): Occurrence[] {
+  const [anchors, ...rest] = [...groups].sort((a, b) => a.length - b.length);
+
+  let best: Occurrence[] = [];
+  let bestSpread = Infinity;
+
+  for (const anchor of anchors) {
+    const nearest = rest.map((group) =>
+      group.reduce((closest, candidate) =>
+        Math.abs(candidate.top - anchor.top) < Math.abs(closest.top - anchor.top)
+          ? candidate
+          : closest,
+      ),
+    );
+
+    const onAnchorLine = (occurrence: Occurrence) =>
+      Math.abs(occurrence.top - anchor.top) <= tolerance;
+
+    // Two needles agreeing on a line is corroboration; one is a coincidence.
+    const corroborated = (occurrence: Occurrence) =>
+      nearest.filter((other) => Math.abs(other.top - occurrence.top) <= tolerance)
+        .length >= 2;
+
+    const picked = [
+      anchor,
+      ...nearest.filter((occurrence) => onAnchorLine(occurrence) || corroborated(occurrence)),
+    ];
+
+    const tops = picked.map((occurrence) => occurrence.top);
+    const spread = Math.max(...tops) - Math.min(...tops);
+    if (
+      picked.length > best.length ||
+      (picked.length === best.length && spread < bestSpread)
+    ) {
+      best = picked;
+      bestSpread = spread;
+    }
+  }
+
+  return best;
+}
+
 /**
  * Where `quote` sits, given runs of text that already know their own positions.
  *
  * `null` is a real answer and the caller is expected to fall back to the chunk
- * box rather than showing nothing: a coarse highlight is worth more than none.
+ * box rather than showing nothing: a coarse highlight is worth more than none,
+ * and both are worth more than a precise highlight on the wrong clause.
  */
 export function locateInRuns(
   runs: PositionedRun[],
@@ -240,37 +329,26 @@ export function locateInRuns(
   const haystack = buildHaystack(runs);
   if (!haystack.text) return null;
 
-  const matched: PositionedRun[] = [];
-
   // The whole quote first. When it is prose it appears verbatim, and matching
   // it in one piece keeps the highlight to exactly the sentence cited.
   const whole = normalizeNeedle(quote);
-  const wholeAt = whole ? haystack.text.indexOf(whole) : -1;
-  if (wholeAt !== -1) {
-    matched.push(
-      ...runsInRange(
-        haystack,
-        haystack.origin[wholeAt],
-        haystack.origin[wholeAt + whole.length - 1] + 1,
-      ),
-    );
-  } else {
-    for (const segment of segments(quote)) {
-      const at = haystack.text.indexOf(segment);
-      if (at === -1) continue;
-      matched.push(
-        ...runsInRange(
-          haystack,
-          haystack.origin[at],
-          haystack.origin[at + segment.length - 1] + 1,
-        ),
-      );
-    }
-  }
+  const wholeOccurrences = whole ? occurrencesOf(haystack, whole) : [];
 
-  if (matched.length === 0) return null;
+  const groups = wholeOccurrences.length
+    ? [wholeOccurrences]
+    : segments(quote)
+        .map((segment) => occurrencesOf(haystack, segment))
+        .filter((group) => group.length > 0);
+
+  if (groups.length === 0) return null;
+
+  // One piece, found in several places, and nothing to say which was meant.
+  // Guessing here is how a highlight ends up on the wrong row.
+  if (groups.length === 1 && groups[0].length > 1) return null;
+
+  const chosen = resolve(groups, tolerance);
   return mergeByLine(
-    matched.map((run) => run.rect),
+    chosen.flatMap((occurrence) => occurrence.runs.map((run) => run.rect)),
     tolerance,
   );
 }
