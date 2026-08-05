@@ -22,8 +22,7 @@ const tr = {
   },
   nav: {
     workspace: "Deneyin",
-    evaluation: "Ölçümler",
-    source: "Kaynak kod",
+    source: "GitHub",
     home: "Ana sayfa",
   },
   language: {
@@ -37,16 +36,8 @@ const tr = {
       "Bir RAG sistemi, ancak “bu bilgi bu belgede yok” diyebildiği kadar güvenilirdir.",
     lede: "Poliçenizi sorun: cevabı dayandığı maddeyle birlikte belgenin üzerinde gösterir, belgede yoksa uydurmaz.",
     ctaPrimary: "Örnek bir poliçeyle deneyin",
-    ctaSecondary: "Ölçümleri okuyun",
+    ctaSecondary: "Nasıl çalışıyor",
     ctaNote: "Kayıt gerekmez · Örnek belgeler hazır · 30 saniyede ilk cevap",
-    numbersTitle: "70 soruluk değerlendirme kümesinde ölçüldü",
-    numbersNote: "Sayıların hepsi eval çıktısıdır, elle yazılmadı.",
-    numbers: {
-      refusal: "Doğru ret oranı",
-      falseRefusal: "Yanlış ret oranı",
-      citations: "Geçerli alıntı",
-      recall: "Recall@8",
-    },
     howTitle: "Üç adımda",
     how: [
       {
@@ -125,6 +116,38 @@ const tr = {
     disclaimer:
       "Hukuki veya sigortacılık tavsiyesi değildir. Belgeler sentetiktir.",
   },
+  account: {
+    signIn: "Google ile giriş yap",
+    signInTitle: "Devam etmek için giriş yapın",
+    signInBody:
+      "Soru sormak ve belge yüklemek için Google hesabınızla giriş yapmanız gerekiyor. Örnek belgeleri girmeden de inceleyebilirsiniz.",
+    signInWhy:
+      "Neden: her soru gerçek bir model çağrısı ve gerçek bir fatura. Giriş, günlük sınırın kime ait olduğunu belirliyor.",
+    signOut: "Çıkış yap",
+    providerDisabledTitle: "Google girişi kapalı",
+    providerDisabled:
+      "Bu Supabase projesinde Google sağlayıcısı açık değil. Panelde Authentication → Sign In / Providers → Google açıldığında giriş çalışır.",
+    signInFailed: "Giriş başlatılamadı. Sayfayı yenileyip tekrar deneyin.",
+    remaining: "Bugün kalan",
+    questions: "soru",
+    documents: "belge",
+    unlimited: "sınırsız",
+    exhaustedTitle: "Günlük soru hakkınız bitti",
+    exhaustedBody:
+      "Bugün {limit} sorunun tamamını kullandınız. Hak, UTC gece yarısı yenilenir. Belgeleri ve geçmiş sohbetlerinizi incelemeye devam edebilirsiniz.",
+  },
+  conversations: {
+    title: "Sohbetlerim",
+    empty: "Henüz sohbetiniz yok.",
+    newChat: "Yeni sohbet",
+    documentGone: "belge silindi",
+    remove: "Sil",
+    confirmRemove: "Sohbet silinsin mi?",
+    confirmYes: "Evet, sil",
+    confirmNo: "Vazgeç",
+    loadFailed: "Sohbet açılamadı.",
+    messages: "mesaj",
+  },
   upload: {
     title: "Kendi belgeniz",
     drop: "PDF'i buraya bırakın",
@@ -149,14 +172,10 @@ const tr = {
       ready: "Hazır",
       failed: "Başarısız",
     },
-    authDisabledTitle: "Oturum açılamıyor",
-    authDisabled:
-      "Bu Supabase projesinde anonim girişler kapalı. Panelde Authentication → Sign In / Providers → Anonymous sign-ins açıldığında yükleme çalışır.",
-    signInFailed: "Oturum başlatılamadı. Sayfayı yenileyip tekrar deneyin.",
     quotaTitle: "Günlük sınıra ulaştınız",
     budgetTitle: "Demo şimdilik kapalı",
     retentionNote:
-      "Yüklediğiniz belge {hours} saat sonra otomatik silinir; dilediğiniz an kendiniz de silebilirsiniz.",
+      "Yüklediğiniz belge {hours} saat sonra otomatik silinir; dilediğiniz an kendiniz de silebilirsiniz. O belgeyle yaptığınız sohbet de belgeyle birlikte gider.",
   },
   evaluation: {
     title: "Değerlendirme",
@@ -168,7 +187,7 @@ const tr = {
   footer: {
     disclaimer:
       "BioPolicy bir portföy projesidir. Hukuki ya da sigortacılık tavsiyesi vermez.",
-    retention: "Belgeler 24 saat sonra otomatik silinir",
+    retention: "Belgeler 24 saat sonra silinir · sohbetler hesabınızda kalır",
     license: "MIT lisanslı",
   },
 };
@@ -183,8 +202,7 @@ const en: Dictionary = {
   },
   nav: {
     workspace: "Try it",
-    evaluation: "Evaluation",
-    source: "Source",
+    source: "GitHub",
     home: "Home",
   },
   language: {
@@ -198,16 +216,8 @@ const en: Dictionary = {
       "A RAG system is only as trustworthy as its ability to say “that isn't in this document.”",
     lede: "Ask your policy: every answer comes with the clause it rests on, shown in the document — and nothing is invented when the document does not say.",
     ctaPrimary: "Try it on a sample policy",
-    ctaSecondary: "Read the numbers",
+    ctaSecondary: "How it works",
     ctaNote: "No sign-up · Sample documents ready · First answer in 30 seconds",
-    numbersTitle: "Measured on a 70-question evaluation set",
-    numbersNote: "Every figure is eval output, not hand-written.",
-    numbers: {
-      refusal: "Refusal accuracy",
-      falseRefusal: "False-refusal rate",
-      citations: "Citation validity",
-      recall: "Recall@8",
-    },
     howTitle: "In three steps",
     how: [
       {
@@ -285,6 +295,38 @@ const en: Dictionary = {
     noDocument: "Pick a document on the left.",
     disclaimer: "Not legal or insurance advice. The documents are synthetic.",
   },
+  account: {
+    signIn: "Sign in with Google",
+    signInTitle: "Sign in to continue",
+    signInBody:
+      "Asking questions and uploading documents needs a Google account. The sample documents are readable without one.",
+    signInWhy:
+      "Why: every question is a real model call against a real bill. Signing in is what the daily limit is counted against.",
+    signOut: "Sign out",
+    providerDisabledTitle: "Google sign-in is off",
+    providerDisabled:
+      "The Google provider is not enabled for this Supabase project. Sign-in works once Authentication → Sign In / Providers → Google is turned on.",
+    signInFailed: "Could not start sign-in. Reload the page and try again.",
+    remaining: "Left today",
+    questions: "questions",
+    documents: "documents",
+    unlimited: "unlimited",
+    exhaustedTitle: "You have used today's questions",
+    exhaustedBody:
+      "All {limit} of them. The allowance resets at midnight UTC. You can still read the documents and your earlier conversations.",
+  },
+  conversations: {
+    title: "Your chats",
+    empty: "No conversations yet.",
+    newChat: "New chat",
+    documentGone: "document deleted",
+    remove: "Delete",
+    confirmRemove: "Delete this chat?",
+    confirmYes: "Yes, delete",
+    confirmNo: "Cancel",
+    loadFailed: "Could not open that conversation.",
+    messages: "messages",
+  },
   upload: {
     title: "Your own document",
     drop: "Drop a PDF here",
@@ -309,14 +351,10 @@ const en: Dictionary = {
       ready: "Ready",
       failed: "Failed",
     },
-    authDisabledTitle: "Cannot start a session",
-    authDisabled:
-      "Anonymous sign-ins are switched off for this Supabase project. Uploading works once Authentication → Sign In / Providers → Anonymous sign-ins is enabled.",
-    signInFailed: "Could not start a session. Reload the page and try again.",
     quotaTitle: "You have reached the daily limit",
     budgetTitle: "The demo is paused",
     retentionNote:
-      "Your document is deleted automatically after {hours} hours, and you can delete it yourself at any time.",
+      "Your document is deleted automatically after {hours} hours, and you can delete it yourself at any time. The conversation about it goes when it does.",
   },
   evaluation: {
     title: "Evaluation",
@@ -328,7 +366,7 @@ const en: Dictionary = {
   footer: {
     disclaimer:
       "BioPolicy is a portfolio project. It does not give legal or insurance advice.",
-    retention: "Documents are deleted automatically after 24 hours",
+    retention: "Documents deleted after 24 hours · chats kept in your account",
     license: "MIT licensed",
   },
 };

@@ -20,7 +20,9 @@ from typing import Annotated
 import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
+from api.accounts import AccountRepository
 from api.config import Settings, get_settings
+from api.conversations import ConversationRepository
 from api.documents import DocumentRepository
 from api.generation.answerer import Answerer
 from api.generation.llm import FailoverLLM, LLMProvider
@@ -56,6 +58,8 @@ class AppState:
     answerer: Answerer
     storage: DocumentStorage
     usage: UsageRepository
+    accounts: AccountRepository
+    conversations: ConversationRepository
     quota: QuotaGuard
     breaker: BudgetBreaker
     retention: RetentionService
@@ -69,6 +73,7 @@ class AppState:
         documents = DocumentRepository(pool)
         storage = DocumentStorage(settings)
         usage = UsageRepository(pool)
+        accounts = AccountRepository(pool, unlimited_emails=frozenset(settings.unlimited_emails))
 
         answering: list[LLMProvider] = [
             AnthropicLLM(
@@ -126,9 +131,12 @@ class AppState:
                 enable_citation_binding=settings.enable_citation_binding,
                 enable_verification=settings.enable_self_verification,
             ),
+            accounts=accounts,
+            conversations=ConversationRepository(pool),
             quota=QuotaGuard(
                 pool,
                 usage,
+                accounts,
                 daily_questions=settings.user_daily_message_limit,
                 daily_documents=settings.user_daily_document_limit,
             ),

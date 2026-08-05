@@ -11,14 +11,17 @@
  * exceeds a serverless request body limit, so the file never transits the API.
  */
 
-import { accessToken, existingAccessToken } from "./supabase";
+import { accessToken, NotSignedInError } from "./supabase";
 import type {
   Answer,
   Capabilities,
   ChatEvent,
+  Conversation,
+  ConversationSummary,
   DocumentStatus,
   DocumentSummary,
   HistoryTurn,
+  Me,
   PageLines,
   UploadTicket,
 } from "./types";
@@ -69,9 +72,13 @@ async function toError(response: Response, path: string): Promise<ApiError> {
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
+  const token = await accessToken();
+  // Thrown rather than sent empty, so the interface shows the sign-in gate
+  // instead of surfacing a 401 as "something went wrong".
+  if (!token) throw new NotSignedInError();
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${await accessToken()}`,
+    Authorization: `Bearer ${token}`,
   };
 }
 
@@ -97,7 +104,7 @@ async function request<T>(
   if (auth === "required") {
     headers = { ...(await authHeaders()), ...(rest.headers ?? {}) };
   } else if (auth === "optional") {
-    const token = await existingAccessToken();
+    const token = await accessToken();
     if (token) {
       headers = { Authorization: `Bearer ${token}`, ...(rest.headers ?? {}) };
     }
@@ -220,6 +227,45 @@ export async function uploadDocument(
 }
 
 // -----------------------------------------------------------------------------
+// account and conversations
+// -----------------------------------------------------------------------------
+
+/**
+ * Who is signed in and what they have left today.
+ *
+ * The composer disables itself from this rather than letting someone type a
+ * fourth question and refusing it afterwards. It is a display of the limit; the
+ * server re-checks before spending anything.
+ */
+export function fetchMe(signal?: AbortSignal): Promise<Me> {
+  return request<Me>("/api/me", { signal, auth: "required" });
+}
+
+export function fetchConversations(signal?: AbortSignal): Promise<ConversationSummary[]> {
+  return request<ConversationSummary[]>("/api/conversations", {
+    signal,
+    auth: "required",
+  });
+}
+
+export function fetchConversation(
+  id: string,
+  signal?: AbortSignal,
+): Promise<Conversation> {
+  return request<Conversation>(`/api/conversations/${id}`, {
+    signal,
+    auth: "required",
+  });
+}
+
+export function deleteConversation(id: string): Promise<void> {
+  return request<void>(`/api/conversations/${id}`, {
+    method: "DELETE",
+    auth: "required",
+  });
+}
+
+// -----------------------------------------------------------------------------
 // chat
 // -----------------------------------------------------------------------------
 
@@ -271,6 +317,7 @@ export async function* askQuestion(
     question: string;
     language: string;
     history: HistoryTurn[];
+    conversationId: string | null;
   },
   signal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
@@ -283,6 +330,7 @@ export async function* askQuestion(
       question: request.question,
       language: request.language,
       history: request.history,
+      conversation_id: request.conversationId,
     }),
   });
 

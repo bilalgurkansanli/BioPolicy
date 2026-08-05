@@ -1,115 +1,100 @@
 "use client";
 
-import Link from "next/link";
+import type { ReactNode } from "react";
 
 import { useLocale } from "@/components/LocaleProvider";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SlideLink } from "@/components/SlideLink";
 
 /**
- * The landing page leads with the refusal claim rather than with a feature
- * list, and puts the false-refusal rate next to the refusal accuracy. Showing
- * only the first would be showing the number that is trivially gamed by
- * refusing everything.
+ * The landing page has one job: get someone into the workspace. It leads with
+ * the refusal claim rather than a feature list, keeps the explanation to three
+ * steps, and offers exactly one destination.
  */
 export default function Home() {
   const { t } = useLocale();
 
-  const numbers = [
-    {
-      value: "100%",
-      label: t.landing.numbers.refusal,
-      note: t.landing.numbers.refusalNote,
-    },
-    {
-      value: "2%",
-      label: t.landing.numbers.falseRefusal,
-      note: t.landing.numbers.falseRefusalNote,
-    },
-    {
-      value: "100%",
-      label: t.landing.numbers.citations,
-      note: t.landing.numbers.citationsNote,
-    },
-    {
-      value: "98%",
-      label: t.landing.numbers.recall,
-      note: t.landing.numbers.recallNote,
-    },
-  ];
+  // One icon per step, in the order the pipeline runs: the document is read,
+  // the two searches meet, the answer is checked against its source.
+  const stepIcons = [<ParseIcon key="parse" />, <SearchIcon key="search" />, <ShieldIcon key="shield" />];
 
   return (
     <>
       <SiteHeader />
 
       <main className="flex-1">
-        <section className="mx-auto w-full max-w-7xl px-4 pb-16 pt-16 sm:px-6 sm:pt-24">
-          <p className="text-xs font-medium uppercase tracking-widest text-ink-faint">
-            {t.landing.eyebrow}
-          </p>
-          <h1 className="mt-5 max-w-3xl text-balance text-3xl font-semibold leading-[1.15] tracking-tight text-ink sm:text-5xl">
-            {t.landing.thesis}
-          </h1>
-          <p className="mt-6 max-w-2xl text-pretty text-base leading-7 text-ink-muted sm:text-lg sm:leading-8">
-            {t.landing.lede}
-          </p>
+        <section className="relative isolate overflow-hidden">
+          <div
+            aria-hidden
+            className="hero-wash pointer-events-none absolute inset-0 -z-10"
+          />
+          <div
+            aria-hidden
+            className="hero-grid pointer-events-none absolute inset-0 -z-10 opacity-70"
+          />
 
-          <div className="mt-9 flex flex-wrap items-center gap-3">
-            <Link
-              href="/app"
-              className="inline-flex h-11 items-center rounded-lg bg-ink px-5 text-sm font-medium text-paper transition-opacity hover:opacity-90"
-            >
-              {t.landing.ctaPrimary}
-            </Link>
-            <Link
-              href="/eval"
-              className="inline-flex h-11 items-center rounded-lg border border-line-strong px-5 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
-            >
-              {t.landing.ctaSecondary}
-            </Link>
-          </div>
-        </section>
+          <div className="mx-auto w-full max-w-3xl px-4 pb-24 pt-20 text-center sm:px-6 sm:pb-32 sm:pt-28">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-surface/70 px-3.5 py-1.5 text-xs font-medium text-ink-muted backdrop-blur">
+              <span
+                aria-hidden
+                className="size-1.5 rounded-full bg-gradient-to-br from-accent-fill-from to-accent-fill-to"
+              />
+              {t.landing.eyebrow}
+            </span>
 
-        <section className="border-y border-line bg-surface">
-          <div className="mx-auto w-full max-w-7xl px-4 py-12 sm:px-6">
-            <h2 className="text-sm font-medium text-ink">
-              {t.landing.numbersTitle}
-            </h2>
-            <dl className="mt-6 grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-4">
-              {numbers.map((item) => (
-                <div key={item.label} className="border-t border-line pt-4">
-                  <dd className="font-mono text-3xl font-medium tabular-nums tracking-tight text-ink">
-                    {item.value}
-                  </dd>
-                  <dt className="mt-1 text-sm font-medium text-ink">
-                    {item.label}
-                  </dt>
-                  <p className="mt-1.5 text-xs leading-5 text-ink-faint">
-                    {item.note}
-                  </p>
-                </div>
-              ))}
-            </dl>
-            <p className="mt-8 max-w-2xl text-xs leading-5 text-ink-faint">
-              {t.landing.numbersNote}{" "}
-              <Link href="/eval" className="text-accent underline">
-                {t.nav.evaluation}
-              </Link>
+            <h1 className="mt-7 text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-ink sm:text-6xl">
+              {t.landing.thesis}
+            </h1>
+
+            <p className="mx-auto mt-6 max-w-xl text-pretty text-base leading-7 text-ink-muted sm:text-lg sm:leading-8">
+              {t.landing.lede}
             </p>
+
+            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <SlideLink
+                href="/app"
+                direction="forward"
+                className="accent-glow group inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-accent-fill-from to-accent-fill-to px-7 text-[15px] font-semibold text-on-accent transition-transform duration-200 hover:-translate-y-0.5 sm:w-auto"
+              >
+                {t.landing.ctaPrimary}
+                <Arrow />
+              </SlideLink>
+              {/* The secondary action stays on the page rather than leading off
+                  it: someone who is not ready to click the button should end up
+                  further down this page, not somewhere else. */}
+              <a
+                href="#how"
+                className="inline-flex h-12 w-full items-center justify-center rounded-full border border-line-strong bg-surface/70 px-7 text-[15px] font-medium text-ink backdrop-blur transition-colors hover:border-accent hover:text-accent sm:w-auto"
+              >
+                {t.landing.ctaSecondary}
+              </a>
+            </div>
+
+            <p className="mt-5 text-xs text-ink-faint">{t.landing.ctaNote}</p>
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6">
-          <h2 className="text-lg font-semibold tracking-tight text-ink">
+        <section
+          id="how"
+          className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-4 pt-4 sm:px-6"
+        >
+          <h2 className="text-center text-xl font-semibold tracking-tight text-ink sm:text-2xl">
             {t.landing.howTitle}
           </h2>
-          <ol className="mt-8 grid gap-8 md:grid-cols-3">
+          <ol className="mt-10 grid gap-5 md:grid-cols-3">
             {t.landing.how.map((step, index) => (
-              <li key={step.title} className="border-t border-line pt-4">
-                <span className="font-mono text-xs text-ink-faint">
-                  {String(index + 1).padStart(2, "0")}
+              <li
+                key={step.title}
+                className="group rounded-2xl border border-line bg-surface p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-[0_18px_40px_-30px_var(--accent-glow)]"
+              >
+                <span
+                  aria-hidden
+                  className="inline-flex size-11 items-center justify-center rounded-xl bg-accent-soft text-accent ring-1 ring-accent/15 transition-colors duration-200 group-hover:bg-gradient-to-br group-hover:from-accent-fill-from group-hover:to-accent-fill-to group-hover:text-on-accent"
+                >
+                  {stepIcons[index]}
                 </span>
-                <h3 className="mt-2 text-base font-medium text-ink">
+                <h3 className="mt-4 text-base font-semibold text-ink">
                   {step.title}
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-ink-muted">
@@ -120,33 +105,100 @@ export default function Home() {
           </ol>
         </section>
 
-        <section className="border-t border-line bg-surface">
-          <div className="mx-auto w-full max-w-7xl px-4 py-16 sm:px-6">
-            <h2 className="text-lg font-semibold tracking-tight text-ink">
-              {t.landing.limitsTitle}
+        <section className="mx-auto w-full max-w-5xl px-4 py-20 sm:px-6">
+          <div className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-accent-fill-from to-accent-fill-to px-6 py-14 text-center sm:px-12">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_80%_at_20%_0%,rgb(255_255_255_/_0.22),transparent_70%)]"
+            />
+            <h2 className="text-balance text-2xl font-semibold tracking-tight text-on-accent sm:text-3xl">
+              {t.landing.closingTitle}
             </h2>
-            <ul className="mt-6 max-w-3xl space-y-4">
-              {t.landing.limits.map((limit) => (
-                <li
-                  key={limit}
-                  className="flex gap-3 text-sm leading-6 text-ink-muted"
-                >
-                  <span
-                    aria-hidden
-                    className="mt-2.5 size-1 shrink-0 rounded-full bg-ink-faint"
-                  />
-                  {limit}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-8 text-xs text-ink-faint">
-              {t.landing.footerNote}
+            <p className="mx-auto mt-4 max-w-lg text-pretty text-sm leading-6 text-on-accent/80 sm:text-base">
+              {t.landing.closingBody}
             </p>
+            <SlideLink
+              href="/app"
+              direction="forward"
+              className="group mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-full bg-surface px-7 text-[15px] font-semibold text-accent shadow-lg transition-transform duration-200 hover:-translate-y-0.5"
+            >
+              {t.nav.workspace}
+              <Arrow />
+            </SlideLink>
           </div>
         </section>
       </main>
 
       <SiteFooter />
     </>
+  );
+}
+
+/** The arrow leans forward on hover, so the button reads as a door, not a label. */
+function Arrow() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 16 16"
+      fill="none"
+      className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+    >
+      <path
+        d="M3 8h10m0 0-4-4m4 4-4 4"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function IconFrame({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="size-5"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/** A page with lines of text on it: the document being read. */
+function ParseIcon() {
+  return (
+    <IconFrame>
+      <path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
+      <path d="M14 3v5h4" />
+      <path d="M8.5 12h7M8.5 15.5h7M8.5 19h4" />
+    </IconFrame>
+  );
+}
+
+/** Two overlapping lenses: the semantic and the keyword search, run together. */
+function SearchIcon() {
+  return (
+    <IconFrame>
+      <circle cx="10" cy="10" r="5" />
+      <circle cx="15" cy="14" r="5" />
+      <path d="M18.6 17.6 21.5 20.5" />
+    </IconFrame>
+  );
+}
+
+/** A shield with a tick: the answer that failed its check is never shown. */
+function ShieldIcon() {
+  return (
+    <IconFrame>
+      <path d="M12 2.8 4.8 5.6v5.9c0 4.4 3 7.9 7.2 9.7 4.2-1.8 7.2-5.3 7.2-9.7V5.6L12 2.8Z" />
+      <path d="m9 12 2.2 2.2L15.4 10" />
+    </IconFrame>
   );
 }

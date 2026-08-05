@@ -161,12 +161,17 @@ natural thing to write, and it loses the storage path — the purge reports
 success, the audit table agrees, and the PDF is still on disk with nothing left
 pointing at it.
 
-Spending is bounded in three layers: per-user daily quotas, a global budget
+Spending is bounded in three layers: per-account daily quotas, a global budget
 breaker that counts spend the moment it happens rather than when the ledger
 catches up, and the provider console's own limit — the only one that still works
-when this code is wrong. The quotas are a courtesy: anonymous accounts are free
-to create, so they slow a determined visitor down rather than stopping one. The
-breaker is what actually bounds the bill.
+when this code is wrong.
+
+One account is exempt from the quotas, by email address, configured in the
+environment. The exemption is decided against the account row rather than the
+token — a signed `email` claim is only as trustworthy as the provider that
+issued it, and it must have come from a confirmed Google account that is not
+banned or deleted. There is a test per clause, each written as the way somebody
+who does not own the address would otherwise get in.
 
 ## The interface
 
@@ -183,9 +188,13 @@ Three surfaces, all statically prerendered:
 You can also upload your own PDF. The file goes straight from the browser to
 object storage against a signed URL — it never passes through the API — and
 ingestion runs asynchronously with the real pipeline stages visible while it
-works. There is no signup: the session is an anonymous Supabase account created
-on first use, because a system that deletes your document tomorrow has no
-business keeping your email address ([ADR 012](./docs/adr/012-anonymous-accounts.md)).
+works. Conversations are saved to your account, so you can come back to one.
+
+Reading the samples needs no account. Asking a question does: **Google, and only
+Google** ([ADR 013](./docs/adr/013-google-only-sign-in.md)). The allowance is
+three questions and one document a day, which is small enough to be worth
+evading — and an identity that costs nothing to create is not a limit, it is a
+speed bump with a counter attached.
 
 Turkish and English, switched from the header. The locale is a stored preference
 rather than a URL segment, because the interface language and the *document's*

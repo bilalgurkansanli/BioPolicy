@@ -3,28 +3,35 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useLocale } from "@/components/LocaleProvider";
+import { useSession } from "@/components/SessionProvider";
 import { AnswerCard } from "@/components/workspace/AnswerCard";
+import { ConversationList } from "@/components/workspace/ConversationList";
 import { DocumentList } from "@/components/workspace/DocumentList";
 import { MyDocumentList } from "@/components/workspace/MyDocumentList";
+import { SignInGate } from "@/components/workspace/SignInGate";
 import { PdfViewer, type Highlight } from "@/components/workspace/PdfViewer";
 import { StageProgress, type Stage } from "@/components/workspace/StageProgress";
 import { Uploader, type UploadFailure } from "@/components/workspace/Uploader";
 import {
   ApiError,
   askQuestion,
+  deleteConversation,
   deleteDocument,
   fetchCapabilities,
+  fetchConversation,
+  fetchConversations,
   fetchDocumentStatus,
   fetchMyDocuments,
   fetchSamples,
   fetchViewingUrl,
 } from "@/lib/api";
 import { SUGGESTIONS } from "@/lib/i18n";
-import { AuthUnavailableError, isConfigured } from "@/lib/supabase";
+import { NotSignedInError } from "@/lib/supabase";
 import type {
   Answer,
   Capabilities,
   Citation,
+  ConversationSummary,
   DocumentStatus,
   DocumentSummary,
   HistoryTurn,
@@ -61,6 +68,11 @@ export function Workspace() {
     documentId: string;
     url: string;
   } | null>(null);
+
+  const { signedIn, me, refresh: refreshAccount, configured } = useSession();
+
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   const [mine, setMine] = useState<DocumentSummary[]>([]);
   const [ingesting, setIngesting] = useState<Record<string, DocumentStatus>>({});
@@ -99,23 +111,27 @@ export function Workspace() {
     return () => controller.abort();
   }, []);
 
-  // Only if a session already exists. Listing "your documents" must not be the
-  // thing that silently creates an account for someone who came to read the
-  // samples (ADR 012).
+  // Everything owned by the account, re-read whenever the session changes —
+  // including the moment a sign-in redirect lands back on this page.
   useEffect(() => {
-    if (!isConfigured()) return;
+    if (!signedIn) return;
     const controller = new AbortController();
     void (async () => {
-      const { currentUserId } = await import("@/lib/supabase");
-      if (!(await currentUserId()) || controller.signal.aborted) return;
       try {
-        setMine(await fetchMyDocuments(controller.signal));
+        const [documents, threads] = await Promise.all([
+          fetchMyDocuments(controller.signal),
+          fetchConversations(controller.signal),
+        ]);
+        if (controller.signal.aborted) return;
+        setMine(documents);
+        setConversations(threads);
       } catch {
-        // A signed-out or expired session is not an error worth showing here.
+        // A session that expired between the check and the call. The gate
+        // renders from `signedIn`, which the auth listener corrects.
       }
     })();
     return () => controller.abort();
-  }, []);
+  }, [signedIn]);
 
   // Poll anything still moving through the pipeline.
   useEffect(() => {
@@ -176,6 +192,9 @@ export function Workspace() {
     // would let a follow-up resolve against the wrong document entirely.
     abortRef.current?.abort();
     setSelected(document);
+    // A thread belongs to one document. Carrying it across would collect
+    // answers about one policy under a conversation titled after another.
+    setConversationId(null);
     setMessages([]);
     setStage(null);
     setRetrieval(null);
@@ -218,6 +237,7 @@ export function Workspace() {
             // Bounded to the last four exchanges. Chunks are re-retrieved every
             // turn, so history only has to be long enough to resolve a pronoun.
             history: history.slice(-8),
+            conversationId,
           },
           controller.signal,
         )) {
@@ -236,6 +256,9 @@ export function Workspace() {
                 ...current,
                 { kind: "answer", id: `${id}:a`, answer: event.data },
               ]);
+              if (event.data.conversation_id) {
+                setConversationId(event.data.conversation_id);
+              }
               break;
             case "error":
               setMessages((current) => [
@@ -260,18 +283,9 @@ export function Workspace() {
               message: error.message,
             },
           ]);
-        } else if (error instanceof AuthUnavailableError) {
-          setMessages((current) => [
-            ...current,
-            {
-              kind: "refused",
-              id: `${id}:l`,
-              title: t.upload.authDisabledTitle,
-              message: error.anonymousDisabled
-                ? t.upload.authDisabled
-                : t.upload.signInFailed,
-            },
-          ]);
+        } else if (error instanceof NotSignedInError) {
+          // The session lapsed mid-question. The gate takes over on the next
+          // render; nothing useful can be said in the transcript.
         } else {
           setMessages((current) => [
             ...current,
@@ -281,9 +295,16 @@ export function Workspace() {
       } finally {
         abortRef.current = null;
         setStage(null);
+        // The allowance moved. Re-read it rather than decrementing a local
+        // copy: the server is the only thing that knows what was actually
+        // counted, and a question can be refused after it was sent.
+        void refreshAccount();
+        void fetchConversations()
+          .then(setConversations)
+          .catch(() => undefined);
       }
     },
-    [locale, messages, selected, stage, t],
+    [conversationId, locale, messages, refreshAccount, selected, stage, t],
   );
 
   const onUploaded = useCallback((documentId: string, filename: string) => {
@@ -321,6 +342,79 @@ export function Workspace() {
     [],
   );
 
+  const openConversation = useCallback(
+    async (conversation: ConversationSummary) => {
+      abortRef.current?.abort();
+      const document =
+        documents?.find((item) => item.id === conversation.document_id) ??
+        mine.find((item) => item.id === conversation.document_id);
+      if (!document) return;
+
+      setSelected(document);
+      setConversationId(conversation.id);
+      setStage(null);
+      setHighlight(null);
+      setActiveCitation(null);
+
+      try {
+        const { messages: stored } = await fetchConversation(conversation.id);
+        setMessages(
+          stored.map((message, index) =>
+            message.role === "user"
+              ? { kind: "question", id: message.id, text: message.content }
+              : {
+                  kind: "answer",
+                  id: message.id,
+                  // Rebuilt into the same shape a live answer has, so one
+                  // renderer covers both. The fields a stored turn cannot
+                  // carry — the cost of a call made yesterday, the confidence
+                  // the model reported — are absent rather than invented.
+                  answer: {
+                    conversation_id: conversation.id,
+                    answer: message.content,
+                    refused: message.refused,
+                    suppressed: message.suppressed,
+                    suppression_reason: null,
+                    confidence: "high",
+                    caveats: [],
+                    groundedness: message.groundedness,
+                    verified: message.groundedness !== null,
+                    citations: message.citations,
+                    dropped_citations: 0,
+                    cost_usd: 0,
+                  },
+                  key: index,
+                },
+          ) as Message[],
+        );
+      } catch {
+        setMessages([]);
+      }
+    },
+    [documents, mine],
+  );
+
+  const removeConversation = useCallback(
+    async (id: string) => {
+      try {
+        await deleteConversation(id);
+      } catch {
+        // Deleting something already gone is the outcome we wanted.
+      }
+      setConversations((current) => current.filter((item) => item.id !== id));
+      setConversationId((current) => (current === id ? null : current));
+      setMessages((current) => (conversationId === id ? [] : current));
+    },
+    [conversationId],
+  );
+
+  const startNewChat = useCallback(() => {
+    abortRef.current?.abort();
+    setConversationId(null);
+    setMessages([]);
+    setStage(null);
+  }, []);
+
   const showCitation = useCallback(
     (citation: Citation, key: string) => {
       setActiveCitation(key);
@@ -337,6 +431,13 @@ export function Workspace() {
     },
     [],
   );
+
+  // `null` means unlimited, which is why this is not `?? 0`. Treating an
+  // absent number as zero would lock the owner's own account out of the demo.
+  const questionsLeft = me?.allowance.questions_left ?? null;
+  const documentsLeft = me?.allowance.documents_left ?? null;
+  const outOfQuestions = signedIn && questionsLeft === 0;
+  const canAsk = signedIn && !outOfQuestions;
 
   const suggestions = selected
     ? (SUGGESTIONS[selected.filename]?.[locale] ?? [])
@@ -415,10 +516,15 @@ export function Workspace() {
           <Uploader
             maxBytes={capabilities?.max_upload_bytes ?? 25 * 1024 * 1024}
             retentionHours={capabilities?.retention_hours ?? 24}
-            disabled={!isConfigured()}
+            disabled={!configured || !signedIn || documentsLeft === 0}
             onUploaded={onUploaded}
             onFailure={setUploadFailure}
           />
+          {signedIn && documentsLeft !== null && (
+            <p className="mt-1.5 text-[11px] text-ink-faint">
+              {t.account.remaining}: {documentsLeft} {t.account.documents}
+            </p>
+          )}
 
           {uploadFailure && (
             <div className="mt-2 rounded-lg border border-danger/40 bg-danger-soft p-2.5">
@@ -428,6 +534,18 @@ export function Workspace() {
               <p className="mt-1 text-[11px] leading-4 text-ink-muted">
                 {uploadFailure.message}
               </p>
+            </div>
+          )}
+
+          {signedIn && (
+            <div className="mt-6">
+              <ConversationList
+                conversations={conversations}
+                activeId={conversationId}
+                onOpen={(conversation) => void openConversation(conversation)}
+                onDelete={(id) => void removeConversation(id)}
+                onNew={startNewChat}
+              />
             </div>
           )}
 
@@ -481,6 +599,7 @@ export function Workspace() {
                         <button
                           key={suggestion}
                           type="button"
+                          disabled={!canAsk}
                           onClick={() => void ask(suggestion)}
                           className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-left text-sm text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
                         >
@@ -552,44 +671,71 @@ export function Workspace() {
             )}
           </div>
 
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void ask(question);
-            }}
-            className="border-t border-line p-3"
-          >
-            <div className="flex gap-2">
-              <input
-                value={question}
-                onChange={(event) => setQuestion(event.target.value)}
-                placeholder={t.workspace.askPlaceholder}
-                maxLength={1000}
-                disabled={!selected}
-                className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-accent"
-              />
-              {stage === null ? (
-                <button
-                  type="submit"
-                  disabled={!selected || question.trim().length === 0}
-                  className="shrink-0 rounded-lg bg-ink px-4 text-sm font-medium text-paper transition-opacity disabled:opacity-40"
-                >
-                  {t.workspace.ask}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => abortRef.current?.abort()}
-                  className="shrink-0 rounded-lg border border-line-strong px-4 text-sm font-medium text-ink"
-                >
-                  {t.workspace.stop}
-                </button>
-              )}
-            </div>
+          <div className="border-t border-line p-3">
+            {/* Three states, and only one of them is a composer. Showing a
+                disabled input to somebody who is out of questions reads as a
+                broken page; saying so does not. */}
+            {!signedIn ? (
+              <SignInGate />
+            ) : outOfQuestions ? (
+              <div className="rounded-lg border border-refuse/35 bg-refuse-soft p-4">
+                <h3 className="text-sm font-semibold text-refuse">
+                  {t.account.exhaustedTitle}
+                </h3>
+                <p className="mt-1.5 text-sm leading-6 text-ink-muted">
+                  {t.account.exhaustedBody.replace(
+                    "{limit}",
+                    String(me?.allowance.questions_limit ?? 0),
+                  )}
+                </p>
+              </div>
+            ) : (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void ask(question);
+                }}
+              >
+                <div className="flex gap-2">
+                  <input
+                    value={question}
+                    onChange={(event) => setQuestion(event.target.value)}
+                    placeholder={t.workspace.askPlaceholder}
+                    maxLength={1000}
+                    disabled={!selected}
+                    className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-accent"
+                  />
+                  {stage === null ? (
+                    <button
+                      type="submit"
+                      disabled={
+                        !selected || !canAsk || question.trim().length === 0
+                      }
+                      className="shrink-0 rounded-lg bg-ink px-4 text-sm font-medium text-paper transition-opacity disabled:opacity-40"
+                    >
+                      {t.workspace.ask}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => abortRef.current?.abort()}
+                      className="shrink-0 rounded-lg border border-line-strong px-4 text-sm font-medium text-ink"
+                    >
+                      {t.workspace.stop}
+                    </button>
+                  )}
+                </div>
+                {questionsLeft !== null && (
+                  <p className="mt-2 text-[11px] text-ink-faint">
+                    {t.account.remaining}: {questionsLeft} {t.account.questions}
+                  </p>
+                )}
+              </form>
+            )}
             <p className="mt-2 text-[11px] text-ink-faint">
               {t.workspace.disclaimer}
             </p>
-          </form>
+          </div>
         </section>
 
         {/* Document */}

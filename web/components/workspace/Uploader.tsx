@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 
 import { useLocale } from "@/components/LocaleProvider";
 import { ApiError, uploadDocument } from "@/lib/api";
-import { AuthUnavailableError } from "@/lib/supabase";
+import { NotSignedInError } from "@/lib/supabase";
 
 export type UploadFailure = {
   title: string;
@@ -63,12 +63,10 @@ export function Uploader({
       try {
         onUploaded(await uploadDocument(file, setProgress), file.name);
       } catch (error) {
-        if (error instanceof AuthUnavailableError) {
+        if (error instanceof NotSignedInError) {
           onFailure({
-            title: t.upload.authDisabledTitle,
-            message: error.anonymousDisabled
-              ? t.upload.authDisabled
-              : t.upload.signInFailed,
+            title: t.account.signInTitle,
+            message: t.account.signInBody,
           });
         } else if (error instanceof ApiError) {
           onFailure({

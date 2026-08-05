@@ -43,6 +43,8 @@ export type Citation = {
 };
 
 export type Answer = {
+  /** The thread this turn was saved to. Sent back on the next question. */
+  conversation_id: string | null;
   answer: string;
   refused: boolean;
   suppressed: boolean;
@@ -84,6 +86,50 @@ export type DocumentStatus = {
   detected_lang: string | null;
   chunk_count: number;
   error: string | null;
+};
+
+export type Allowance = {
+  unlimited: boolean;
+  questions_used: number;
+  questions_limit: number;
+  /** `null` when unlimited — distinct from zero, and never shown as one. */
+  questions_left: number | null;
+  documents_used: number;
+  documents_limit: number;
+  documents_left: number | null;
+};
+
+export type Me = {
+  id: string;
+  email: string | null;
+  allowance: Allowance;
+};
+
+export type ConversationSummary = {
+  id: string;
+  title: string;
+  document_id: string;
+  document_filename: string;
+  /** False once the document expired. The conversation outlives it. */
+  document_exists: boolean;
+  updated_at: string;
+  message_count: number;
+};
+
+export type StoredMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations: Citation[];
+  groundedness: number | null;
+  refused: boolean;
+  suppressed: boolean;
+  created_at: string;
+};
+
+export type Conversation = {
+  id: string;
+  messages: StoredMessage[];
 };
 
 export type PageLines = {
