@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
+import { BrandAvatar, UserAvatar } from "@/components/Avatar";
 import { useLocale } from "@/components/LocaleProvider";
 import { useSession } from "@/components/SessionProvider";
 import { AnswerCard } from "@/components/workspace/AnswerCard";
 import { ConversationList } from "@/components/workspace/ConversationList";
 import { DocumentList } from "@/components/workspace/DocumentList";
 import { MyDocumentList } from "@/components/workspace/MyDocumentList";
+import { RefusalTour } from "@/components/workspace/RefusalTour";
 import { SignInGate } from "@/components/workspace/SignInGate";
 import { PdfViewer, type Highlight } from "@/components/workspace/PdfViewer";
 import { StageProgress, type Stage } from "@/components/workspace/StageProgress";
@@ -454,14 +456,14 @@ export function Workspace() {
           "documents" tab with the picker, which meant the tab labelled "sample
           documents" showed the PDF and the one labelled "answer" showed the
           picker too. */}
-      <div className="mb-2 flex gap-1 rounded-lg border border-line p-0.5 lg:hidden">
+      <div className="mb-2 flex gap-1 rounded-full border border-line p-0.5 lg:hidden">
         {PANES.map((pane) => (
           <button
             key={pane}
             type="button"
             onClick={() => setMobilePane(pane)}
             aria-pressed={mobilePane === pane}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm transition-colors ${
+            className={`flex-1 rounded-full px-3 py-1.5 text-sm transition-colors ${
               mobilePane === pane
                 ? "bg-ink text-paper"
                 : "text-ink-muted hover:text-ink"
@@ -527,7 +529,7 @@ export function Workspace() {
           )}
 
           {uploadFailure && (
-            <div className="mt-2 rounded-lg border border-danger/40 bg-danger-soft p-2.5">
+            <div className="mt-2 rounded-xl border border-danger/40 bg-danger-soft p-2.5">
               <p className="text-xs font-medium text-danger">
                 {uploadFailure.title}
               </p>
@@ -573,13 +575,13 @@ export function Workspace() {
 
         {/* Conversation */}
         <section
-          className={`min-h-0 flex-col rounded-lg border border-line bg-paper ${
+          className={`min-h-0 flex-col rounded-xl border border-line bg-paper ${
             mobilePane === "chat" ? "flex" : "hidden"
           } lg:flex`}
         >
           <div
             ref={transcriptRef}
-            className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3"
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3"
           >
             {messages.length === 0 && stage === null && (
               <div className="px-1 pt-6">
@@ -589,6 +591,10 @@ export function Workspace() {
                 <p className="mt-1.5 max-w-md text-sm leading-6 text-ink-muted">
                   {t.workspace.emptyBody}
                 </p>
+
+                {/* Placed in the empty state, which is the only moment a
+                    visitor has not yet spent a question on something easy. */}
+                <RefusalTour />
                 {suggestions.length > 0 && (
                   <div className="mt-5">
                     <h4 className="text-xs font-medium uppercase tracking-wide text-ink-faint">
@@ -601,7 +607,7 @@ export function Workspace() {
                           type="button"
                           disabled={!canAsk}
                           onClick={() => void ask(suggestion)}
-                          className="rounded-md border border-line bg-surface px-2.5 py-1.5 text-left text-sm text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+                          className="rounded-full border border-accent/20 bg-accent-soft px-3.5 py-1.5 text-left text-sm text-accent transition-colors hover:border-accent/40 hover:bg-accent-soft/70 disabled:opacity-50"
                         >
                           {suggestion}
                         </button>
@@ -615,59 +621,59 @@ export function Workspace() {
             {messages.map((message) => {
               if (message.kind === "question") {
                 return (
-                  <p
-                    key={message.id}
-                    className="ml-auto max-w-[85%] rounded-lg bg-surface-sunken px-3 py-2 text-sm leading-6 text-ink"
-                  >
-                    {message.text}
-                  </p>
+                  <Turn key={message.id} side="user">
+                    <p className="rounded-2xl rounded-tr-md bg-gradient-to-br from-accent-fill-from to-accent-fill-to px-3.5 py-2 text-sm leading-6 text-on-accent shadow-[0_8px_20px_-14px_var(--accent-glow)]">
+                      {message.text}
+                    </p>
+                  </Turn>
                 );
               }
               if (message.kind === "refused") {
                 return (
-                  <div
-                    key={message.id}
-                    className="rounded-lg border border-refuse/35 bg-refuse-soft p-4"
-                  >
-                    <h3 className="text-sm font-semibold text-refuse">
-                      {message.title}
-                    </h3>
-                    <p className="mt-1 text-sm leading-6 text-ink-muted">
-                      {message.message}
-                    </p>
-                  </div>
+                  <Turn key={message.id} side="assistant">
+                    <div className="rounded-2xl rounded-tl-md border border-refuse/35 bg-refuse-soft p-4">
+                      <h3 className="text-sm font-semibold text-refuse">
+                        {message.title}
+                      </h3>
+                      <p className="mt-1 text-sm leading-6 text-ink-muted">
+                        {message.message}
+                      </p>
+                    </div>
+                  </Turn>
                 );
               }
               if (message.kind === "error") {
                 return (
-                  <div
-                    key={message.id}
-                    className="rounded-lg border border-danger/40 bg-danger-soft p-4"
-                  >
-                    <h3 className="text-sm font-semibold text-danger">
-                      {t.workspace.errorTitle}
-                    </h3>
-                    <p className="mt-1 text-sm text-ink-muted">
-                      {t.workspace.errorBody}
-                    </p>
-                  </div>
+                  <Turn key={message.id} side="assistant">
+                    <div className="rounded-2xl rounded-tl-md border border-danger/40 bg-danger-soft p-4">
+                      <h3 className="text-sm font-semibold text-danger">
+                        {t.workspace.errorTitle}
+                      </h3>
+                      <p className="mt-1 text-sm text-ink-muted">
+                        {t.workspace.errorBody}
+                      </p>
+                    </div>
+                  </Turn>
                 );
               }
               return (
-                <AnswerCard
-                  key={message.id}
-                  answer={message.answer}
-                  activeCitation={activeCitation}
-                  onCite={(citation) => {
-                    const index = message.answer.citations.indexOf(citation);
-                    showCitation(citation, `${citation.context_id}:${index}`);
-                  }}
-                />
+                <Turn key={message.id} side="assistant">
+                  <AnswerCard
+                    answer={message.answer}
+                    activeCitation={activeCitation}
+                    onCite={(citation) => {
+                      const index = message.answer.citations.indexOf(citation);
+                      showCitation(citation, `${citation.context_id}:${index}`);
+                    }}
+                  />
+                </Turn>
               );
             })}
 
             {stage !== null && (
-              <StageProgress stage={stage} retrieval={retrieval} />
+              <Turn side="assistant">
+                <StageProgress stage={stage} retrieval={retrieval} />
+              </Turn>
             )}
           </div>
 
@@ -678,7 +684,7 @@ export function Workspace() {
             {!signedIn ? (
               <SignInGate />
             ) : outOfQuestions ? (
-              <div className="rounded-lg border border-refuse/35 bg-refuse-soft p-4">
+              <div className="rounded-xl border border-refuse/35 bg-refuse-soft p-4">
                 <h3 className="text-sm font-semibold text-refuse">
                   {t.account.exhaustedTitle}
                 </h3>
@@ -703,7 +709,7 @@ export function Workspace() {
                     placeholder={t.workspace.askPlaceholder}
                     maxLength={1000}
                     disabled={!selected}
-                    className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink outline-none placeholder:text-ink-faint focus:border-accent"
+                    className="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2.5 text-sm text-ink outline-none transition-shadow placeholder:text-ink-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent)]"
                   />
                   {stage === null ? (
                     <button
@@ -711,15 +717,17 @@ export function Workspace() {
                       disabled={
                         !selected || !canAsk || question.trim().length === 0
                       }
-                      className="shrink-0 rounded-lg bg-ink px-4 text-sm font-medium text-paper transition-opacity disabled:opacity-40"
+                      className="cta-gradient cta-sheen shrink-0 rounded-full px-5 text-sm font-semibold text-on-accent shadow-[0_6px_18px_-8px_var(--accent-glow)] disabled:opacity-40 disabled:shadow-none"
                     >
-                      {t.workspace.ask}
+                      {/* Wrapped so it sits above the sheen rather than under
+                          it: `.cta-sheen` lifts element children only. */}
+                      <span>{t.workspace.ask}</span>
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={() => abortRef.current?.abort()}
-                      className="shrink-0 rounded-lg border border-line-strong px-4 text-sm font-medium text-ink"
+                      className="shrink-0 rounded-full border border-line-strong px-5 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
                     >
                       {t.workspace.stop}
                     </button>
@@ -740,7 +748,7 @@ export function Workspace() {
 
         {/* Document */}
         <section
-          className={`min-h-0 overflow-hidden rounded-lg border border-line ${
+          className={`min-h-0 overflow-hidden rounded-xl border border-line ${
             mobilePane === "viewer" ? "" : "hidden"
           } lg:block`}
         >
@@ -754,6 +762,36 @@ export function Workspace() {
             highlight={highlight}
           />
         </section>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One side of the conversation, with a face on it.
+ *
+ * The two sides are told apart by more than colour: the question sits on the
+ * right behind the visitor's own picture, the answer on the left behind the
+ * mark. A transcript read at a glance should say who said what before a single
+ * word of it is read.
+ */
+function Turn({
+  side,
+  children,
+}: {
+  side: "user" | "assistant";
+  children: ReactNode;
+}) {
+  const user = side === "user";
+  return (
+    <div className={`flex items-start gap-2.5 ${user ? "flex-row-reverse" : ""}`}>
+      <div className="mt-0.5">
+        {user ? <UserAvatar size={28} /> : <BrandAvatar size={28} />}
+      </div>
+      {/* The answer carries citations and a cost line, so it takes the width it
+          needs; a question is a sentence and is capped so it reads as one. */}
+      <div className={user ? "min-w-0 max-w-[85%]" : "min-w-0 flex-1"}>
+        {children}
       </div>
     </div>
   );

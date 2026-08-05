@@ -11,11 +11,15 @@ about what it was told here must not be able to buy anything with the lie.
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from api.auth import CurrentUser
 from api.deps import State
+from api.identity import IdentityError
+from api.logging_config import get_logger
+
+log = get_logger(__name__)
 
 router = APIRouter(prefix="/me", tags=["account"])
 
@@ -58,3 +62,43 @@ async def me(user: CurrentUser, state: State) -> Me:
             documents_left=allowance.documents_left,
         ),
     )
+
+
+@router.delete(
+    "",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete this account and everything in it",
+)
+async def delete_me(user: CurrentUser, state: State) -> None:
+    """Erase the account on its owner's request.
+
+    Files first, account second, and the second only if the first succeeded.
+    Every row a user owns cascades from `auth.users`, but nothing in the bucket
+    does: an account deleted while one of its PDFs was still in storage would
+    leave that file with no row pointing at it, no owner to ask for it and no
+    expiry to catch it. So a bucket that refuses a delete stops the whole
+    operation, and the account is still there to try again with.
+    """
+    if not await state.retention.purge_user_documents(user.id):
+        log.error("account_delete_storage_failed", user_id=str(user.id))
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "delete_failed",
+                "message": "Your documents could not be deleted, so the account was kept. Please try again.",
+            },
+        )
+
+    try:
+        await state.identity.delete_user(user.id)
+    except IdentityError as exc:
+        log.error("account_delete_failed", user_id=str(user.id), error=str(exc))
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "delete_failed",
+                "message": "The account could not be deleted. Please try again.",
+            },
+        ) from exc
+
+    log.info("account_deleted", user_id=str(user.id))

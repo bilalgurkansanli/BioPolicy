@@ -19,6 +19,7 @@ _DIR = Path(__file__).parent
 
 ANSWER = "answer_v1"
 VERIFY = "verify_v1"
+ENTAIL = "entail_v1"
 REWRITE = "rewrite_v1"
 
 # The baseline arm of the evaluation, not a production prompt.

@@ -197,6 +197,59 @@ uv run ruff check api eval && uv run ruff format --check api eval && uv run mypy
 
 ## Deploying
 
+> Not deployed yet, deliberately. This section is the checklist for when it is.
+
+### What `vercel.json` does and does not cover
+
+The repository root carries a `vercel.json` with **security headers for `/api/*`
+only**. Everything else about the API deployment is a *project setting*, not a
+file:
+
+| Setting | Value | Where |
+|---|---|---|
+| Framework Preset | **Container** | dashboard |
+| Root Directory | `.` | dashboard |
+| Region | wherever the Supabase project lives | dashboard |
+
+Three things were **not** written into the file on purpose, because guessing
+them is worse than leaving them to the dashboard:
+
+* **`framework`** — the published `vercel.json` reference does not list the
+  slug for container deployments, and a wrong slug fails the build with a
+  message about a framework rather than about a typo.
+* **`regions`** — the right answer is "next to Supabase", which depends on where
+  that project was created. The default is `iad1`; a database on another
+  continent turns every query into a transatlantic round trip.
+* **The Dockerfile name.** The Container preset looks for a `Dockerfile`; ours
+  is `Dockerfile.vercel`, from before that preset existed. Either rename it or
+  point the project at it — but check which one the existing working
+  configuration expects before changing anything.
+
+### Environment variables
+
+Both projects need their own set. The API project takes everything in
+`.env.example` **except** the `NEXT_PUBLIC_` block; the web project takes only:
+
+    NEXT_PUBLIC_SUPABASE_URL
+    NEXT_PUBLIC_SUPABASE_ANON_KEY
+    API_ORIGIN            → the api project's own *.vercel.app hostname
+
+`API_ORIGIN` is read at build time by `web/next.config.ts`, so changing it needs
+a redeploy of the web project rather than a restart.
+
+### After the first deploy
+
+1. Point `app_settings.api_base_url` at the API hostname, and
+   `app_settings.purge_job_secret` at the same value as `PURGE_JOB_SECRET` —
+   the scheduled jobs do nothing until both rows exist.
+2. Add the deployed origin to Supabase → *Authentication* → *URL Configuration*
+   → **Redirect URLs**, or Google sign-in returns to a blank page.
+3. Run `python -m api.scripts.seed_samples` against the deployed environment so
+   the demo has its three documents.
+4. Check `/api/health` reports every provider as `configured`.
+
+### The topology
+
 Two Vercel projects from one repository ([ADR 006](./adr/006-deployment-topology.md)):
 
 | Project | Root directory | Build | Domain |

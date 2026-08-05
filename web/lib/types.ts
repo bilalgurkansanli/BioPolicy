@@ -138,6 +138,19 @@ export type PageLines = {
   lines: { text: string; bbox: BBox }[];
 };
 
+export type Spend = {
+  total_usd: number;
+  budget_usd: number;
+  questions: number;
+  /** `null` before the first question, rather than a division by zero. */
+  per_question_usd: number | null;
+  provider_calls: number;
+  priced_calls: number;
+  /** Fraction of provider calls the figure covers. Below 1.0 by design. */
+  priced_share: number;
+  first_call_at: string | null;
+};
+
 export type Capabilities = {
   stages: string[];
   max_upload_bytes: number;

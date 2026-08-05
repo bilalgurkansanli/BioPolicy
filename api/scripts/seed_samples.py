@@ -37,6 +37,7 @@ from api.ingest.parsers import PdfParser
 from api.ingest.pipeline import IngestionPipeline
 from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.store import ChunkStore
+from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS
 
 SAMPLES_DIR = Path(__file__).resolve().parents[2] / "eval" / "golden" / "samples"
 
@@ -122,9 +123,25 @@ async def upload(storage_path: str, data: bytes) -> None:
     )
 
 
-async def run(*, force: bool) -> int:
+# The adversarial documents are ingested like any other but are **not** demo
+# samples: they exist so the evaluation can be embarrassed, and putting them in
+# the public picker would put a deliberately self-contradicting policy in front
+# of a visitor with no explanation.
+#
+# `is_sample = false` keeps them out of `/api/documents/samples`. That would
+# normally also mean a 24-hour expiry, so their `expires_at` is pushed out —
+# they are fixtures, not uploads.
+HARD_SLUGS: frozenset[str] = frozenset(d["slug"] for d in HARD_DOCUMENTS)
+
+
+async def run(*, force: bool, which: str) -> int:
     settings = get_settings()
-    pdfs = sorted(SAMPLES_DIR.glob("*.pdf"))
+    wanted = {
+        "demo": {d["slug"] for d in ALL_DOCUMENTS},
+        "hard": set(HARD_SLUGS),
+        "all": {d["slug"] for d in (*ALL_DOCUMENTS, *HARD_DOCUMENTS)},
+    }[which]
+    pdfs = sorted(p for p in SAMPLES_DIR.glob("*.pdf") if p.stem in wanted)
     if not pdfs:
         print(f"{RED}No sample PDFs found.{RESET} Run: python -m eval.generate_samples")
         return 1
@@ -156,7 +173,8 @@ async def run(*, force: bool) -> int:
             data = path.read_bytes()
             storage_path = f"samples/{path.name}"
 
-            record = await documents.find_sample(storage_path)
+            hard = path.stem in HARD_SLUGS
+            record = await documents.find_by_path(storage_path)
             if record and record.status == STATUS_READY and not force:
                 count = await store.chunk_count(record.id)
                 print(f"  {DIM}SKIP{RESET}     {path.name}  ({count} chunks already stored)")
@@ -171,8 +189,16 @@ async def run(*, force: bool) -> int:
                     filename=path.name,
                     storage_path=storage_path,
                     byte_size=len(data),
-                    is_sample=True,
+                    is_sample=not hard,
                 )
+                if hard:
+                    # A fixture that expires is a fixture that silently stops
+                    # being there, and the report would blame the model.
+                    await pool.execute(
+                        "update documents set expires_at = now() + interval '100 years' "
+                        "where id = $1",
+                        record.id,
+                    )
 
             result = await pipeline.run_safely(record, data)
             if result is None:
@@ -204,8 +230,18 @@ def main() -> int:
     parser.add_argument(
         "--force", action="store_true", help="Re-ingest documents that are already ready."
     )
+    parser.add_argument(
+        "--set",
+        choices=("demo", "hard", "all"),
+        default="demo",
+        help=(
+            "demo: the three documents the public workspace serves (default). "
+            "hard: the two adversarial evaluation fixtures. "
+            "all: both."
+        ),
+    )
     args = parser.parse_args()
-    return asyncio.run(run(force=args.force))
+    return asyncio.run(run(force=args.force, which=args.set))
 
 
 if __name__ == "__main__":

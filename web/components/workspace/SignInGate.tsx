@@ -46,7 +46,7 @@ export function SignInGate() {
   };
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <div className="rounded-xl border border-line bg-surface p-4">
       <h3 className="text-sm font-semibold text-ink">{t.account.signInTitle}</h3>
       <p className="mt-1.5 text-sm leading-6 text-ink-muted">
         {t.account.signInBody}
@@ -56,7 +56,7 @@ export function SignInGate() {
         type="button"
         onClick={() => void start()}
         disabled={busy || !configured}
-        className="mt-4 inline-flex h-10 items-center gap-2.5 rounded-lg border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
+        className="mt-4 inline-flex h-10 items-center gap-2.5 rounded-xl border border-line-strong bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken disabled:opacity-50"
       >
         <GoogleMark />
         {t.account.signIn}
@@ -67,7 +67,7 @@ export function SignInGate() {
       </p>
 
       {failure && (
-        <div className="mt-3 rounded-lg border border-danger/40 bg-danger-soft p-2.5">
+        <div className="mt-3 rounded-xl border border-danger/40 bg-danger-soft p-2.5">
           <p className="text-xs font-medium text-danger">{failure.title}</p>
           <p className="mt-1 text-[11px] leading-4 text-ink-muted">
             {failure.body}

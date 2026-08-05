@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
-import { AccountChip } from "@/components/AccountChip";
+import { AccountMenu } from "@/components/AccountMenu";
 import { useLocale } from "@/components/LocaleProvider";
 import { SlideLink } from "@/components/SlideLink";
 import { LOCALES } from "@/lib/i18n";
@@ -26,12 +27,16 @@ export function SiteHeader() {
         {/* The way out of the workspace, and the only one: the slide runs
             backwards here so leaving retraces the step that got you in. */}
         <SlideLink href="/" direction="back" className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="accent-glow grid size-8 place-items-center rounded-xl bg-gradient-to-br from-accent-fill-from to-accent-fill-to text-sm font-bold text-on-accent"
-          >
-            B
-          </span>
+          {/* Sized from its height: the shield is taller than it is wide, and
+              pinning the width instead would leave it short of the wordmark. */}
+          <Image
+            src="/logo.png"
+            alt=""
+            width={206}
+            height={256}
+            priority
+            className="h-8 w-auto"
+          />
           {/* The wordmark folds away on a phone: the mark still identifies the
               site, and the room it frees is what keeps the call-to-action from
               being pushed off the row. */}
@@ -41,7 +46,7 @@ export function SiteHeader() {
         </SlideLink>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <AccountChip />
+          <AccountMenu />
           <a
             href={REPO_URL}
             target="_blank"
@@ -69,9 +74,9 @@ export function SiteHeader() {
               href="/app"
               direction="forward"
               aria-current={onWorkspace ? "page" : undefined}
-              className="group relative inline-flex h-9 items-center gap-1.5 rounded-full bg-gradient-to-r from-accent-fill-from to-accent-fill-to pl-4 pr-3.5 text-sm font-semibold text-on-accent shadow-[0_6px_18px_-8px_var(--accent-glow)] transition-transform duration-200 hover:-translate-y-px"
+              className="cta-gradient cta-sheen group relative inline-flex h-9 items-center gap-1.5 rounded-full pl-4 pr-3.5 text-sm font-semibold text-on-accent shadow-[0_6px_18px_-8px_var(--accent-glow)] hover:-translate-y-px hover:shadow-[0_12px_26px_-10px_var(--accent-glow)]"
             >
-              {t.nav.workspace}
+              <span>{t.nav.workspace}</span>
               <svg
                 aria-hidden
                 viewBox="0 0 16 16"

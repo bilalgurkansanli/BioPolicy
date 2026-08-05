@@ -124,6 +124,20 @@ class Settings(BaseSettings):
     # They are configuration, not feature flags to be left half-on in prod.
     enable_citation_binding: bool = True
     enable_self_verification: bool = True
+    # The fourth mechanism, built because the ablation showed the first three
+    # were blind to unwarranted inference — and switched OFF by the ablation
+    # that measured it (docs/adr/014).
+    #
+    # On the demo corpus it changed no decisions, added 24% to the cost of every
+    # question, and made a third serial provider call that showed up as errors
+    # the other arms did not have. It did catch a numeric contradiction on the
+    # adversarial set that the shipped configuration answered confidently and
+    # wrongly, which is why the code stays.
+    #
+    # Turning it on is one environment variable. Doing so by default would mean
+    # paying on every question for a check that earns its place on documents
+    # this project cannot yet show are common.
+    enable_entailment_check: bool = False
     enable_query_rewrite: bool = True
     enable_rerank: bool = False
 

@@ -15,15 +15,18 @@
   --ink-faint: #7b8aa3;
   --line: #e2e8f4;
   --line-strong: #cbd6e9;
-  --accent: #1d4ed8;
-  --accent-soft: #eaf1ff;
+  /* The brand blue is the one in the logo mark, sampled from it. */
+  --accent: #2963e0;
+  --accent-soft: #eaf0fd;
   /* The filled-button blue is its own pair rather than `--accent`, because
      `--accent` has to stay readable as text on the page background and in dark
-     mode that pushes it far too light to sit under white button text. */
-  --accent-fill-from: #2563eb;
-  --accent-fill-to: #1d4ed8;
+     mode that pushes it far too light to sit under white button text. The
+     gradient runs light to deep in the same direction as the logo's own, so a
+     button and the mark beside it read as the same object. */
+  --accent-fill-from: #3a72e8;
+  --accent-fill-to: #2963e0;
   --on-accent: #ffffff;
-  --accent-glow: rgb(37 99 235 / 0.4);
+  --accent-glow: rgb(41 99 224 / 0.4);
   --highlight: #fde68a;
   --highlight-ring: #d97706;
   --refuse: #7c5e10;
@@ -43,12 +46,12 @@
     --ink-faint: #6f7f99;
     --line: #1d2740;
     --line-strong: #2e3b58;
-    --accent: #93b4fd;
-    --accent-soft: #142140;
-    --accent-fill-from: #3b82f6;
-    --accent-fill-to: #2563eb;
+    --accent: #9bbafc;
+    --accent-soft: #131e3c;
+    --accent-fill-from: #4c86f0;
+    --accent-fill-to: #2963e0;
     --on-accent: #f8fbff;
-    --accent-glow: rgb(59 130 246 / 0.5);
+    --accent-glow: rgb(76 134 240 / 0.5);
     --highlight: #fbbf24;
     --highlight-ring: #fbbf24;
     --refuse: #fcd34d;
@@ -128,6 +131,21 @@ body {
   mask-size: 260% 100%;
   mask-repeat: no-repeat;
   animation: biopolicy-retype 620ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The account menu comes out of the button it belongs to rather than fading in
+   over the page, which is what keeps a header dropdown from reading as a
+   dialogue that has taken over. */
+@keyframes biopolicy-menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.97);
+  }
+}
+
+.menu-pop {
+  transform-origin: top right;
+  animation: biopolicy-menu-pop 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* The workspace is one step to the right of the landing page. Going in, the
@@ -232,6 +250,55 @@ body {
   box-shadow: 0 16px 34px -12px var(--accent-glow);
 }
 
+/* The primary button's fill is a gradient wide enough to travel: the paint
+   slides under the label on hover rather than the whole button changing colour,
+   which is what makes it feel like a surface being lit rather than a state
+   being toggled. */
+.cta-gradient {
+  background-image: linear-gradient(
+    110deg,
+    var(--accent-fill-from) 0%,
+    var(--accent-fill-to) 42%,
+    var(--accent-fill-from) 100%
+  );
+  background-size: 220% 100%;
+  background-position: 0% 0;
+  transition:
+    background-position 550ms ease,
+    box-shadow 300ms ease,
+    transform 200ms ease;
+}
+.cta-gradient:hover {
+  background-position: 100% 0;
+}
+
+/* And a highlight passes across it once, the way light crosses a raised
+   surface. `overflow: hidden` on the button is what keeps it inside the pill. */
+.cta-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.cta-sheen > * {
+  position: relative;
+  z-index: 1;
+}
+.cta-sheen::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 38%,
+    rgb(255 255 255 / 0.28) 50%,
+    transparent 62%
+  );
+  transform: translateX(-130%);
+  transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.cta-sheen:hover::after {
+  transform: translateX(130%);
+}
+
 /* The header call-to-action carries a slow halo. The workspace is the point of
    the whole site, and a static link in a row of static links does not say so.
    Slow enough (3s) to read as a light source rather than a notification badge. */
@@ -290,6 +357,7 @@ body {
   .stage-active,
   .citation-flash,
   .cta-halo,
+  .menu-pop,
   .page-leaving body,
   .page-arriving body,
   .locale-retype {
@@ -300,6 +368,18 @@ body {
      place without the animation it would simply hide the page. */
   .locale-retype {
     mask-image: none;
+  }
+
+  /* Both halves of the button's hover are movement, so both come off. The
+     gradient stays where it is and the highlight never crosses. */
+  .cta-gradient {
+    transition: box-shadow 300ms ease;
+  }
+  .cta-gradient:hover {
+    background-position: 0% 0;
+  }
+  .cta-sheen::after {
+    display: none;
   }
 }
 

@@ -4,6 +4,8 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { useLocale } from "@/components/LocaleProvider";
+import { MetricHistory, type HistoryRow } from "@/components/MetricHistory";
+import { SpendCounter } from "@/components/SpendCounter";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 
@@ -12,7 +14,17 @@ import { SiteHeader } from "@/components/SiteHeader";
  * verbatim rendering of a file in the repository, and translating it here would
  * mean the page no longer showed what the tool actually wrote.
  */
-export function EvaluationReport({ markdown }: { markdown: string | null }) {
+export function EvaluationReport({
+  markdown,
+  hard,
+  history,
+}: {
+  markdown: string | null;
+  /** The adversarial set, reported separately so its numbers cannot be read as
+      the demo's. */
+  hard: string | null;
+  history: HistoryRow[];
+}) {
   const { t } = useLocale();
 
   return (
@@ -28,7 +40,7 @@ export function EvaluationReport({ markdown }: { markdown: string | null }) {
           </p>
 
           {markdown === null ? (
-            <p className="mt-10 rounded-lg border border-line bg-surface p-4 text-sm text-ink-muted">
+            <p className="mt-10 rounded-xl border border-line bg-surface p-4 text-sm text-ink-muted">
               {t.evaluation.missing}
             </p>
           ) : (
@@ -45,6 +57,23 @@ export function EvaluationReport({ markdown }: { markdown: string | null }) {
                 }}
               >
                 {markdown}
+              </Markdown>
+            </div>
+          )}
+
+          <SpendCounter />
+          <MetricHistory rows={history} />
+
+          {/* The adversarial set, after the main report rather than mixed into
+              it: its numbers are over a different corpus and reading them as
+              the demo's would be reading two systems as one. */}
+          {hard && (
+            <div className="report mt-10 overflow-x-auto border-t border-line pt-8">
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                components={{ h1: ({ children }) => <h2>{children}</h2> }}
+              >
+                {hard}
               </Markdown>
             </div>
           )}

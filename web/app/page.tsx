@@ -55,9 +55,9 @@ export default function Home() {
               <SlideLink
                 href="/app"
                 direction="forward"
-                className="accent-glow group inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-accent-fill-from to-accent-fill-to px-7 text-[15px] font-semibold text-on-accent transition-transform duration-200 hover:-translate-y-0.5 sm:w-auto"
+                className="cta-gradient cta-sheen accent-glow group inline-flex h-12 w-full items-center justify-center gap-2 rounded-full px-7 text-[15px] font-semibold text-on-accent hover:-translate-y-0.5 sm:w-auto"
               >
-                {t.landing.ctaPrimary}
+                <span>{t.landing.ctaPrimary}</span>
                 <Arrow />
               </SlideLink>
               {/* The secondary action stays on the page rather than leading off
@@ -86,11 +86,13 @@ export default function Home() {
             {t.landing.how.map((step, index) => (
               <li
                 key={step.title}
-                className="group rounded-2xl border border-line bg-surface p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-[0_18px_40px_-30px_var(--accent-glow)]"
+                className="group rounded-3xl border border-line bg-surface p-7 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-[0_18px_40px_-30px_var(--accent-glow)]"
               >
+                {/* The mark's counters are perfect circles, so the steps carry
+                    the same geometry rather than a softened square. */}
                 <span
                   aria-hidden
-                  className="inline-flex size-11 items-center justify-center rounded-xl bg-accent-soft text-accent ring-1 ring-accent/15 transition-colors duration-200 group-hover:bg-gradient-to-br group-hover:from-accent-fill-from group-hover:to-accent-fill-to group-hover:text-on-accent"
+                  className="inline-flex size-12 items-center justify-center rounded-full bg-accent-soft text-accent ring-1 ring-accent/15 transition-colors duration-200 group-hover:bg-gradient-to-br group-hover:from-accent-fill-from group-hover:to-accent-fill-to group-hover:text-on-accent"
                 >
                   {stepIcons[index]}
                 </span>
@@ -106,7 +108,7 @@ export default function Home() {
         </section>
 
         <section className="mx-auto w-full max-w-5xl px-4 py-20 sm:px-6">
-          <div className="relative isolate overflow-hidden rounded-3xl bg-gradient-to-br from-accent-fill-from to-accent-fill-to px-6 py-14 text-center sm:px-12">
+          <div className="relative isolate overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-accent-fill-from to-accent-fill-to px-6 py-14 text-center sm:px-12">
             <div
               aria-hidden
               className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_80%_at_20%_0%,rgb(255_255_255_/_0.22),transparent_70%)]"

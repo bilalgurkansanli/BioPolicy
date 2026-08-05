@@ -48,6 +48,19 @@ switchable so the evaluation harness can measure what it actually contributes:
 | 1 | Strict grounding prompt + structured output | The model answering from world knowledge instead of the document |
 | 2 | Citation binding | Quotes that sound right but appear nowhere in the retrieved text |
 | 3 | Self-verification & groundedness scoring | Answers whose individual claims aren't supported, even when the citations are real |
+| 4 | Entailment check *(off by default)* | An answer whose every claim is supported and which still does not follow — a theft clause answering a question about a car |
+
+Mechanism 4 exists because the evaluation said mechanisms 2 and 3 were not
+earning their keep, and diagnosed exactly why. It was built to close that gap,
+measured, and **switched off by its own numbers**: no decisions changed, 24%
+added to every question, and a third serial provider call that showed up as
+errors the other arms did not have.
+
+It stays in the codebase because on the adversarial corpus it caught a
+contradiction the shipped configuration answered confidently and wrongly. One
+environment variable turns it on. The whole experiment — including the part
+where the metric was too coarse to represent the right answer — is
+[ADR 014](./docs/adr/014-entailment-check.md).
 
 If all citations on an answer fail verification, the answer is **not shown**. It
 is downgraded to a refusal and counted. Those caught hallucinations appear in the

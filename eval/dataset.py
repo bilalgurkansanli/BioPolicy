@@ -18,13 +18,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from eval.sample_content import ALL_DOCUMENTS
+from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS
 
 GOLDEN_PATH = Path(__file__).parent / "golden" / "questions.json"
 
 Category = Literal["factual", "table", "multi_clause", "negative", "cross_lingual"]
+# "contradiction" only occurs in the hard set: a question the document answers
+# twice, incompatibly. It is not a negative — the document does address it — and
+# it is not an ordinary factual, because there is no single right answer to
+# give. Keeping it as its own category is what lets the report say how many
+# there were and what happened to them.
 VALID_CATEGORIES: frozenset[str] = frozenset(
-    {"factual", "table", "multi_clause", "negative", "cross_lingual"}
+    {"factual", "table", "multi_clause", "negative", "cross_lingual", "contradiction"}
 )
 
 
@@ -71,7 +76,7 @@ def document_text(slug: str) -> str:
     and it works for the scanned sample, which cannot be parsed at all without
     an OCR provider.
     """
-    doc = next((d for d in ALL_DOCUMENTS if d["slug"] == slug), None)
+    doc = next((d for d in (*ALL_DOCUMENTS, *HARD_DOCUMENTS) if d["slug"] == slug), None)
     if doc is None:
         raise KeyError(f"No sample document named {slug!r}")
 
@@ -119,7 +124,9 @@ def stats(questions: list[GoldenQuestion]) -> Stats:
 def validate(questions: list[GoldenQuestion]) -> list[str]:
     """Return a list of problems. Empty means the dataset is coherent."""
     problems: list[str] = []
-    slugs = {d["slug"] for d in ALL_DOCUMENTS}
+    # Both sets, because the hard questions are validated by the same function
+    # and a document it has never heard of reads as a typo in the question file.
+    slugs = {d["slug"] for d in (*ALL_DOCUMENTS, *HARD_DOCUMENTS)}
     seen: set[str] = set()
 
     texts = {slug: document_text(slug) for slug in slugs}

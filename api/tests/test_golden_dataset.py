@@ -12,9 +12,16 @@ nothing and they are what stops the published numbers from being nonsense.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from eval.dataset import load, stats, validate
 
 QUESTIONS = load()
+
+# The adversarial set. Separate numbers, same drift protection: a question whose
+# planted fact has been edited out of its document measures nothing, and does it
+# silently.
+HARD = load(Path(__file__).resolve().parents[2] / "eval" / "golden" / "questions_hard.json")
 
 
 def test_the_dataset_is_internally_coherent() -> None:
@@ -82,3 +89,39 @@ def test_negatives_are_spread_across_all_three_documents() -> None:
     """Negatives concentrated in one document would measure that document only."""
     documents = {q.document for q in QUESTIONS if q.is_negative}
     assert len(documents) == 3
+
+
+# -----------------------------------------------------------------------------
+# the hard set
+# -----------------------------------------------------------------------------
+
+
+def test_the_hard_set_is_coherent_too() -> None:
+    problems = validate(HARD)
+    assert not problems, "hard dataset problems:\n  " + "\n  ".join(problems)
+
+
+def test_the_hard_set_exercises_both_adversarial_documents() -> None:
+    """One document contradicts itself, the other is set in two columns. A set
+    that only covered one of them would be measuring one failure mode and
+    reporting two."""
+    documents = {q.document for q in HARD}
+    assert documents == {"celiskili-seyahat-tr", "iki-sutun-kasko-tr"}
+
+
+def test_the_contradictions_name_both_sides() -> None:
+    """The whole point of a contradiction question.
+
+    `expected_evidence` listing only the clause that grants cover would score an
+    answer citing only that clause as a success — which is exactly the failure
+    being looked for.
+    """
+    for question in (q for q in HARD if q.category == "contradiction"):
+        assert len(question.expected_evidence) >= 2, question.id
+
+
+def test_the_hard_set_keeps_a_control_for_each_trap() -> None:
+    """A set made only of traps cannot distinguish a system that is careful from
+    one that has simply stopped answering."""
+    assert any(q.category == "negative" for q in HARD)
+    assert any(q.category == "factual" for q in HARD)

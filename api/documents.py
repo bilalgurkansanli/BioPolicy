@@ -110,6 +110,18 @@ class DocumentRepository:
         )
         return DocumentRecord.from_row(row) if row else None
 
+    async def find_by_path(self, storage_path: str) -> DocumentRecord | None:
+        """Any document at this path, sample or not.
+
+        The seeder needs this because the evaluation fixtures deliberately are
+        not samples — they must not appear in the public picker — but they are
+        still seeded and re-seeded by the same script.
+        """
+        row = await self._pool.fetchrow(
+            "select * from documents where storage_path = $1", storage_path
+        )
+        return DocumentRecord.from_row(row) if row else None
+
     async def set_status(
         self,
         document_id: UUID,

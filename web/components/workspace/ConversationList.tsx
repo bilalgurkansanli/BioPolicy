@@ -38,7 +38,7 @@ export function ConversationList({
         <button
           type="button"
           onClick={onNew}
-          className="rounded-md border border-line px-2 py-0.5 text-[11px] text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+          className="rounded-lg border border-line px-2 py-0.5 text-[11px] text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
         >
           {t.conversations.newChat}
         </button>
@@ -54,7 +54,7 @@ export function ConversationList({
             return (
               <li
                 key={conversation.id}
-                className={`rounded-lg border px-2.5 py-2 transition-colors ${
+                className={`rounded-xl border px-2.5 py-2 transition-colors ${
                   active
                     ? "border-accent bg-accent-soft"
                     : "border-line bg-surface"

@@ -118,6 +118,7 @@ const tr = {
   },
   account: {
     signIn: "Google ile giriş yap",
+    signInLink: "Giriş yap",
     signInTitle: "Devam etmek için giriş yapın",
     signInBody:
       "Soru sormak ve belge yüklemek için Google hesabınızla giriş yapmanız gerekiyor. Örnek belgeleri girmeden de inceleyebilirsiniz.",
@@ -135,6 +136,86 @@ const tr = {
     exhaustedTitle: "Günlük soru hakkınız bitti",
     exhaustedBody:
       "Bugün {limit} sorunun tamamını kullandınız. Hak, UTC gece yarısı yenilenir. Belgeleri ve geçmiş sohbetlerinizi incelemeye devam edebilirsiniz.",
+    menu: "Hesabınız",
+    deleteAccount: "Hesabımı sil",
+    deleteTitle: "Hesabınız silinsin mi?",
+    deleteBody:
+      "Yüklediğiniz belgeler, sohbetleriniz ve hesabınız kalıcı olarak silinir. Bu işlem geri alınamaz.",
+    deleteConfirm: "Evet, hesabımı sil",
+    deleteCancel: "Vazgeç",
+    deleting: "Siliniyor…",
+    deleteFailed:
+      "Hesap silinemedi. Belgeleriniz ve hesabınız duruyor; birazdan tekrar deneyin.",
+  },
+  signin: {
+    title: "Poliçenizi sorun",
+    lede: "Devam etmek için Google hesabınızla girin. Örnek belgeleri girmeden de inceleyebilirsiniz.",
+    why: "Her soru gerçek bir model çağrısı ve gerçek bir fatura. Giriş, günlük hakkın kime ait olduğunu belirliyor — başka bir sebebi yok.",
+    browse: "Girmeden incele",
+    signedOut: "Çıkış yaptınız.",
+    legalNote: "Giriş yaparak aşağıdakileri kabul etmiş olursunuz.",
+    updated: "Güncelleme: 5 Ağustos 2026",
+    privacyTitle: "Gizlilik Politikası",
+    privacy: [
+      {
+        title: "Hesabınız",
+        body: "Google ile girdiğinizde adınız, e-posta adresiniz ve profil fotoğrafınız alınır. Başka hiçbir bilgi istenmez.",
+      },
+      {
+        title: "Yüklediğiniz belgeler",
+        body: "Yalnızca siz görebilirsiniz ve 24 saat sonra otomatik silinir. Dilediğiniz an kendiniz de silebilirsiniz.",
+      },
+      {
+        title: "Sorularınız",
+        body: "Sorunuz ve belgenin ilgili bölümleri, cevabı üretmek için yapay zekâ modellerine gönderilir. Model eğitimi için kullanılmaz.",
+      },
+      {
+        title: "Paylaşım",
+        body: "Verileriniz satılmaz, reklam için kullanılmaz, üçüncü kişilere aktarılmaz.",
+      },
+      {
+        title: "Silme",
+        body: "Hesabınızı profil menüsünden silebilirsiniz. Belgeleriniz, sohbetleriniz ve hesabınız birlikte gider.",
+      },
+    ],
+    termsTitle: "Kullanım Koşulları",
+    terms: [
+      {
+        title: "Tavsiye değildir",
+        body: "BioPolicy hukuki ya da sigortacılık tavsiyesi vermez. Bir poliçenin sizin durumunuzda ne anlama geldiğini söyleyemez; yalnızca metinde ne yazdığını gösterir.",
+      },
+      {
+        title: "Örnek belgeler gerçek değildir",
+        body: "Bu proje için yazılmış sentetik metinlerdir ve hiçbir şirketi temsil etmez.",
+      },
+      {
+        title: "Günlük hak",
+        body: "Her hesabın günlük soru ve belge hakkı vardır. Demo, gerçek bir fatura ürettiği için sınırlıdır.",
+      },
+      {
+        title: "Garanti yok",
+        body: "Bu bir portföy projesidir. Kesintisiz çalışacağı ya da her cevabın doğru olacağı garanti edilmez.",
+      },
+    ],
+  },
+  tour: {
+    start: "Reddedişini izleyin (30 saniye)",
+    label: "Kayıtlı gösterim",
+    close: "Kapat",
+    next: "Devam",
+    toEval: "Ölçümlere bakın",
+    recorded: "Kayıt — soru hakkınızdan düşmez",
+    step1Title: "Cevabı belgede olmayan bir soru soruluyor",
+    step1Body:
+      "Konut poliçesine soruluyor: “Evcil hayvanımın komşuya verdiği zarar karşılanıyor mu?” Poliçe bu konuda hiçbir şey söylemiyor — ama yakın maddeler var.",
+    step2Title: "Sistem yakın maddeleri buluyor",
+    step2Body:
+      "Arama, evcil hayvanların geçtiği tek maddeyi getiriyor. Bir dil modeli için buradan “evet/hayır” uydurmak çok kolay: madde gerçek, alıntı gerçek, cümle kulağa doğru gelir.",
+    step2Quote:
+      "Madde 4.5 — Evcil hayvanların sigortalı eşyaya verdiği zararlar teminat dışıdır.",
+    step3Title: "Ve cevap vermiyor",
+    step3Body:
+      "Bu madde sigortalının kendi eşyası hakkında; komşuya verilen zarar farklı bir konu. Sistem yakın bir maddeden çıkarım yapmak yerine “bu belgede yok” diyor. Ürünün tamamı bu davranışın etrafında kurulu — ve 70 soruluk kümede ölçülmüş hâli ölçüm sayfasında.",
   },
   conversations: {
     title: "Sohbetlerim",
@@ -183,6 +264,24 @@ const tr = {
     missing:
       "Rapor bu derlemede bulunamadı. Depoda eval/report.md dosyasına bakabilirsiniz.",
     regenerate: "Yeniden üretmek için",
+    spendTitle: "Bu demo şimdiye kadar ne harcadı",
+    spendTotal: "Toplam",
+    spendPerQuestion: "Soru başına",
+    spendQuestions: "Cevaplanan soru",
+    spendBudget: "Bütçe tavanı",
+    spendCaveat:
+      "Yalnızca Anthropic ücretlendirmesi: sağlayıcı çağrılarının {share} kadarı fiyatlandırılabiliyor. Gömme ve sorgu yeniden yazma için kullanılan Google modellerinin fiyatı bu projede doğrulanmadı, o yüzden gerçek fatura bu rakamdan yüksek.",
+    historyTitle: "Sayılar zaman içinde",
+    historyNote:
+      "Yayımlanan yapılandırma (katı prompt + mekanizmalar), 70 soruluk küme üzerinde. Her nokta bir koşum.",
+    historyEmpty:
+      "Henüz kayıt yok. Geçmiş, ölçüm koştukça birikir; ilk koşum bu özellikten sonra yapılacak.",
+    historyTooShort: "Tek bir koşum var. İki nokta olmadan çizilecek bir eğilim yok.",
+    historySeries: {
+      balanced_accuracy: "Dengeli doğruluk",
+      refusal_accuracy: "Doğru ret",
+      false_refusal_rate: "Yanlış ret",
+    },
   },
   footer: {
     disclaimer:
@@ -297,6 +396,7 @@ const en: Dictionary = {
   },
   account: {
     signIn: "Sign in with Google",
+    signInLink: "Sign in",
     signInTitle: "Sign in to continue",
     signInBody:
       "Asking questions and uploading documents needs a Google account. The sample documents are readable without one.",
@@ -314,6 +414,86 @@ const en: Dictionary = {
     exhaustedTitle: "You have used today's questions",
     exhaustedBody:
       "All {limit} of them. The allowance resets at midnight UTC. You can still read the documents and your earlier conversations.",
+    menu: "Your account",
+    deleteAccount: "Delete my account",
+    deleteTitle: "Delete your account?",
+    deleteBody:
+      "Your uploaded documents, your conversations and your account are removed for good. This cannot be undone.",
+    deleteConfirm: "Yes, delete my account",
+    deleteCancel: "Cancel",
+    deleting: "Deleting…",
+    deleteFailed:
+      "The account could not be deleted. Your documents and account are still there; try again shortly.",
+  },
+  signin: {
+    title: "Ask your policy",
+    lede: "Sign in with Google to continue. The sample documents are readable without an account.",
+    why: "Every question is a real model call against a real bill. Signing in is what the daily allowance is counted against — that is the whole reason for it.",
+    browse: "Look around first",
+    signedOut: "You are signed out.",
+    legalNote: "By signing in you accept the following.",
+    updated: "Updated: 5 August 2026",
+    privacyTitle: "Privacy Policy",
+    privacy: [
+      {
+        title: "Your account",
+        body: "Signing in with Google gives us your name, email address and profile picture. Nothing else is asked for.",
+      },
+      {
+        title: "Documents you upload",
+        body: "Only you can see them, and they are deleted automatically after 24 hours. You can also delete them yourself at any time.",
+      },
+      {
+        title: "Your questions",
+        body: "Your question and the relevant parts of the document are sent to AI models to produce the answer. They are not used to train anything.",
+      },
+      {
+        title: "Sharing",
+        body: "Your data is not sold, not used for advertising, and not passed to third parties.",
+      },
+      {
+        title: "Deleting",
+        body: "You can delete your account from the profile menu. Your documents, your conversations and your account go together.",
+      },
+    ],
+    termsTitle: "Terms of Use",
+    terms: [
+      {
+        title: "Not advice",
+        body: "BioPolicy does not give legal or insurance advice. It cannot tell you what a policy means for your situation — only what the text says.",
+      },
+      {
+        title: "The samples are not real",
+        body: "They are synthetic documents written for this project and represent no real company.",
+      },
+      {
+        title: "Daily allowance",
+        body: "Each account has a daily allowance of questions and uploads. The demo is limited because it produces a real bill.",
+      },
+      {
+        title: "No guarantees",
+        body: "This is a portfolio project. It is not guaranteed to stay up, nor is every answer guaranteed to be right.",
+      },
+    ],
+  },
+  tour: {
+    start: "Watch it refuse (30 seconds)",
+    label: "Recorded walkthrough",
+    close: "Close",
+    next: "Next",
+    toEval: "See the numbers",
+    recorded: "A recording — it does not use one of your questions",
+    step1Title: "A question the document cannot answer",
+    step1Body:
+      "The home policy is asked: “is damage my pet caused to a neighbour covered?” The policy says nothing about it — but it does have passages nearby.",
+    step2Title: "The system finds the nearby clause",
+    step2Body:
+      "Search returns the one article that mentions pets at all. Inventing a yes or no from here is easy: the clause is real, the quote is real, and the sentence sounds right.",
+    step2Quote:
+      "Article 4.5 — Damage caused by pets to the insured contents is excluded.",
+    step3Title: "And it declines to answer",
+    step3Body:
+      "That clause is about the policyholder's own contents; damage to a neighbour is a different subject. Rather than reason from an adjacent article, the system says it is not in this document. The whole product is built around that behaviour — and the evaluation page measures it over seventy questions.",
   },
   conversations: {
     title: "Your chats",
@@ -362,6 +542,24 @@ const en: Dictionary = {
     missing:
       "The report was not found in this build. It lives at eval/report.md in the repository.",
     regenerate: "To regenerate it",
+    spendTitle: "What this demo has spent",
+    spendTotal: "Total",
+    spendPerQuestion: "Per question",
+    spendQuestions: "Questions answered",
+    spendBudget: "Budget ceiling",
+    spendCaveat:
+      "Anthropic billing only: {share} of provider calls can be priced. The Google models used for embedding and query rewriting were never price-verified for this project, so the real bill is higher than this figure.",
+    historyTitle: "The numbers over time",
+    historyNote:
+      "The shipped configuration (strict prompt + mechanisms) over the 70-question set. One point per run.",
+    historyEmpty:
+      "Nothing recorded yet. History accrues as the evaluation runs; the first entry lands after this feature.",
+    historyTooShort: "One run so far. Two points are needed before there is a trend to draw.",
+    historySeries: {
+      balanced_accuracy: "Balanced accuracy",
+      refusal_accuracy: "Refusal accuracy",
+      false_refusal_rate: "False-refusal rate",
+    },
   },
   footer: {
     disclaimer:

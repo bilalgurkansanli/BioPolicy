@@ -73,6 +73,44 @@ def _limitations(
             f"documents, not a better retriever."
         )
 
+    # 1b. Provider failures, because they are indistinguishable from refusals.
+    errored = {name: report.errors for name, report in arms.items() if report.errors}
+    if errored:
+        notes.append(
+            f"**{sum(errored.values())} question(s) failed with a provider error and are "
+            f"counted as refusals.** A question the provider never answered looks "
+            f"identical, in every metric here, to one the system declined — so a bad "
+            f"afternoon at the API arrives as a false-refusal rate. The arms carrying the "
+            f"entailment check make three serial provider calls per question instead of "
+            f"two, and they are the arms with errors: "
+            + ", ".join(f"`{name}` ({count})" for name, count in sorted(errored.items()))
+            + ". Read every false-refusal figure below with that subtracted."
+        )
+
+    # 1c. Does the fourth mechanism earn its call?
+    strict_ent, guarded = arms.get("strict_entailed"), arms.get("strict_guarded")
+    if strict_ent and guarded:
+        caught = strict_ent.refusal.refusal_accuracy - guarded.refusal.refusal_accuracy
+        cost_in_false = strict_ent.refusal.false_refusal_rate - guarded.refusal.false_refusal_rate
+        extra = (
+            strict_ent.cost.mean_cost_per_query_usd / guarded.cost.mean_cost_per_query_usd - 1
+            if guarded.cost.mean_cost_per_query_usd
+            else 0.0
+        )
+        notes.append(
+            f"**The entailment check did not do what it was built to do.** It exists "
+            f"because an earlier run of this report diagnosed the previous mechanisms as "
+            f"blind to unwarranted inference, and it is the only pass that is shown the "
+            f"question. On this corpus it moved refusal accuracy by {caught:+.0%}, moved "
+            f"the false-refusal rate by {cost_in_false:+.0%}, and added {extra:.0%} to the "
+            f"cost of every question. Subtract the provider errors above and it changed no "
+            f"decisions — the same finding as the two mechanisms before it, reached the "
+            f"same way. It does catch something on the adversarial set "
+            f"(`report_hard.md`), and nothing here; shipping it always would be paying on "
+            f"every question for a check that fires on documents this corpus does not "
+            f"contain."
+        )
+
     # 2. Which lever actually moved the numbers?
     naive_only, naive_guarded = arms.get("naive_only"), arms.get("naive_guarded")
     strict_only, strict_guarded = arms.get("strict_only"), arms.get("strict_guarded")

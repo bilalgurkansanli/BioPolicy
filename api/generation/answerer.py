@@ -13,6 +13,12 @@ direction of *less* confidence:
 4. **Verify.** Claims are scored against the excerpts, and a low score suppresses
    the answer even when its citations were individually valid. Citations can all
    be real while the sentence built around them is not.
+5. **Check entailment.** Do the excerpts *settle* the question, or only touch it?
+   Every claim can be supported and the answer still not follow, because the
+   excerpts are about something adjacent — a theft clause answering a question
+   about a car. This is the one pass that is shown the question, which is
+   exactly why it can see a failure the question-blind verifier cannot
+   (`api/generation/entailment.py`).
 
 Nothing downstream can upgrade an answer. A refusal never becomes an answer, and
 a suppressed answer is never revived.
@@ -32,6 +38,7 @@ from dataclasses import dataclass, field
 
 from api.generation import prompts
 from api.generation.citations import bind
+from api.generation.entailment import EntailmentChecker
 from api.generation.llm import (
     LLMProvider,
     MalformedResponseError,
@@ -75,6 +82,11 @@ REFUSALS: dict[str, dict[str, str]] = {
             "Oluşturulan yanıtın belgedeki metinle yeterince desteklendiği doğrulanamadı, "
             "bu nedenle gösterilmiyor."
         ),
+        "not_entailed": (
+            "Belgede bu konuya yakın maddeler var, ama sorduğunuz şeyi doğrudan "
+            "karara bağlamıyorlar. Yakın bir maddeden çıkarım yapmaktansa "
+            "cevaplamamayı tercih ediyoruz."
+        ),
         "unavailable": ("Yanıt şu anda oluşturulamıyor. Lütfen biraz sonra tekrar deneyin."),
     },
     "en": {
@@ -90,6 +102,11 @@ REFUSALS: dict[str, dict[str, str]] = {
         "low_groundedness": (
             "The drafted answer could not be confirmed as sufficiently supported by the "
             "document, so it is not being shown."
+        ),
+        "not_entailed": (
+            "The document has passages near this subject, but they do not settle the "
+            "question you asked. We would rather not answer than reason from an "
+            "adjacent clause."
         ),
         "unavailable": "An answer cannot be produced right now. Please try again shortly.",
     },
@@ -120,15 +137,19 @@ class Answerer:
         llm: LLMProvider,
         *,
         verifier: Verifier | None = None,
+        entailment: EntailmentChecker | None = None,
         enable_citation_binding: bool = True,
         enable_verification: bool = True,
+        enable_entailment_check: bool = True,
         max_tokens: int = ANSWER_MAX_TOKENS,
         prompt_name: str = prompts.ANSWER,
     ) -> None:
         self._llm = llm
         self._verifier = verifier
+        self._entailment = entailment
         self._bind = enable_citation_binding
         self._verify = enable_verification and verifier is not None
+        self._entail = enable_entailment_check and entailment is not None
         self._max_tokens = max_tokens
         # Swappable so the evaluation can run the same pipeline against the
         # strict grounding prompt and a naive one. The prompt is the largest
@@ -242,6 +263,31 @@ class Answerer:
                     model=response.model,
                 )
 
+        # 6. Entailment. Last, because it is the most expensive question to ask
+        #    and there is no point asking it about an answer already withheld.
+        #    It can only withhold — never revive — like every step above it.
+        entailment = None
+        if self._entail and self._entailment is not None:
+            if on_stage is not None:
+                await on_stage("verifying")
+            checked = await self._entailment.check(
+                question=question, draft=payload.answer, context=context
+            )
+            usage.extend(checked.usage)
+            entailment = checked.result
+
+            if entailment is not None and not entailment.licenses_the_answer:
+                log.info(
+                    "suppressed_not_entailed",
+                    verdict=entailment.verdict,
+                    reason=entailment.reason,
+                )
+                return AnswerOutcome(
+                    answer=_refusal(language, "not_entailed", reason="not_entailed"),
+                    usage=usage,
+                    model=response.model,
+                )
+
         return AnswerOutcome(
             answer=GroundedAnswer(
                 answer=payload.answer,
@@ -252,6 +298,7 @@ class Answerer:
                 caveats=payload.caveats,
                 groundedness=groundedness,
                 verified=verified,
+                entailment=entailment.verdict if entailment else None,
             ),
             usage=usage,
             model=response.model,

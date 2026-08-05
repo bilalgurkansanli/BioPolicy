@@ -26,7 +26,7 @@ export function StageProgress({
   const current = ORDER.indexOf(stage);
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4">
+    <div className="rounded-xl border border-line bg-surface p-4">
       <ol className="space-y-2">
         {ORDER.map((name, index) => {
           const done = index < current;

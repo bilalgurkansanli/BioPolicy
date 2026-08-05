@@ -610,4 +610,195 @@ SAGLIK: dict[str, Any] = {
     ],
 }
 
+# =============================================================================
+# The hard set. These two exist to fail, not to pass.
+#
+# The three documents above are clean: one column, coherent, internally
+# consistent. The evaluation over them says the system works, and the report
+# says plainly that this proves less than it looks like it does — a corpus that
+# cannot embarrass a system cannot measure one either.
+#
+# These two can. They are kept separate from the originals so the published
+# numbers stay comparable across arms; they are their own set with their own
+# table in the report.
+# =============================================================================
+
+# A policy that contradicts itself, which is what real ones do once an
+# endorsement has been bolted onto a base wording. The correct answer to "is
+# this covered?" is *the document says both, here is each*, and nothing in the
+# system currently produces that answer — it will pick a side and cite it
+# confidently. That is the point of writing it down.
+CELISKI: dict[str, Any] = {
+    "slug": "celiskili-seyahat-tr",
+    "lang": "tr",
+    "title": "SEYAHAT SAĞLIK SİGORTASI",
+    "subtitle": "Özel Şartlar ve Zeyilname",
+    "render": "native",
+    "meta": [
+        ("Poliçe No", "SYH-2026-00812"),
+        ("Sigortalı", "Örnek Sigortalı"),
+        ("Poliçe Dönemi", "01.04.2026 – 01.04.2027"),
+        ("Coğrafi Kapsam", "Yurt içi ve yurt dışı"),
+    ],
+    "blocks": [
+        ("h1", "Madde 1 — Teminat Kapsamı"),
+        (
+            "p",
+            "İşbu poliçe, sigortalının seyahati sırasında ortaya çıkan ani hastalık "
+            "ve kaza hallerinde, aşağıdaki tabloda belirtilen limitler dahilinde "
+            "tedavi giderlerini karşılar.",
+        ),
+        ("h2", "1.1 Teminat Limitleri"),
+        (
+            "table",
+            [
+                ["Teminat", "Limit", "Muafiyet"],
+                ["Yurt Dışı Acil Tedavi", "50.000 EUR", "100 EUR"],
+                ["Yurt İçi Acil Tedavi", "75.000 TL", "Yok"],
+                ["Ameliyat", "100.000 TL", "Yok"],
+                ["Bagaj Kaybı", "1.500 EUR", "50 EUR"],
+                ["Seyahat İptali", "2.000 EUR", "Yok"],
+            ],
+        ),
+        ("h1", "Madde 2 — Yurt Dışı Teminatı"),
+        (
+            "p",
+            "Yurt dışında gerçekleşen acil tedavi giderleri, teminat tablosunda "
+            "belirtilen limit dahilinde karşılanır. Acil hal, sigortalının hayatını "
+            "veya bir organının işlevini tehdit eden ani durumdur.",
+        ),
+        ("h1", "Madde 3 — Ameliyat Teminatı"),
+        (
+            "p",
+            "Ameliyat teminatı için ödenecek azami tutar 75.000 TL'dir. Bu tutar, "
+            "ameliyat öncesi ve sonrası yatış giderlerini de kapsar.",
+        ),
+        ("pagebreak", None),
+        ("h1", "Madde 4 — Bekleme Süreleri"),
+        (
+            "p",
+            "Poliçe başlangıcından itibaren yedi gün süreyle, acil haller dışındaki "
+            "hiçbir teminattan yararlanılamaz.",
+        ),
+        ("h1", "Madde 5 — İstisnalar"),
+        ("p", "Aşağıdaki haller teminat kapsamı dışındadır:"),
+        (
+            "list",
+            [
+                "5.1 Yurt dışında gerçekleşen her türlü tedavi gideri.",
+                "5.2 Poliçe başlangıcından önce var olduğu bilinen rahatsızlıklar.",
+                "5.3 Tehlikeli spor faaliyetleri sırasında meydana gelen kazalar.",
+                "5.4 Estetik amaçlı her türlü girişim.",
+            ],
+        ),
+        ("h1", "Madde 6 — Zeyilname (01.06.2026 tarihli)"),
+        (
+            "p",
+            "İşbu zeyilname ile bagaj kaybı teminatı poliçe kapsamından "
+            "çıkarılmıştır. Zeyilname tarihinden sonra meydana gelen bagaj "
+            "kayıpları için tazminat ödenmez.",
+        ),
+        (
+            "p",
+            "Poliçenin diğer hükümleri aynen geçerlidir.",
+        ),
+    ],
+    "absent_topics": [
+        "diş tedavisi teminatı",
+        "hamilelik ve doğum",
+        "kronik hastalık takibi",
+    ],
+}
+
+# The same clean prose, set in two columns.
+#
+# `native.py` sorts blocks by `(top, x0)`, which is correct for one column and
+# nonsense for two: the left and right columns interleave line by line. Nothing
+# in the original corpus is two-column, so the eval has never been able to see
+# this. The content is deliberately unremarkable — the layout is the test.
+IKI_SUTUN: dict[str, Any] = {
+    "slug": "iki-sutun-kasko-tr",
+    "lang": "tr",
+    "title": "KASKO SİGORTASI POLİÇESİ",
+    "subtitle": "Genel Şartlar (iki sütun dizgi)",
+    "render": "two_column",
+    "meta": [
+        ("Poliçe No", "KSK-2026-03310"),
+        ("Sigortalı", "Örnek Sigortalı"),
+        ("Poliçe Dönemi", "01.05.2026 – 01.05.2027"),
+        ("Araç", "2019 model binek otomobil"),
+    ],
+    "blocks": [
+        ("h1", "Madde 1 — Teminat Kapsamı"),
+        (
+            "p",
+            "İşbu poliçe, sigortalı aracın çarpma, çarpışma, devrilme, yanma ve "
+            "çalınması sonucu uğrayacağı maddi zararları teminat altına alır.",
+        ),
+        (
+            "p",
+            "Aracın hasar tarihindeki rayiç değeri, ödenecek azami tazminat "
+            "tutarını belirler. Rayiç değer, kasko değer listesine göre tespit "
+            "edilir.",
+        ),
+        ("h1", "Madde 2 — Muafiyetler"),
+        (
+            "p",
+            "Her bir hasar için 4.000 TL muafiyet uygulanır. Cam hasarlarında muafiyet uygulanmaz.",
+        ),
+        (
+            "p",
+            "Kısmi hasarlarda muafiyet tazminat tutarından düşülür. Tam hasar "
+            "halinde muafiyet uygulanmaz.",
+        ),
+        ("h1", "Madde 3 — Hırsızlık"),
+        (
+            "p",
+            "Aracın çalınması halinde, otuz gün içinde bulunamaması şartıyla "
+            "rayiç değer üzerinden tazminat ödenir. Anahtar aracın içinde "
+            "bırakılmışsa teminat geçersizdir.",
+        ),
+        (
+            "p",
+            "Araçtan çalınan kişisel eşyalar bu poliçe kapsamında değildir. "
+            "Ses ve görüntü cihazları yalnızca fabrika çıkışı monte edilmişse "
+            "teminata dahildir.",
+        ),
+        ("h1", "Madde 4 — İhbar Yükümlülüğü"),
+        (
+            "p",
+            "Hasar, meydana geldiği tarihten itibaren beş iş günü içinde "
+            "sigortacıya bildirilmelidir. Hırsızlık hallerinde ayrıca kolluk "
+            "kuvvetlerine başvurulması zorunludur.",
+        ),
+        (
+            "p",
+            "Süresinde yapılmayan ihbar, sigortacının tazminat yükümlülüğünü "
+            "ortadan kaldırmaz ancak artan zarardan sigortalı sorumludur.",
+        ),
+        ("h1", "Madde 5 — İstisnalar"),
+        ("p", "Aşağıdaki haller teminat kapsamı dışındadır:"),
+        (
+            "list",
+            [
+                "5.1 Alkol veya uyuşturucu etkisi altında kullanım.",
+                "5.2 Ehliyetsiz kullanım.",
+                "5.3 Yarış ve hız denemeleri.",
+                "5.4 Aracın ticari amaçla kiraya verilmesi.",
+            ],
+        ),
+    ],
+    "absent_topics": [
+        "ferdi kaza teminatı",
+        "ikame araç hizmeti",
+        "yurt dışı kullanım",
+    ],
+}
+
+
 ALL_DOCUMENTS: list[dict[str, Any]] = [KONUT, COMMERCIAL, SAGLIK]
+
+# Kept out of ALL_DOCUMENTS so the bundled demo stays three documents and the
+# original evaluation numbers stay comparable. These are generated and
+# ingested by the same tooling, under `--set hard`.
+HARD_DOCUMENTS: list[dict[str, Any]] = [CELISKI, IKI_SUTUN]

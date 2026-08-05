@@ -185,6 +185,7 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
                     "caveats": answer.caveats,
                     "groundedness": answer.groundedness,
                     "verified": answer.verified,
+                    "entailment": answer.entailment,
                     "citations": [
                         {
                             "context_id": c.context_id,

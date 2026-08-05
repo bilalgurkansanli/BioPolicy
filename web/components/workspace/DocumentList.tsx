@@ -25,7 +25,7 @@ export function DocumentList({
             type="button"
             onClick={() => onSelect(document)}
             aria-pressed={selected}
-            className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${
+            className={`w-full rounded-xl border px-3 py-2.5 text-left transition-colors ${
               selected
                 ? "border-accent bg-accent-soft"
                 : "border-line bg-surface hover:border-line-strong"

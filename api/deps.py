@@ -25,10 +25,16 @@ from api.config import Settings, get_settings
 from api.conversations import ConversationRepository
 from api.documents import DocumentRepository
 from api.generation.answerer import Answerer
+from api.generation.entailment import EntailmentChecker
 from api.generation.llm import FailoverLLM, LLMProvider
 from api.generation.providers import AnthropicLLM, GeminiLLM
-from api.generation.schemas import ANSWER_JSON_SCHEMA, VERIFICATION_JSON_SCHEMA
+from api.generation.schemas import (
+    ANSWER_JSON_SCHEMA,
+    ENTAILMENT_JSON_SCHEMA,
+    VERIFICATION_JSON_SCHEMA,
+)
 from api.generation.verifier import Verifier
+from api.identity import IdentityService
 from api.ingest.chunker import Chunker
 from api.ingest.ocr.gemini import GeminiOCR
 from api.ingest.parsers.native import PdfParser
@@ -59,6 +65,7 @@ class AppState:
     storage: DocumentStorage
     usage: UsageRepository
     accounts: AccountRepository
+    identity: IdentityService
     conversations: ConversationRepository
     quota: QuotaGuard
     breaker: BudgetBreaker
@@ -105,6 +112,14 @@ class AppState:
             )
         )
 
+        entailment = EntailmentChecker(
+            AnthropicLLM(
+                settings.anthropic_api_key or "",
+                settings.anthropic_model,
+                json_schema=ENTAILMENT_JSON_SCHEMA,
+            )
+        )
+
         # OCR is optional: without a verified model id the parser handles native
         # PDFs and fails scanned ones with a message saying so (ADR 004).
         ocr = (
@@ -128,10 +143,13 @@ class AppState:
             answerer=Answerer(
                 FailoverLLM(providers=answering),
                 verifier=verifier,
+                entailment=entailment,
                 enable_citation_binding=settings.enable_citation_binding,
                 enable_verification=settings.enable_self_verification,
+                enable_entailment_check=settings.enable_entailment_check,
             ),
             accounts=accounts,
+            identity=IdentityService(settings),
             conversations=ConversationRepository(pool),
             quota=QuotaGuard(
                 pool,

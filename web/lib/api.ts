@@ -23,6 +23,7 @@ import type {
   HistoryTurn,
   Me,
   PageLines,
+  Spend,
   UploadTicket,
 } from "./types";
 
@@ -121,6 +122,11 @@ async function request<T>(
 
 export function fetchSamples(signal?: AbortSignal): Promise<DocumentSummary[]> {
   return request<DocumentSummary[]>("/api/documents/samples", { signal });
+}
+
+/** What the demo has spent. Public, and deliberately allowed to be unflattering. */
+export function fetchSpend(signal?: AbortSignal): Promise<Spend> {
+  return request<Spend>("/api/stats", { signal });
 }
 
 /** Limits and stage names, so the interface does not hard-code either. */
@@ -239,6 +245,17 @@ export async function uploadDocument(
  */
 export function fetchMe(signal?: AbortSignal): Promise<Me> {
   return request<Me>("/api/me", { signal, auth: "required" });
+}
+
+/**
+ * Delete the account and everything it owns.
+ *
+ * The server erases the uploaded files before the account, and refuses the
+ * whole operation if any of them survive, so a 502 here means the account is
+ * still there — the caller can say "try again" honestly.
+ */
+export function deleteAccount(): Promise<void> {
+  return request<void>("/api/me", { method: "DELETE", auth: "required" });
 }
 
 export function fetchConversations(signal?: AbortSignal): Promise<ConversationSummary[]> {

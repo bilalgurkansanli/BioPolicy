@@ -62,6 +62,34 @@ function getClient(): SupabaseClient {
 
 export type Account = { id: string; email: string | null };
 
+/** What Google told us about the person, for the header. */
+export type Profile = {
+  name: string | null;
+  email: string | null;
+  /** Google's avatar URL, or `null` when the account has no picture. */
+  avatar: string | null;
+};
+
+export function profileOf(session: Session | null): Profile | null {
+  if (!session) return null;
+  // Google fills `avatar_url` and `full_name`; the OIDC spelling of both is
+  // there too on some accounts, so read either rather than showing a blank.
+  const meta = (session.user.user_metadata ?? {}) as Record<string, unknown>;
+  const pick = (...keys: string[]): string | null => {
+    for (const key of keys) {
+      const value = meta[key];
+      if (typeof value === "string" && value.trim()) return value;
+    }
+    return null;
+  };
+
+  return {
+    name: pick("full_name", "name"),
+    email: session.user.email ?? pick("email"),
+    avatar: pick("avatar_url", "picture"),
+  };
+}
+
 export async function currentSession(): Promise<Session | null> {
   if (!isConfigured()) return null;
   const { data } = await getClient().auth.getSession();

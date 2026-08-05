@@ -44,14 +44,20 @@ from api.constants import CONTEXT_CHUNK_COUNT
 from api.db import create_pool
 from api.generation import prompts
 from api.generation.answerer import Answerer
+from api.generation.entailment import EntailmentChecker
 from api.generation.llm import FailoverLLM, LLMProvider
 from api.generation.providers import AnthropicLLM, GeminiLLM
-from api.generation.schemas import ANSWER_JSON_SCHEMA, VERIFICATION_JSON_SCHEMA
+from api.generation.schemas import (
+    ANSWER_JSON_SCHEMA,
+    ENTAILMENT_JSON_SCHEMA,
+    VERIFICATION_JSON_SCHEMA,
+)
 from api.generation.verifier import Verifier
 from api.pricing import UnpricedModelError, estimate_cost
 from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.hybrid import HybridRetriever
 from api.retrieval.store import ChunkStore
+from eval import history
 from eval.dataset import GoldenQuestion, load, stats
 from eval.metrics import QuestionResult, Report, build_report, locate_evidence
 from eval.report import render_report
@@ -61,27 +67,70 @@ from eval.report import render_report
 # keeps the whole dataset inside a couple of minutes.
 CONCURRENCY = 4
 
-# The evaluation is a 2x2: prompt (strict / naive) by mechanisms (on / off).
+# Prompt (strict / naive) by mechanisms (none / binding+verification / plus the
+# entailment check).
 #
-# The earlier on/off pair held the strict grounding prompt fixed underneath both
-# arms and found no difference — which was true, and uninformative, because the
-# prompt was already doing the work. Varying both tells the story the earlier
-# run could not:
+# The first four arms answered "which lever does the work?" and the answer was
+# the prompt: binding and verification changed no decisions while adding ~55% to
+# the cost. The report also diagnosed why — neither examines the *inferential*
+# step — and the two `_entailed` arms are that diagnosis turned into an
+# experiment.
 #
-#   naive_only    what a normal RAG build does. The baseline.
-#   naive_guarded do binding and verification rescue a naive prompt?
-#   strict_only   how much of the product is prompt alone?
-#   strict_guarded the shipped configuration.
-ARMS: dict[str, tuple[str, str, bool, bool]] = {
-    # key:            (label,                     prompt,                binding, verify)
-    "naive_only": ("naive prompt, no mechanisms", prompts.ANSWER_NAIVE, False, False),
-    "naive_guarded": ("naive prompt + mechanisms", prompts.ANSWER_NAIVE, True, True),
-    "strict_only": ("strict prompt, no mechanisms", prompts.ANSWER, False, False),
-    "strict_guarded": ("strict prompt + mechanisms", prompts.ANSWER, True, True),
+# The load-bearing comparison is `naive_only` → `naive_entailed`, not the strict
+# pair. The failures the entailment check was built for exist in the naive arm;
+# the strict prompt already avoids most of them, so measuring there would ask
+# whether a mechanism can fix something that is not broken.
+#
+#   naive_only      what a normal RAG build does. The baseline.
+#   naive_guarded   do binding and verification rescue a naive prompt?  (no)
+#   naive_entailed  does checking the inference rescue it?              (the question)
+#   strict_only     how much of the product is prompt alone?
+#   strict_guarded  the previously shipped configuration.
+#   strict_entailed the same, with the fourth mechanism.
+ARMS: dict[str, tuple[str, str, bool, bool, bool]] = {
+    # key:            (label,                          prompt,        bind,  verify, entail)
+    "naive_only": ("naive prompt, no mechanisms", prompts.ANSWER_NAIVE, False, False, False),
+    "naive_guarded": ("naive prompt + mechanisms", prompts.ANSWER_NAIVE, True, True, False),
+    "naive_entailed": (
+        "naive prompt + mechanisms + entailment",
+        prompts.ANSWER_NAIVE,
+        True,
+        True,
+        True,
+    ),
+    "strict_only": ("strict prompt, no mechanisms", prompts.ANSWER, False, False, False),
+    "strict_guarded": ("strict prompt + mechanisms", prompts.ANSWER, True, True, False),
+    "strict_entailed": (
+        "strict prompt + mechanisms + entailment",
+        prompts.ANSWER,
+        True,
+        True,
+        True,
+    ),
 }
 
 REPORT_PATH = Path(__file__).parent / "report.md"
 RESULTS_DIR = Path(__file__).parent / "results"
+
+# Two question sets, two report files, two result directories.
+#
+# They are kept apart rather than merged because merging would move every number
+# in the original table for a reason that has nothing to do with the thing being
+# measured — a harder corpus is not a worse system, and a single denominator
+# cannot say which it is looking at.
+QUESTION_SETS: dict[str, tuple[Path, Path, Path]] = {
+    # name:    (questions,                          report,                        results)
+    "demo": (
+        Path(__file__).parent / "golden" / "questions.json",
+        REPORT_PATH,
+        RESULTS_DIR,
+    ),
+    "hard": (
+        Path(__file__).parent / "golden" / "questions_hard.json",
+        Path(__file__).parent / "report_hard.md",
+        RESULTS_DIR / "hard",
+    ),
+}
 
 G, R, Y, D, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
 
@@ -179,8 +228,10 @@ async def run_arm(
     prompt_name: str,
     binding: bool,
     verify: bool,
+    entail: bool,
     document_ids: dict[str, tuple[UUID, UUID]],
     retriever: HybridRetriever,
+    results_dir: Path = RESULTS_DIR,
 ) -> Report:
     settings = get_settings()
     verifier = Verifier(
@@ -193,8 +244,16 @@ async def run_arm(
     answerer = Answerer(
         build_answering_llm(schema=ANSWER_JSON_SCHEMA),
         verifier=verifier,
+        entailment=EntailmentChecker(
+            AnthropicLLM(
+                settings.anthropic_api_key or "",
+                settings.anthropic_model,
+                json_schema=ENTAILMENT_JSON_SCHEMA,
+            )
+        ),
         enable_citation_binding=binding,
         enable_verification=verify,
+        enable_entailment_check=entail,
         prompt_name=prompt_name,
     )
 
@@ -237,16 +296,16 @@ async def run_arm(
         print(f"    {Y}{result.question.id}{RESET}  {detail}")
         print(f"      {D}{result.question.question[:78]}{RESET}")
 
-    _dump(results, label=label)
+    _dump(results, label=label, results_dir=results_dir)
     return build_report(results)
 
 
-def _dump(results: list[QuestionResult], *, label: str) -> None:
+def _dump(results: list[QuestionResult], *, label: str, results_dir: Path = RESULTS_DIR) -> None:
     """Persist per-question results so the report can be re-rendered for free.
 
     Re-running costs money; changing a heading should not.
     """
-    path = RESULTS_DIR / f"{label.replace(' ', '_')}.json"
+    path = results_dir / f"{label.replace(' ', '_')}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
@@ -277,7 +336,12 @@ def _dump(results: list[QuestionResult], *, label: str) -> None:
     )
 
 
-def load_arm(label: str) -> list[QuestionResult] | None:
+def load_arm(
+    label: str,
+    *,
+    results_dir: Path = RESULTS_DIR,
+    questions_path: Path | None = None,
+) -> list[QuestionResult] | None:
     """Rebuild an arm's results from disk, so re-rendering costs nothing.
 
     Re-running the dataset costs real money; changing a heading, adding a
@@ -286,11 +350,11 @@ def load_arm(label: str) -> list[QuestionResult] | None:
     spans, so a later edit to the golden set cannot silently rewrite a past
     run's numbers.
     """
-    path = RESULTS_DIR / f"{label.replace(' ', '_')}.json"
+    path = results_dir / f"{label.replace(' ', '_')}.json"
     if not path.exists():
         return None
 
-    by_id = {q.id: q for q in load()}
+    by_id = {q.id: q for q in (load(questions_path) if questions_path else load())}
     results: list[QuestionResult] = []
     for row in json.loads(path.read_text(encoding="utf-8")):
         question = by_id.get(row["id"])
@@ -317,9 +381,10 @@ def load_arm(label: str) -> list[QuestionResult] | None:
     return results
 
 
-async def run(*, limit: int | None, arm: str) -> int:
+async def run(*, limit: int | None, arm: str, question_set: str) -> int:
     settings = get_settings()
-    questions = load()
+    questions_path, report_path, results_dir = QUESTION_SETS[question_set]
+    questions = load(questions_path)
     if limit:
         questions = questions[:limit]
 
@@ -331,7 +396,7 @@ async def run(*, limit: int | None, arm: str) -> int:
     try:
         document_ids: dict[str, tuple[UUID, UUID]] = {}
         for row in await pool.fetch(
-            "select id, user_id, filename from documents where is_sample and status = 'ready'"
+            "select id, user_id, filename from documents where status = 'ready'"
         ):
             slug = str(row["filename"]).removesuffix(".pdf")
             document_ids[slug] = (UUID(str(row["id"])), UUID(str(row["user_id"])))
@@ -351,9 +416,9 @@ async def run(*, limit: int | None, arm: str) -> int:
         selected = list(ARMS) if arm in ("all", "rerender") else [arm]
 
         for key in selected:
-            label, prompt_name, binding, verify = ARMS[key]
+            label, prompt_name, binding, verify, entail = ARMS[key]
             if arm == "rerender":
-                saved = load_arm(label)
+                saved = load_arm(label, results_dir=results_dir, questions_path=questions_path)
                 if saved:
                     arms[key] = build_report(saved)
                     print(f"  loaded {len(saved)} saved results for {label}")
@@ -364,8 +429,10 @@ async def run(*, limit: int | None, arm: str) -> int:
                 prompt_name=prompt_name,
                 binding=binding,
                 verify=verify,
+                entail=entail,
                 document_ids=document_ids,
                 retriever=retriever,
+                results_dir=results_dir,
             )
 
         if not arms:
@@ -378,23 +445,42 @@ async def run(*, limit: int | None, arm: str) -> int:
             str(row["filename"]).removesuffix(".pdf"): int(row["n"])
             for row in await pool.fetch(
                 "select d.filename, count(c.id) as n from documents d "
-                "join chunks c on c.document_id = d.id where d.is_sample "
+                "join chunks c on c.document_id = d.id "
                 "group by d.filename"
             )
         }
 
+        commit = git_commit()
         markdown = render_report(
             arms,
             model=settings.anthropic_model,
             embedding_model=settings.gemini_embedding_model,
-            commit=git_commit(),
+            commit=commit,
             generated_at=datetime.now(UTC),
             dataset=summary,
             chunks_per_document=chunks_per_document,
             context_chunk_count=CONTEXT_CHUNK_COUNT,
         )
-        REPORT_PATH.write_text(markdown, encoding="utf-8")
-        print(f"\n{G}Wrote {REPORT_PATH}{RESET}")
+        if arm != "rerender":
+            # Only arms that actually ran. A rerender rebuilds prose from saved
+            # results and appending for it would record a run that never
+            # happened — which is exactly the kind of number this file exists to
+            # make impossible.
+            history.append(
+                [
+                    history.row_from(
+                        report,
+                        commit=commit,
+                        question_set=question_set,
+                        arm=key,
+                        model=settings.anthropic_model,
+                    )
+                    for key, report in arms.items()
+                ]
+            )
+
+        report_path.write_text(markdown, encoding="utf-8")
+        print(f"\n{G}Wrote {report_path}{RESET}")
 
         primary = arms.get("strict_guarded") or next(iter(arms.values()))
         print(f"\n  recall@8            {primary.retrieval.recall_at_k:.0%}")
@@ -417,8 +503,19 @@ def main() -> int:
         default="all",
         help="Which arm(s) to run. `rerender` rebuilds the report from saved results, free.",
     )
+    parser.add_argument(
+        "--set",
+        choices=tuple(QUESTION_SETS),
+        default="demo",
+        help=(
+            "demo: the 70-question set over the three bundled documents (default). "
+            "hard: the adversarial set — a self-contradicting policy and a "
+            "two-column layout — reported separately so the demo numbers stay "
+            "comparable across arms."
+        ),
+    )
     args = parser.parse_args()
-    return asyncio.run(run(limit=args.limit, arm=args.arm))
+    return asyncio.run(run(limit=args.limit, arm=args.arm, question_set=args.set))
 
 
 if __name__ == "__main__":

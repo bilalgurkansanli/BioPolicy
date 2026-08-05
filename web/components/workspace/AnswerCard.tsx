@@ -23,7 +23,7 @@ export function AnswerCard({
 
   if (answer.suppressed) {
     return (
-      <article className="rounded-lg border border-danger/40 bg-danger-soft p-4">
+      <article className="rounded-2xl rounded-tl-md border border-danger/40 bg-danger-soft p-4">
         <h3 className="text-sm font-semibold text-danger">
           {t.workspace.suppressedTitle}
         </h3>
@@ -42,7 +42,7 @@ export function AnswerCard({
 
   if (answer.refused) {
     return (
-      <article className="rounded-lg border border-refuse/35 bg-refuse-soft p-4">
+      <article className="rounded-2xl rounded-tl-md border border-refuse/35 bg-refuse-soft p-4">
         <h3 className="text-sm font-semibold text-refuse">
           {t.workspace.refusedTitle}
         </h3>
@@ -55,7 +55,7 @@ export function AnswerCard({
   }
 
   return (
-    <article className="rounded-lg border border-line bg-surface p-4">
+    <article className="rounded-2xl rounded-tl-md border border-accent/15 bg-surface p-4 shadow-[0_12px_32px_-28px_var(--accent-glow)]">
       <p className="whitespace-pre-wrap text-[15px] leading-7 text-ink">
         {answer.answer}
       </p>
@@ -167,7 +167,7 @@ function CitationChip({
       type="button"
       onClick={onSelect}
       disabled={!locatable}
-      className={`w-full rounded-md border px-2.5 py-2 text-left transition-colors ${
+      className={`w-full rounded-lg border px-2.5 py-2 text-left transition-colors ${
         active
           ? "border-highlight-ring bg-accent-soft"
           : "border-line bg-surface-sunken hover:border-line-strong"
