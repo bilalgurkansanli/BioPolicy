@@ -36,6 +36,10 @@ import type {
 // frequent enough to feel live without polling a finished document to death.
 const STATUS_POLL_MS = 2000;
 
+/** The panes the small-screen switcher moves between. */
+const PANES = ["documents", "chat", "viewer"] as const;
+type Pane = (typeof PANES)[number];
+
 type Message =
   | { kind: "question"; id: string; text: string }
   | { kind: "answer"; id: string; answer: Answer }
@@ -69,7 +73,7 @@ export function Workspace() {
   const [question, setQuestion] = useState("");
   const [highlight, setHighlight] = useState<Highlight | null>(null);
   const [activeCitation, setActiveCitation] = useState<string | null>(null);
-  const [mobilePane, setMobilePane] = useState<"chat" | "document">("chat");
+  const [mobilePane, setMobilePane] = useState<Pane>("chat");
 
   const abortRef = useRef<AbortController | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -327,7 +331,7 @@ export function Workspace() {
           nonce: Date.now(),
         });
       }
-      setMobilePane("document");
+      setMobilePane("viewer");
     },
     [],
   );
@@ -337,9 +341,18 @@ export function Workspace() {
     : [];
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col px-3 py-3 sm:px-4">
+    /* `min-h-0` is not decoration. A flex item defaults to `min-height: auto`,
+       which refuses to shrink below its content — so this wrapper grew to the
+       height of the whole PDF, pushed the grid past the viewport, and left the
+       overflow clipped by the page. Every ancestor between the fixed-height
+       page and the scroll container needs it; one missing link is enough. */
+    <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col px-3 py-3 sm:px-4">
+      {/* Three panes, one at a time below `lg`. The viewer used to share the
+          "documents" tab with the picker, which meant the tab labelled "sample
+          documents" showed the PDF and the one labelled "answer" showed the
+          picker too. */}
       <div className="mb-2 flex gap-1 rounded-lg border border-line p-0.5 lg:hidden">
-        {(["chat", "document"] as const).map((pane) => (
+        {PANES.map((pane) => (
           <button
             key={pane}
             type="button"
@@ -351,17 +364,24 @@ export function Workspace() {
                 : "text-ink-muted hover:text-ink"
             }`}
           >
-            {pane === "chat" ? t.workspace.answerTitle : t.workspace.documents}
+            {t.workspace.panes[pane]}
           </button>
         ))}
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1fr)]">
+      {/* WHY `auto-rows-[minmax(0,1fr)]`: without it the row is sized by its
+          content, so a four-page PDF stretched the row to the height of the
+          whole document. The scroll container then resolved `h-full` against
+          that stretched row, matched its own content exactly, and had nothing
+          left to scroll — while everything below the fold sat outside the
+          `overflow-hidden` page and was unreachable. `minmax(0, …)` is what
+          lets the row shrink below its content; `1fr` alone will not. */}
+      <div className="grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] gap-3 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1fr)]">
         {/* Document picker */}
         <aside
           className={`min-h-0 overflow-y-auto ${
-            mobilePane === "document" ? "hidden lg:block" : ""
-          }`}
+            mobilePane === "documents" ? "" : "hidden"
+          } lg:block`}
         >
           <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-faint">
             {t.workspace.documents}
@@ -433,9 +453,9 @@ export function Workspace() {
 
         {/* Conversation */}
         <section
-          className={`flex min-h-0 flex-col rounded-lg border border-line bg-paper ${
-            mobilePane === "document" ? "hidden lg:flex" : ""
-          }`}
+          className={`min-h-0 flex-col rounded-lg border border-line bg-paper ${
+            mobilePane === "chat" ? "flex" : "hidden"
+          } lg:flex`}
         >
           <div
             ref={transcriptRef}
@@ -573,8 +593,8 @@ export function Workspace() {
         {/* Document */}
         <section
           className={`min-h-0 overflow-hidden rounded-lg border border-line ${
-            mobilePane === "chat" ? "hidden lg:block" : ""
-          }`}
+            mobilePane === "viewer" ? "" : "hidden"
+          } lg:block`}
         >
           <PdfViewer
             url={

@@ -76,6 +76,20 @@ export async function accessToken(): Promise<string> {
   return signedIn.session.access_token;
 }
 
+/**
+ * The access token if a session already exists, and `null` otherwise.
+ *
+ * Distinct from `accessToken()` because the difference is load-bearing: the
+ * bundled samples are readable without an account, so fetching one must never
+ * be the thing that creates a session — or that fails when anonymous sign-ins
+ * are switched off, which would take the public demo down with it.
+ */
+export async function existingAccessToken(): Promise<string | null> {
+  if (!isConfigured()) return null;
+  const { data } = await getClient().auth.getSession();
+  return data.session?.access_token ?? null;
+}
+
 export async function currentUserId(): Promise<string | null> {
   if (!isConfigured()) return null;
   const { data } = await getClient().auth.getSession();

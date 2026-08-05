@@ -78,6 +78,7 @@ const tr = {
   },
   workspace: {
     documents: "Örnek belgeler",
+    panes: { documents: "Belgeler", chat: "Cevap", viewer: "Belge" },
     documentsNote:
       "Üçü de bu proje için yazılmış sentetik metinlerdir. Biri bilerek taranmış (OCR) olarak hazırlandı.",
     lang: { tr: "Türkçe", en: "İngilizce" },
@@ -247,6 +248,7 @@ const en: Dictionary = {
   },
   workspace: {
     documents: "Sample documents",
+    panes: { documents: "Documents", chat: "Answer", viewer: "Document" },
     documentsNote:
       "All three are synthetic, written for this project. One is deliberately a scan, so OCR is on the critical path.",
     lang: { tr: "Turkish", en: "English" },

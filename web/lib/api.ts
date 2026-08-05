@@ -11,7 +11,7 @@
  * exceeds a serverless request body limit, so the file never transits the API.
  */
 
-import { accessToken } from "./supabase";
+import { accessToken, existingAccessToken } from "./supabase";
 import type {
   Answer,
   Capabilities,
@@ -74,14 +74,34 @@ async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
+/**
+ * How a request treats identity.
+ *
+ * `"optional"` is the one that needed a name. Some endpoints serve the public
+ * samples *and* a signed-in visitor's own documents, and they must send a token
+ * when there is one without ever creating a session to get one. Treating them
+ * as authenticated took the public demo down whenever anonymous sign-ins were
+ * off: the samples are readable without an account, but the client refused to
+ * ask for them without a token it could not obtain.
+ */
+type Auth = "none" | "optional" | "required";
+
 async function request<T>(
   path: string,
-  init: RequestInit & { authenticated?: boolean } = {},
+  init: RequestInit & { auth?: Auth } = {},
 ): Promise<T> {
-  const { authenticated, ...rest } = init;
-  const headers = authenticated
-    ? { ...(await authHeaders()), ...(rest.headers ?? {}) }
-    : rest.headers;
+  const { auth = "none", ...rest } = init;
+
+  let headers = rest.headers;
+  if (auth === "required") {
+    headers = { ...(await authHeaders()), ...(rest.headers ?? {}) };
+  } else if (auth === "optional") {
+    const token = await existingAccessToken();
+    if (token) {
+      headers = { Authorization: `Bearer ${token}`, ...(rest.headers ?? {}) };
+    }
+  }
+
   const response = await fetch(path, { ...rest, headers });
   if (!response.ok) throw await toError(response, path);
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
@@ -103,7 +123,7 @@ export function fetchCapabilities(signal?: AbortSignal): Promise<Capabilities> {
 export function fetchMyDocuments(signal?: AbortSignal): Promise<DocumentSummary[]> {
   return request<DocumentSummary[]>("/api/documents/mine", {
     signal,
-    authenticated: true,
+    auth: "required",
   });
 }
 
@@ -113,7 +133,7 @@ export function fetchDocumentStatus(
 ): Promise<DocumentStatus> {
   return request<DocumentStatus>(`/api/documents/${documentId}`, {
     signal,
-    authenticated: true,
+    auth: "optional",
   });
 }
 
@@ -123,14 +143,14 @@ export function fetchViewingUrl(
 ): Promise<{ url: string; expires_in: number }> {
   return request(`/api/documents/${documentId}/url`, {
     signal,
-    authenticated: true,
+    auth: "optional",
   });
 }
 
 export function deleteDocument(documentId: string): Promise<void> {
   return request<void>(`/api/documents/${documentId}`, {
     method: "DELETE",
-    authenticated: true,
+    auth: "required",
   });
 }
 
@@ -147,7 +167,7 @@ export async function uploadDocument(
 ): Promise<string> {
   const ticket = await request<UploadTicket>("/api/documents/upload-url", {
     method: "POST",
-    authenticated: true,
+    auth: "required",
     body: JSON.stringify({ filename: file.name, byte_size: file.size }),
   });
 
@@ -171,7 +191,7 @@ export async function uploadDocument(
 
   const confirmed = await request<{ id: string; status: string }>("/api/documents", {
     method: "POST",
-    authenticated: true,
+    auth: "required",
     body: JSON.stringify({
       document_id: ticket.document_id,
       filename: file.name,
