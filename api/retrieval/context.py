@@ -20,6 +20,7 @@ cannot cite what it was never shown.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from api.constants import CONTEXT_CHUNK_COUNT
@@ -104,6 +105,40 @@ def assemble(
     )
 
 
+# `[C9]`, `[ C12 ]`, `[c3]` — the shape of an excerpt id, wherever it occurs.
+_FORGED_ID = re.compile(r"\[\s*[Cc]\s*\d{1,3}\s*\]")
+
+
+def neutralise_ids(content: str) -> str:
+    """Stop document text from imitating an excerpt header.
+
+    An excerpt id is a control marker: the assembler issues it, the model cites
+    it, and citation binding follows it back to this exact chunk. A PDF that
+    contains the characters `[C9]` is claiming a marker it was never given, and
+    the evaluation shows the claim works — `inj-003` in the injection set is a
+    policy with a forged `[C9]` excerpt written into a paragraph, and the model
+    reports a contradiction between a real clause and a fake one.
+
+    The prompt already tells the model that ids come from the system and never
+    from the document. That instruction did not fix it, which is the argument
+    for doing it here instead: this is a delimiter-forgery problem, and
+    delimiter forgery is solved by removing the delimiter, not by asking the
+    reader to be careful.
+
+    Escaping the brackets was tried first and measurably failed — rendered as
+    `«C9»`, the model went on describing "what C9 says" in its answer, because
+    the token reads as a reference with or without its brackets. So the token is
+    removed outright. What remains is the sentence the document actually
+    contains, which the model is then free to report as the contradictory clause
+    it is; what disappears is only the forged marker.
+
+    `chunk.content` itself is not modified. Citation binding, highlighting and
+    the PDF pane all continue to use the original, so nothing the reader sees is
+    rewritten — this affects the model's view alone.
+    """
+    return _FORGED_ID.sub("", content)
+
+
 def _render(chunk: RetrievedChunk, context_id: str) -> str:
     """One chunk, with its id and provenance on the header line.
 
@@ -118,4 +153,4 @@ def _render(chunk: RetrievedChunk, context_id: str) -> str:
         location += f', "{chunk.section_path}"'
 
     kind = " (table)" if chunk.content_type == "table" else ""
-    return f"[{context_id}] ({location}){kind}\n{chunk.content}"
+    return f"[{context_id}] ({location}){kind}\n{neutralise_ids(chunk.content)}"

@@ -48,6 +48,11 @@ export function DocumentList({
                   {document.page_count} {t.workspace.pages}
                 </span>
               )}
+              {/* Only when something was found. A "clean" badge on every other
+                  document would turn a narrow check into a broad assurance. */}
+              {(document.injection_findings?.length ?? 0) > 0 && (
+                <Badge tone="warn">{t.workspace.injection.badge}</Badge>
+              )}
             </span>
           </button>
         );

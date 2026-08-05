@@ -138,6 +138,16 @@ class ParsedDocument:
         return sum(len(b.text) for b in self.blocks)
 
     @property
+    def full_text(self) -> str:
+        """Every block's text, in reading order, for whole-document scanning.
+
+        Joined with newlines rather than spaces so that a pattern anchored to a
+        sentence cannot run across a block boundary and match two unrelated
+        clauses as though they were one.
+        """
+        return "\n".join(b.text for b in self.blocks)
+
+    @property
     def table_count(self) -> int:
         return sum(1 for b in self.blocks if b.kind == "table")
 

@@ -11,11 +11,17 @@ the asset worth protecting is not a database of valuable records — it is
 
 | Goal | What stands in the way |
 |---|---|
+| Make the system obey a document instead of reading it | `answer_v2` treats excerpt text as evidence; excerpt ids are stripped from document text in code; measured at 0 of 6 attacks obeyed ([ADR 015](./adr/015-hostile-documents.md)) |
 | Read another visitor's uploaded policy | Every query carries an ownership clause in SQL; signed URLs are 30 minutes and per-object |
 | Read another visitor's conversations | Same: owner-scoped in SQL, 404 rather than 403 |
 | Spend the demo's budget | Per-account daily quota, then a global breaker, then the provider console limit |
 | Get the unlimited allowance | A five-clause check against the account row, not the token |
 | Make the database work for free | Public aggregates are cached; everything else needs a session |
+
+The first row is the one that is specific to this kind of product. Everything
+below it protects the system from its users; that one protects the user from
+their own document — a file prepared by a broker, an employer or a landlord, and
+uploaded on trust.
 
 ## The two decisions that carry the most weight
 
@@ -80,6 +86,19 @@ honestly.
   (`api/pricing.py` refuses to invent a price). The breaker therefore trips
   later than the true spend would suggest. The provider console's own limit is
   the outer guard and is not optional because this exists.
+- **A document can still make the system leave something out.** Of the six
+  attacks in the injection corpus, the one asking for an *omission* is the only
+  one no mechanism can catch: citation binding and self-verification both ask
+  whether what the answer says is true, and an obeyed omission produces an
+  answer where every word is true. It was not obeyed in any measured run. That
+  is one paragraph of prompt standing between a user and a silently incomplete
+  answer, and it is architecture's weakest form ([ADR 015](./adr/015-hostile-documents.md)).
+- **The injection detector is advisory and evadable.** Its rules are in
+  `api/ingest/injection.py`, in the open. It warns the user; it does not defend
+  the system, and it does not block the upload.
+- **Every attack was written by the same person who wrote the defence.** No
+  hostile document in this repository arrived from outside it. That is the
+  weakest evidence published here and it is labelled as such.
 - **Uploaded PDFs are parsed, not sandboxed.** The parsing stack is pure Python
   wheels with no system binaries (ADR 002), which removes a large class of
   native-code exposure, but a malicious PDF is still processed in the API's own

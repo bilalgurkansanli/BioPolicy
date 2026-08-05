@@ -9,6 +9,7 @@ import { AnswerCard } from "@/components/workspace/AnswerCard";
 import { ConversationList } from "@/components/workspace/ConversationList";
 import { DocumentList } from "@/components/workspace/DocumentList";
 import { MyDocumentList } from "@/components/workspace/MyDocumentList";
+import { InjectionNotice } from "@/components/workspace/InjectionNotice";
 import { RefusalTour } from "@/components/workspace/RefusalTour";
 import { SignInGate } from "@/components/workspace/SignInGate";
 import { PdfViewer, type Highlight } from "@/components/workspace/PdfViewer";
@@ -583,6 +584,11 @@ export function Workspace() {
             ref={transcriptRef}
             className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3"
           >
+            {/* Above the transcript, not inside it: this is a fact about the
+                document, and it stays true for every answer below it. */}
+            {selected?.injection_findings && (
+              <InjectionNotice findings={selected.injection_findings} />
+            )}
             {messages.length === 0 && stage === null && (
               <div className="px-1 pt-6">
                 <h3 className="text-base font-medium text-ink">

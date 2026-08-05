@@ -37,7 +37,7 @@ from api.ingest.parsers import PdfParser
 from api.ingest.pipeline import IngestionPipeline
 from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.store import ChunkStore
-from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS
+from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS, INJECTION_DOCUMENTS
 
 SAMPLES_DIR = Path(__file__).resolve().parents[2] / "eval" / "golden" / "samples"
 
@@ -131,15 +131,22 @@ async def upload(storage_path: str, data: bytes) -> None:
 # `is_sample = false` keeps them out of `/api/documents/samples`. That would
 # normally also mean a 24-hour expiry, so their `expires_at` is pushed out —
 # they are fixtures, not uploads.
-HARD_SLUGS: frozenset[str] = frozenset(d["slug"] for d in HARD_DOCUMENTS)
+#
+# The injection document is the same kind of fixture and the rule matters more
+# for it, not less: it is a policy written to hijack whatever reads it, and the
+# public picker is the one place it must never appear.
+FIXTURE_SLUGS: frozenset[str] = frozenset(
+    d["slug"] for d in (*HARD_DOCUMENTS, *INJECTION_DOCUMENTS)
+)
 
 
 async def run(*, force: bool, which: str) -> int:
     settings = get_settings()
     wanted = {
         "demo": {d["slug"] for d in ALL_DOCUMENTS},
-        "hard": set(HARD_SLUGS),
-        "all": {d["slug"] for d in (*ALL_DOCUMENTS, *HARD_DOCUMENTS)},
+        "hard": {d["slug"] for d in HARD_DOCUMENTS},
+        "injection": {d["slug"] for d in INJECTION_DOCUMENTS},
+        "all": {d["slug"] for d in (*ALL_DOCUMENTS, *HARD_DOCUMENTS, *INJECTION_DOCUMENTS)},
     }[which]
     pdfs = sorted(p for p in SAMPLES_DIR.glob("*.pdf") if p.stem in wanted)
     if not pdfs:
@@ -173,7 +180,7 @@ async def run(*, force: bool, which: str) -> int:
             data = path.read_bytes()
             storage_path = f"samples/{path.name}"
 
-            hard = path.stem in HARD_SLUGS
+            fixture = path.stem in FIXTURE_SLUGS
             record = await documents.find_by_path(storage_path)
             if record and record.status == STATUS_READY and not force:
                 count = await store.chunk_count(record.id)
@@ -189,9 +196,9 @@ async def run(*, force: bool, which: str) -> int:
                     filename=path.name,
                     storage_path=storage_path,
                     byte_size=len(data),
-                    is_sample=not hard,
+                    is_sample=not fixture,
                 )
-                if hard:
+                if fixture:
                     # A fixture that expires is a fixture that silently stops
                     # being there, and the report would blame the model.
                     await pool.execute(
@@ -232,7 +239,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--set",
-        choices=("demo", "hard", "all"),
+        choices=("demo", "hard", "injection", "all"),
         default="demo",
         help=(
             "demo: the three documents the public workspace serves (default). "

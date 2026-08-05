@@ -64,6 +64,28 @@ const tr = {
       "Üçü de bu proje için yazılmış sentetik metinlerdir. Biri bilerek taranmış (OCR) olarak hazırlandı.",
     lang: { tr: "Türkçe", en: "İngilizce" },
     sourceType: { native: "dijital metin", scanned: "taranmış · OCR" },
+    injection: {
+      badge: "talimat metni",
+      title: "Bu belge, kendisini okuyan sisteme talimat veriyor",
+      body:
+        "Belgenin içine, bir yapay zekâ sistemine yönelik yazılmış {count} " +
+        "metin parçası yerleştirilmiş. Cevaplar yine belgenin gerçek " +
+        "maddelerinden üretiliyor — bu metinler talimat olarak değil, " +
+        "belgenin içeriği olarak ele alınıyor.",
+      show: "Göster",
+      hide: "Gizle",
+      footer:
+        "Bulunanları kendi PDF'inizde arayıp görebilirsiniz. Belgeyi hazırlayan " +
+        "kişinin niyetine dair bir şey söylemiyoruz; yalnızca metinde ne " +
+        "olduğunu bildiriyoruz.",
+      rules: {
+        rule_override: "kuralları iptal etmeye çalışan metin",
+        addresses_the_model: "okuyucuya değil, yapay zekâya seslenen metin",
+        forged_context: "sistemin kendi biçimini taklit eden metin",
+        orders_an_omission: "bir maddeyi gizlemeyi emreden metin",
+        impersonates_us: "BioPolicy ekibi adına yazılmış gibi görünen metin",
+      },
+    },
     pages: "sayfa",
     loadingDocuments: "Belgeler yükleniyor…",
     loadDocumentsFailed:
@@ -264,6 +286,8 @@ const tr = {
     missing:
       "Rapor bu derlemede bulunamadı. Depoda eval/report.md dosyasına bakabilirsiniz.",
     regenerate: "Yeniden üretmek için",
+    languageNote:
+      "Rapor, onu üreten komutun yazdığı haliyle duruyor — bu yüzden İngilizce. Çevirmek, sayfanın aracın gerçekten ne yazdığını göstermemesi anlamına gelirdi.",
     spendTitle: "Bu demo şimdiye kadar ne harcadı",
     spendTotal: "Toplam",
     spendPerQuestion: "Soru başına",
@@ -343,6 +367,28 @@ const en: Dictionary = {
       "All three are synthetic, written for this project. One is deliberately a scan, so OCR is on the critical path.",
     lang: { tr: "Turkish", en: "English" },
     sourceType: { native: "digital text", scanned: "scanned · OCR" },
+    injection: {
+      badge: "instruction text",
+      title: "This document gives orders to the system reading it",
+      body:
+        "{count} passage(s) inside this document are written at an AI system " +
+        "rather than at a reader. Answers are still produced from the real " +
+        "clauses — that text is treated as the document's content, not as " +
+        "instructions.",
+      show: "Show",
+      hide: "Hide",
+      footer:
+        "You can find each passage in your own PDF and judge it yourself. This " +
+        "says nothing about what whoever prepared the document intended; it " +
+        "reports only what the text contains.",
+      rules: {
+        rule_override: "text cancelling the reader's instructions",
+        addresses_the_model: "text speaking to an AI rather than to a reader",
+        forged_context: "text imitating the system's own format",
+        orders_an_omission: "text ordering a clause to be left out",
+        impersonates_us: "text claiming to come from the BioPolicy team",
+      },
+    },
     pages: "pages",
     loadingDocuments: "Loading documents…",
     loadDocumentsFailed:
@@ -542,6 +588,8 @@ const en: Dictionary = {
     missing:
       "The report was not found in this build. It lives at eval/report.md in the repository.",
     regenerate: "To regenerate it",
+    languageNote:
+      "The report is shown exactly as the command wrote it, which is why it is in English.",
     spendTitle: "What this demo has spent",
     spendTotal: "Total",
     spendPerQuestion: "Per question",

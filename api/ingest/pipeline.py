@@ -41,6 +41,7 @@ from api.constants import (
 from api.documents import DocumentRecord, DocumentRepository
 from api.ingest.chunker import Chunker
 from api.ingest.detector import NotAPdfError, detect
+from api.ingest.injection import scan as scan_for_injection
 from api.ingest.protocols import DocumentParser
 from api.ingest.types import ParsedDocument
 from api.logging_config import get_logger
@@ -138,11 +139,31 @@ class IngestionPipeline:
         parsed.source_type = detection.source_type
         parsed.detected_lang = detect_language(parsed)
 
+        # Scan the extracted text, not the raw bytes: what matters is what the
+        # retrieval layer will later put in front of a model, and that is what
+        # parsing produced. Text in the PDF that no parser extracts cannot reach
+        # the prompt either, so it is not this scan's problem.
+        #
+        # Runs here rather than at upload because a scanned document has no text
+        # until OCR has finished, and warning only the users whose PDFs happen to
+        # have a text layer would be worse than not warning anyone.
+        findings = [
+            {"rule": f.rule, "why": f.why, "excerpt": f.excerpt}
+            for f in scan_for_injection(parsed.full_text)
+        ]
+        if findings:
+            log.info(
+                "injection_text_found",
+                document_id=str(document.id),
+                rules=[f["rule"] for f in findings],
+            )
+
         await self._documents.set_metadata(
             document.id,
             page_count=detection.page_count,
             source_type=detection.source_type,
             detected_lang=parsed.detected_lang,
+            injection_findings=findings,
         )
 
         # --- chunk ----------------------------------------------------------

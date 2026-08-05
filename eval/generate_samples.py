@@ -52,7 +52,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS
+from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS, INJECTION_DOCUMENTS
 
 OUTPUT_DIR = Path(__file__).parent / "golden" / "samples"
 
@@ -369,7 +369,8 @@ def generate(output_dir: Path = OUTPUT_DIR, *, which: str = "all") -> list[Path]
     documents = {
         "demo": ALL_DOCUMENTS,
         "hard": HARD_DOCUMENTS,
-        "all": [*ALL_DOCUMENTS, *HARD_DOCUMENTS],
+        "injection": INJECTION_DOCUMENTS,
+        "all": [*ALL_DOCUMENTS, *HARD_DOCUMENTS, *INJECTION_DOCUMENTS],
     }[which]
 
     written: list[Path] = []
@@ -404,7 +405,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--set",
-        choices=("demo", "hard", "all"),
+        choices=("demo", "hard", "injection", "all"),
         default="all",
         help=(
             "demo: the three bundled documents. "

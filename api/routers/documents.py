@@ -23,6 +23,8 @@ a queue entry that fails on every attempt.
 from __future__ import annotations
 
 import asyncio
+import json
+from collections.abc import Mapping
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -48,6 +50,12 @@ log = get_logger(__name__)
 MAX_FILENAME_CHARS = 200
 
 
+class InjectionFinding(BaseModel):
+    rule: str
+    why: str
+    excerpt: str
+
+
 class DocumentSummary(BaseModel):
     id: UUID
     filename: str
@@ -56,6 +64,14 @@ class DocumentSummary(BaseModel):
     detected_lang: str | None
     status: str
     is_sample: bool
+    injection_findings: list[InjectionFinding] | None = None
+    """Instruction-shaped text found at ingest.
+
+    `null` and `[]` are different answers and both are sent. `null` means the
+    document predates the scan; `[]` means it was scanned and nothing was found.
+    Collapsing them would let the interface show a clean bill of health for a
+    document nobody ever checked.
+    """
 
 
 class DocumentStatus(BaseModel):
@@ -70,11 +86,30 @@ class DocumentStatus(BaseModel):
     detected_lang: str | None
     chunk_count: int
     error: str | None
+    injection_findings: list[InjectionFinding] | None = None
 
 
 class SignedUrl(BaseModel):
     url: str
     expires_in: int
+
+
+def _findings(raw: object) -> list[InjectionFinding] | None:
+    """asyncpg hands back jsonb as a string; null stays null.
+
+    Kept out of the models so the two read paths cannot disagree about what a
+    missing value means.
+    """
+    if raw is None:
+        return None
+    items: list[dict[str, str]] = json.loads(raw) if isinstance(raw, str) else raw  # type: ignore[assignment]
+    return [InjectionFinding(**item) for item in items]
+
+
+def _summary(row: Mapping[str, object]) -> DocumentSummary:
+    data = dict(row)
+    data["injection_findings"] = _findings(data.get("injection_findings"))
+    return DocumentSummary(**data)
 
 
 # -----------------------------------------------------------------------------
@@ -86,20 +121,22 @@ class SignedUrl(BaseModel):
 async def samples(state: State) -> list[DocumentSummary]:
     """The three documents the demo serves without an upload or an account."""
     rows = await state.pool.fetch(
-        "select id, filename, page_count, source_type, detected_lang, status, is_sample "
+        "select id, filename, page_count, source_type, detected_lang, status, is_sample, "
+        "injection_findings "
         "from documents where is_sample and status = 'ready' order by filename"
     )
-    return [DocumentSummary(**dict(row)) for row in rows]
+    return [_summary(row) for row in rows]
 
 
 @router.get("/mine", response_model=list[DocumentSummary], summary="Your own documents")
 async def mine(user: CurrentUser, state: State) -> list[DocumentSummary]:
     rows = await state.pool.fetch(
-        "select id, filename, page_count, source_type, detected_lang, status, is_sample "
+        "select id, filename, page_count, source_type, detected_lang, status, is_sample, "
+        "injection_findings "
         "from documents where user_id = $1 and not is_sample order by created_at desc",
         user.id,
     )
-    return [DocumentSummary(**dict(row)) for row in rows]
+    return [_summary(row) for row in rows]
 
 
 @router.get("/{document_id}", response_model=DocumentStatus, summary="Ingestion status")
@@ -107,7 +144,7 @@ async def document_status(document_id: UUID, state: State, user: MaybeUser) -> D
     row = await state.pool.fetchrow(
         """
         select d.id, d.status, d.page_count, d.source_type, d.detected_lang,
-               d.error_message, d.is_sample,
+               d.error_message, d.is_sample, d.injection_findings,
                (select count(*) from chunks c where c.document_id = d.id) as chunk_count
           from documents d
          where d.id = $1 and (d.is_sample or d.user_id = $2)
@@ -136,6 +173,7 @@ async def document_status(document_id: UUID, state: State, user: MaybeUser) -> D
         detected_lang=row["detected_lang"],
         chunk_count=row["chunk_count"],
         error=row["error_message"],
+        injection_findings=_findings(row["injection_findings"]),
     )
 
 

@@ -7,6 +7,12 @@
  * `undefined` in a rendered answer.
  */
 
+export type InjectionFinding = {
+  rule: string;
+  why: string;
+  excerpt: string;
+};
+
 export type DocumentSummary = {
   id: string;
   filename: string;
@@ -15,6 +21,15 @@ export type DocumentSummary = {
   detected_lang: string | null;
   status: string;
   is_sample: boolean;
+  /**
+   * Instruction-shaped text found in the document at ingest.
+   *
+   * `null` and `[]` mean different things and the interface must keep them
+   * apart: `null` is a document that was never scanned (it predates the check),
+   * `[]` is one that was scanned and came back clean. Showing a reassuring
+   * badge for the first would be a claim nobody made.
+   */
+  injection_findings?: InjectionFinding[] | null;
 };
 
 export type BBox = {

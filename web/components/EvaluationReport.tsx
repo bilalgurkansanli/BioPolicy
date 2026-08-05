@@ -25,7 +25,7 @@ export function EvaluationReport({
   hard: string | null;
   history: HistoryRow[];
 }) {
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
 
   return (
     <>
@@ -38,6 +38,15 @@ export function EvaluationReport({
           <p className="mt-3 text-sm leading-6 text-ink-muted">
             {t.evaluation.lede}
           </p>
+
+          {/* Only where it is news. To an English reader the report is simply
+              the page; to a Turkish one it looks like a translation that failed,
+              and saying why turns an apparent bug back into a decision. */}
+          {locale !== "en" && (
+            <p className="mt-4 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs leading-5 text-ink-faint">
+              {t.evaluation.languageNote}
+            </p>
+          )}
 
           {markdown === null ? (
             <p className="mt-10 rounded-xl border border-line bg-surface p-4 text-sm text-ink-muted">

@@ -66,6 +66,40 @@ If all citations on an answer fail verification, the answer is **not shown**. It
 is downgraded to a refusal and counted. Those caught hallucinations appear in the
 metrics below rather than in front of a user.
 
+### When the document is the attacker
+
+The mechanisms above assume the document is honest and the model might not be.
+The reverse is also a real case: a policy prepared by a broker, an employer or a
+landlord, with text inside it aimed at whatever AI reads it.
+
+A corpus of six such attacks was written and measured. The baseline result was
+not the expected one — the planted text mostly did not hijack the answer, it
+**collapsed** it: 57% of answerable questions came back as "cannot determine",
+with no mechanism involved. A hostile document made the system useless rather
+than making it lie.
+
+Two fixes, neither of which adds a model call:
+
+| | |
+|---|---|
+| `answer_v2` | Excerpt text is evidence, never instruction — and explicitly neither permission to refuse nor permission to hide |
+| Id removal | Text imitating an excerpt marker is stripped in code before the model sees it, because asking the model not to fall for it measurably did not work |
+
+| Injection set | before | after |
+|---|---:|---:|
+| attacks obeyed | 1 of 6 | **0 of 6** |
+| false-refusal | 57% | **14%** |
+
+The 70-question demo set is **unchanged** — 100% refusal accuracy, 4%
+false-refusal, 98% balanced — at +9% per question in prompt tokens.
+
+Uploaded documents are also scanned at ingest for instruction-shaped text and
+the user is **told**, with the sentence quoted so they can find it in their own
+PDF. That check blocks nothing and is not the defence; it fires on 5 of 5 rules
+for the injection document and on none of the five honest ones. The whole
+experiment, including the fix that failed and two metrics that had to be
+corrected after the fact, is [ADR 015](./docs/adr/015-hostile-documents.md).
+
 ## Measured results
 
 70 questions, 30% adversarial negatives, against live models and a live

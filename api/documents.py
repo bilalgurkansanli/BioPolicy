@@ -8,6 +8,7 @@ place and `claimed_at` is always touched alongside it.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
@@ -34,6 +35,8 @@ class DocumentRecord:
     detected_lang: str | None = None
     error_message: str | None = None
     attempts: int = 0
+    injection_findings: list[dict[str, str]] | None = None
+    """Instruction-shaped text found at ingest. `None` = never scanned, `[]` = clean."""
 
     @classmethod
     def from_row(cls, row: Any) -> DocumentRecord:
@@ -50,6 +53,13 @@ class DocumentRecord:
             detected_lang=row["detected_lang"],
             error_message=row["error_message"],
             attempts=row["attempts"],
+            # `.get`, not `[...]`, because not every source of a document row
+            # carries this column: `claim_next_document()` returns a fixed row
+            # type declared in migration 0006. A worker claiming a job has not
+            # scanned it yet anyway, so absent and null mean the same thing there.
+            injection_findings=(
+                json.loads(raw) if isinstance(raw := row.get("injection_findings"), str) else raw
+            ),
         )
 
 
@@ -157,17 +167,20 @@ class DocumentRepository:
         page_count: int,
         source_type: str,
         detected_lang: str | None,
+        injection_findings: list[dict[str, str]] | None = None,
     ) -> None:
         await self._pool.execute(
             """
             update documents
-               set page_count = $2, source_type = $3, detected_lang = $4
+               set page_count = $2, source_type = $3, detected_lang = $4,
+                   injection_findings = $5
              where id = $1
             """,
             document_id,
             page_count,
             source_type,
             detected_lang,
+            json.dumps(injection_findings) if injection_findings is not None else None,
         )
 
     async def mark_ready(self, document_id: UUID) -> None:

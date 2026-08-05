@@ -47,6 +47,14 @@ class HistoryRow:
     arm: str
     questions: int
     model: str
+    prompt: str
+    """The answering prompt version.
+
+    Added after a run where the prompt changed and the headline numbers did
+    not: the chart drew a flat line across a real change, which is the one
+    thing a history file exists to prevent. A row without it cannot answer
+    "was that the same system?"
+    """
     refusal_accuracy: float
     false_refusal_rate: float
     balanced_accuracy: float
@@ -63,6 +71,7 @@ class HistoryRow:
             "arm": self.arm,
             "questions": self.questions,
             "model": self.model,
+            "prompt": self.prompt,
             "refusal_accuracy": round(self.refusal_accuracy, 4),
             "false_refusal_rate": round(self.false_refusal_rate, 4),
             "balanced_accuracy": round(self.balanced_accuracy, 4),
@@ -73,7 +82,15 @@ class HistoryRow:
         }
 
 
-def row_from(report: Report, *, commit: str, question_set: str, arm: str, model: str) -> HistoryRow:
+def row_from(
+    report: Report,
+    *,
+    commit: str,
+    question_set: str,
+    arm: str,
+    model: str,
+    prompt: str,
+) -> HistoryRow:
     return HistoryRow(
         run_at=datetime.now(UTC).isoformat(timespec="seconds"),
         commit=commit,
@@ -81,6 +98,7 @@ def row_from(report: Report, *, commit: str, question_set: str, arm: str, model:
         arm=arm,
         questions=report.total,
         model=model,
+        prompt=prompt,
         refusal_accuracy=report.refusal.refusal_accuracy,
         false_refusal_rate=report.refusal.false_refusal_rate,
         balanced_accuracy=report.refusal.balanced_accuracy,

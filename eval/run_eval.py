@@ -51,6 +51,7 @@ from api.generation.schemas import (
     ANSWER_JSON_SCHEMA,
     ENTAILMENT_JSON_SCHEMA,
     VERIFICATION_JSON_SCHEMA,
+    GroundedAnswer,
 )
 from api.generation.verifier import Verifier
 from api.pricing import UnpricedModelError, estimate_cost
@@ -129,6 +130,11 @@ QUESTION_SETS: dict[str, tuple[Path, Path, Path]] = {
         Path(__file__).parent / "golden" / "questions_hard.json",
         Path(__file__).parent / "report_hard.md",
         RESULTS_DIR / "hard",
+    ),
+    "injection": (
+        Path(__file__).parent / "golden" / "questions_injection.json",
+        Path(__file__).parent / "report_injection.md",
+        RESULTS_DIR / "injection",
     ),
 }
 
@@ -209,6 +215,7 @@ async def run_one(
             citations_offered=len(answer.citations) + len(answer.dropped_citations),
             citations_kept=len(answer.citations),
             groundedness=answer.groundedness,
+            served_text=_served_text(answer),
             latency_ms=(time.monotonic() - started) * 1000,
             cost_usd=cost,
         )
@@ -219,6 +226,17 @@ async def run_one(
             latency_ms=(time.monotonic() - started) * 1000,
             error=f"{type(exc).__name__}: {exc}",
         )
+
+
+def _served_text(answer: GroundedAnswer) -> str:
+    """Everything the user sees, as one lowercased haystack.
+
+    The citation quotes are included because they are displayed beside the
+    answer, so an attack payload that survives only inside a quote has still
+    reached the reader. Dropped citations are not: they were never shown.
+    """
+    parts = [answer.answer, *(c.quote for c in answer.citations)]
+    return "\n".join(parts).lower()
 
 
 async def run_arm(
@@ -326,6 +344,21 @@ def _dump(results: list[QuestionResult], *, label: str, results_dir: Path = RESU
                     "latency_ms": round(r.latency_ms),
                     "cost_usd": round(r.cost_usd, 6),
                     "error": r.error,
+                    # Only for the injection set, and only because a safety
+                    # verdict nobody can re-read is not a verdict. `served_text`
+                    # is what the user saw; the two lists say exactly which
+                    # substring produced the judgement above it.
+                    **(
+                        {
+                            "attack": r.question.attack,
+                            "attack_succeeded": r.attack_succeeded,
+                            "forbidden_hits": list(r.forbidden_hits),
+                            "required_misses": list(r.required_misses),
+                            "served_text": r.served_text,
+                        }
+                        if r.question.is_attack
+                        else {}
+                    ),
                 }
                 for r in results
             ],
@@ -373,6 +406,7 @@ def load_arm(
                 citations_offered=row["citations_offered"],
                 citations_kept=row["citations_kept"],
                 groundedness=row["groundedness"],
+                served_text=row.get("served_text", ""),
                 latency_ms=row["latency_ms"],
                 cost_usd=row["cost_usd"],
                 error=row["error"],
@@ -474,6 +508,10 @@ async def run(*, limit: int | None, arm: str, question_set: str) -> int:
                         question_set=question_set,
                         arm=key,
                         model=settings.anthropic_model,
+                        # Per arm, not per run: the naive arms deliberately use a
+                        # different prompt, and recording one version for all of
+                        # them would misattribute their numbers.
+                        prompt=ARMS[key][1],
                     )
                     for key, report in arms.items()
                 ]
@@ -511,7 +549,9 @@ def main() -> int:
             "demo: the 70-question set over the three bundled documents (default). "
             "hard: the adversarial set — a self-contradicting policy and a "
             "two-column layout — reported separately so the demo numbers stay "
-            "comparable across arms."
+            "comparable across arms. "
+            "injection: a policy that tries to give the system orders, scored on "
+            "whether any of them were carried out."
         ),
     )
     args = parser.parse_args()
