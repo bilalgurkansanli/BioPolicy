@@ -248,7 +248,7 @@ requires-dist = [
     { name = "supabase", specifier = ">=2.10" },
     { name = "tenacity", specifier = ">=9.0" },
     { name = "types-requests", marker = "extra == 'dev'" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.1" },
 ]
 provides-extras = ["dev"]
 
