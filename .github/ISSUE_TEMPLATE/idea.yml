@@ -1,0 +1,29 @@
+name: Idea or question
+description: A suggestion, or something about the design that is not clear.
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before suggesting a feature, it is worth a look at
+        [docs/BACKLOG.md](../../docs/BACKLOG.md) — it lists what was
+        deliberately not built and why. If your idea is already there, saying
+        *why the reasoning is wrong* is far more useful than the idea itself.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What problem it solves
+      description: >
+        The situation where the current behaviour is the wrong behaviour. This
+        project has a small scope on purpose, so the problem carries more weight
+        here than the solution.
+    validations:
+      required: true

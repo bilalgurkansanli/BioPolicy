@@ -1,0 +1,52 @@
+# Grouped rather than one pull request per package: this is a solo project, and
+# a queue of eleven single-line bumps is a queue nobody reviews. Security
+# updates are deliberately left ungrouped — those are worth interrupting for.
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      web-minor-and-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+    ignore:
+      # The worker file is copied out of this package at build time and the
+      # copy is pinned to the installed version; a major bump needs the copy
+      # script checked by hand rather than merged on a badge.
+      - dependency-name: "pdfjs-dist"
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "ci"

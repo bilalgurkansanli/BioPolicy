@@ -1,0 +1,57 @@
+name: Bug report
+description: Something behaves differently from what it says it does.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A wrong answer is the most useful bug this project can receive. If that
+        is what you have, the question and the document matter more than
+        anything else on this form — everything below is optional context.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what the system did back.
+      placeholder: |
+        I asked "…" of the konut-sigortasi-tr sample and it answered "…".
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: >
+        For a wrong answer, the clause you believe is the right one. "It should
+        have refused" is a complete answer to this question.
+    validations:
+      required: true
+
+  - type: input
+    id: document
+    attributes:
+      label: Document
+      description: >
+        Which sample, or a description of your own PDF — please do not upload a
+        real policy with personal details in it.
+      placeholder: konut-sigortasi-tr.pdf (bundled sample)
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      options:
+        - The live demo
+        - Running it locally
+        - Neither — this is about the code or the report
+
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: >
+        Browser, screenshots, the request id from an error message — whatever
+        you have. An error in the interface carries a request id; it is the
+        fastest way to find the trace.

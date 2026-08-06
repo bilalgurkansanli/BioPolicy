@@ -1,0 +1,17 @@
+# Blank issues stay on: a report that fits neither template is still a report,
+# and a form nobody can escape is a form people abandon.
+blank_issues_enabled: true
+contact_links:
+  - name: Security issue
+    url: https://github.com/bilalgurkansanli/BioPolicy/blob/main/docs/SECURITY.md
+    about: >
+      What the system protects, what it deliberately does not, and how to
+      report something. There is no bounty and no on-call — this is a demo.
+  - name: How the numbers were produced
+    url: https://github.com/bilalgurkansanli/BioPolicy/blob/main/eval/report.md
+    about: >
+      Every figure in the README comes from this report, including the ones
+      that did not go the way I hoped.
+  - name: Why something was built this way
+    url: https://github.com/bilalgurkansanli/BioPolicy/tree/main/docs/adr
+    about: Fifteen decision records, each with the alternative it was chosen over.
