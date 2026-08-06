@@ -75,7 +75,11 @@ jobs:
         run: npm run lint
 
       - name: Type check
-        run: npx tsc --noEmit
+        # `next typegen` first: `LayoutProps` and the route unions it checks
+        # against are generated, not written, and a clean checkout has never run
+        # anything that generates them. Without this the type check fails on
+        # types that simply do not exist yet.
+        run: npm run typecheck
 
       - name: Test
         run: npm test
