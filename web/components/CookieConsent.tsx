@@ -12,7 +12,11 @@ import {
   subscribeToConsent,
 } from "@/lib/consent-store";
 
-const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? "";
+// Interpolated into a script the browser executes, so it is checked rather than
+// trusted: a project id is alphanumeric, and anything else is a misconfigured
+// deployment, not a tag.
+const RAW_CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? "";
+const CLARITY_ID = /^[a-z0-9]+$/i.test(RAW_CLARITY_ID) ? RAW_CLARITY_ID : "";
 
 /**
  * The cookie decision, and the one thing it turns on.
@@ -35,11 +39,22 @@ export function CookieConsent() {
   return (
     <>
       {consent === "granted" && CLARITY_ID && (
-        <Script
-          id="clarity"
-          strategy="afterInteractive"
-          src={`https://www.clarity.ms/tag/${CLARITY_ID}`}
-        />
+        // Not a plain `src`. The file at `clarity.ms/tag/{id}` is the second
+        // half of the tag: its first statement is `window.clarity("metadata",
+        // …)`, so it throws unless the queue shim below has already defined
+        // that function. Loading it directly downloads a script that fails on
+        // its own first line — which looks exactly like a tag that works.
+        //
+        // The id is also deliberately not `clarity`: an element's id becomes a
+        // global of the same name, and the shim only installs itself when
+        // `window.clarity` is falsy.
+        <Script id="ms-clarity" strategy="afterInteractive">
+          {`(function(c,l,a,r,i,t,y){
+              c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", ${JSON.stringify(CLARITY_ID)});`}
+        </Script>
       )}
 
       {consent === "unset" && (
