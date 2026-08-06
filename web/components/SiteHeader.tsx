@@ -91,7 +91,10 @@ export function SiteHeader() {
           </span>
         </SlideLink>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        {/* The other half of the 320px fix. Four controls sit in here on a
+            phone, so a gap costs three times over — 1.5 rather than 2 buys back
+            six pixels that the row does not otherwise have. */}
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
           <AccountMenu />
 
           {/* The measurements, back in the header — quietly, and only where
@@ -117,12 +120,24 @@ export function SiteHeader() {
             {t.evaluation.title}
           </SlideLink>
 
+          {/* Folds away under 360px, and only there.
+
+              Six controls do not fit a 320px row — measured at 337 needed
+              against 320 available, after the gap and the language switch had
+              already been tightened — so on those screens one of them has to
+              go. This is the one: a repository link is for somebody who is
+              going to read code, which is not what a 320px phone is for, and
+              the footer and the README both still carry it.
+
+              An exact `max-[359px]` rather than folding it at `sm`, because
+              360px is the floor for every phone still being sold and the link
+              should survive on all of them. */}
           <a
             href={REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={t.nav.source}
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink sm:px-2.5"
+            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink max-[359px]:hidden sm:px-2.5"
           >
             <GitHubMark />
             <span className="hidden sm:inline">{t.nav.source}</span>
@@ -240,7 +255,11 @@ function LocaleSwitch({
           // A fixed width rather than padding: the sliding indicator is sized
           // as a fraction of the control, so the halves have to be equal or it
           // lands a pixel off the label it is meant to sit behind.
-          className={`relative z-10 w-9 rounded-full py-1 text-center text-xs font-semibold uppercase tracking-wide transition-colors duration-200 ${
+          // Narrower below `sm`, still equal halves so the indicator stays
+          // aligned. At 320px the header ran 18px past its own width, and this
+          // control was the widest thing in it that could give ground without
+          // losing a feature — two letters do not need 36px to be legible.
+          className={`relative z-10 w-8 rounded-full py-1 text-center text-xs font-semibold uppercase tracking-wide transition-colors duration-200 sm:w-9 ${
             locale === code ? "text-accent" : "text-ink-faint hover:text-ink"
           }`}
         >

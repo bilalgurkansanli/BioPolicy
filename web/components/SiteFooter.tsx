@@ -20,10 +20,17 @@ export function SiteFooter() {
           {/* Same destination as the header's link, so the same rule decides
               which way the page moves — see SiteHeader. Two links to one page
               that animate differently would read as two different places. */}
+          {/* `-my-2 py-2` grows the tap target without moving anything. At the
+              footer's 12px type this link was 16px tall, under the 24px minimum
+              a pointer target is meant to meet — on a phone that is a link you
+              aim at rather than press. The negative margin cancels the padding
+              in layout, so the row keeps its height and only the hit area
+              changes. It is a standalone link rather than one inside a
+              sentence, so the inline exception does not apply to it. */}
           <SlideLink
             href="/eval"
             direction={pathname === "/app" ? "back" : "forward"}
-            className="underline-offset-4 transition-colors hover:text-ink hover:underline"
+            className="-my-2 py-2 underline-offset-4 transition-colors hover:text-ink hover:underline"
           >
             {t.evaluation.title}
           </SlideLink>
