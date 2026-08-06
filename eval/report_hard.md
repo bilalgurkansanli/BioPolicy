@@ -6,19 +6,42 @@
 
 Placed before the results rather than after them, because a caveat at the bottom of a report is a caveat nobody reads.
 
+- **1 question(s) failed with a provider error and are counted as refusals.** A question the provider never answered looks identical, in every metric here, to one the system declined — so a bad afternoon at the API arrives as a false-refusal rate. The arms carrying the entailment check make three serial provider calls per question instead of two, and they are the arms with errors: `naive_entailed` (1). Read every false-refusal figure below with that subtracted.
+
+- **The entailment check did not do what it was built to do.** It exists because an earlier run of this report diagnosed the previous mechanisms as blind to unwarranted inference, and it is the only pass that is shown the question. On this corpus it moved refusal accuracy by +0%, moved the false-refusal rate by +10%, and added 14% to the cost of every question. Subtract the provider errors above and it changed no decisions — the same finding as the two mechanisms before it, reached the same way. It does catch something on the adversarial set (`report_hard.md`), and nothing here; shipping it always would be paying on every question for a check that fires on documents this corpus does not contain.
+
 - **Citation validity of 100% is partly structural.** The answering model is constrained by a provider-enforced JSON schema and the context is small, so malformed or invented chunk ids are close to impossible by construction. The interesting half of binding — catching a *quote* that does not appear in a chunk it names — was never exercised here.
 
 ## Run
 
 | | |
 |---|---|
-| Generated | 2026-08-05 18:12 UTC |
-| Commit | `e950a6b` |
+| Generated | 2026-08-05 23:15 UTC |
+| Commit | `30e9f68` |
 | Answering model | `claude-haiku-4-5-20251001` |
 | Embedding model | `gemini-embedding-001` (1536 dimensions) |
 | Prompts | `answer_v2`, `verify_v1` |
 | Questions | 12 |
 | Adversarial negatives | 2 (17%) |
+
+## The ablation
+
+Two independent variables, four arms: the **prompt** (a strict grounding prompt versus a naive one) crossed with the **mechanisms** (citation binding and self-verification, on or off).
+
+The naive prompt is not a strawman. It asks for accuracy, requests citations and returns the same JSON — it is what a competent developer writes on a first pass. What it does not do is forbid outside knowledge, demand verbatim quotes, or say that “not in the document” is an acceptable answer.
+
+| Arm | Refusal accuracy | False-refusal | Balanced | Citation validity | Suppressed | $/question |
+|---|---:|---:|---:|---:|---:|---:|
+| naive prompt, no mechanisms | 100% | 0% | 100% | 100% | 0 | $0.0028 |
+| naive prompt + mechanisms | 100% | 10% | 95% | 100% | 1 | $0.0049 |
+| strict prompt, no mechanisms | 100% | 10% | 95% | 100% | 0 | $0.0036 |
+| strict prompt + mechanisms **(shipped)** | 100% | 10% | 95% | 100% | 0 | $0.0061 |
+
+**Baseline to shipped:** balanced accuracy 100% → 95%, refusal accuracy 100% → 100%.
+
+**Read refusal accuracy and false-refusal rate together.** The first is trivially gamed by refusing everything, the second by never refusing. Balanced accuracy is the mean of the two and lands at 50% for either degenerate strategy — it is the column to compare arms on.
+
+**Comparing rows tells you which lever did the work.** naive_only → strict_only isolates the prompt. naive_only → naive_guarded isolates the mechanisms. If the two paths to strict_guarded are not equal, the levers are not independent.
 
 ## Retrieval
 
@@ -88,7 +111,7 @@ The mean covers **served** answers only. Including suppressed ones would mix “
 | Cost per question | $0.0061 |
 | p50 latency | 5.9s |
 | p95 latency | 6.7s |
-| Total for this run | $0.07 |
+| Total for this run | $0.36 |
 
 p50 and p95 rather than a mean: one cold start moves a mean and says nothing about the typical experience.
 

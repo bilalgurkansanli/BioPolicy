@@ -20,8 +20,8 @@ Placed before the results rather than after them, because a caveat at the bottom
 
 | | |
 |---|---|
-| Generated | 2026-08-05 21:53 UTC |
-| Commit | `e6c3fde` |
+| Generated | 2026-08-05 23:14 UTC |
+| Commit | `ef03e78` |
 | Answering model | `claude-haiku-4-5-20251001` |
 | Embedding model | `gemini-embedding-001` (1536 dimensions) |
 | Prompts | `answer_v2`, `verify_v1` |

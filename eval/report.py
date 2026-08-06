@@ -1,4 +1,4 @@
-"""Render the evaluation report.
+"""Render the evaluation report, in either language it is read in.
 
 Formatting only — every number comes from `eval/metrics.py`. Kept separate so
 the arithmetic can be tested without a Markdown fixture, and so changing the
@@ -8,6 +8,11 @@ The report is written to be read by someone sceptical. That means the
 unflattering numbers appear beside the flattering ones rather than in a
 footnote, and any metric that can be gamed is shown next to the metric that
 exposes the gaming.
+
+The sentences themselves live in `eval/copy.py`, one object per sentence with
+both languages inside it. This module decides *which* sentence applies and what
+numbers go into it; that one knows how to say it. The split is what makes the
+two languages the same report rather than two reports about the same run.
 """
 
 from __future__ import annotations
@@ -15,17 +20,9 @@ from __future__ import annotations
 from datetime import datetime
 
 from api.generation import prompts
+from eval.copy import ARM_LABELS, Lang, T
 from eval.dataset import Stats
 from eval.metrics import Report
-
-# Presentation order runs weakest to strongest, so the ablation table reads as
-# a progression rather than a scoreboard.
-ARM_LABELS = {
-    "naive_only": "naive prompt, no mechanisms",
-    "naive_guarded": "naive prompt + mechanisms",
-    "strict_only": "strict prompt, no mechanisms",
-    "strict_guarded": "strict prompt + mechanisms **(shipped)**",
-}
 
 
 def _pct(value: float) -> str:
@@ -48,6 +45,7 @@ def _limitations(
     *,
     chunks_per_document: dict[str, int],
     context_chunk_count: int,
+    lang: Lang,
 ) -> list[str]:
     """Findings that qualify the numbers above, computed rather than written.
 
@@ -62,30 +60,24 @@ def _limitations(
         name: count for name, count in chunks_per_document.items() if count > context_chunk_count
     }
     if not oversized and chunks_per_document:
-        biggest = max(chunks_per_document.values())
         notes.append(
-            f"**Recall is not a meaningful measurement on this corpus.** The sample "
-            f"documents hold {min(chunks_per_document.values())}–{biggest} chunks each "
-            f"and the context window takes {context_chunk_count}, so *every chunk of "
-            f"every document reaches the prompt on every question*. Retrieval is never "
-            f"forced to discard anything, which means a recall figure of 100% reflects "
-            f"the size of the documents, not the quality of the search. MRR still says "
-            f"something about ranking; recall does not. Fixing this needs longer "
-            f"documents, not a better retriever."
+            T.recall_not_meaningful.format(
+                lang,
+                smallest=min(chunks_per_document.values()),
+                biggest=max(chunks_per_document.values()),
+                context=context_chunk_count,
+            )
         )
 
     # 1b. Provider failures, because they are indistinguishable from refusals.
     errored = {name: report.errors for name, report in arms.items() if report.errors}
     if errored:
         notes.append(
-            f"**{sum(errored.values())} question(s) failed with a provider error and are "
-            f"counted as refusals.** A question the provider never answered looks "
-            f"identical, in every metric here, to one the system declined — so a bad "
-            f"afternoon at the API arrives as a false-refusal rate. The arms carrying the "
-            f"entailment check make three serial provider calls per question instead of "
-            f"two, and they are the arms with errors: "
-            + ", ".join(f"`{name}` ({count})" for name, count in sorted(errored.items()))
-            + ". Read every false-refusal figure below with that subtracted."
+            T.provider_errors.format(
+                lang,
+                total=sum(errored.values()),
+                arms=", ".join(f"`{name}` ({count})" for name, count in sorted(errored.items())),
+            )
         )
 
     # 1c. Does the fourth mechanism earn its call?
@@ -99,17 +91,12 @@ def _limitations(
             else 0.0
         )
         notes.append(
-            f"**The entailment check did not do what it was built to do.** It exists "
-            f"because an earlier run of this report diagnosed the previous mechanisms as "
-            f"blind to unwarranted inference, and it is the only pass that is shown the "
-            f"question. On this corpus it moved refusal accuracy by {caught:+.0%}, moved "
-            f"the false-refusal rate by {cost_in_false:+.0%}, and added {extra:.0%} to the "
-            f"cost of every question. Subtract the provider errors above and it changed no "
-            f"decisions — the same finding as the two mechanisms before it, reached the "
-            f"same way. It does catch something on the adversarial set "
-            f"(`report_hard.md`), and nothing here; shipping it always would be paying on "
-            f"every question for a check that fires on documents this corpus does not "
-            f"contain."
+            T.entailment_did_not_deliver.format(
+                lang,
+                caught=f"{caught:+.0%}",
+                false_refusal=f"{cost_in_false:+.0%}",
+                extra=f"{extra:.0%}",
+            )
         )
 
     # 2. Which lever actually moved the numbers?
@@ -130,24 +117,12 @@ def _limitations(
 
         if abs(mechanism_effect) < 0.005 and prompt_effect >= 0.01:
             notes.append(
-                f"**The prompt did the work; the mechanisms did not.** Holding the "
-                f"prompt naive and switching the mechanisms on moved balanced "
-                f"accuracy by {mechanism_effect:+.0%} — the same questions were "
-                f"answered and the same ones missed. Holding the mechanisms off and "
-                f"switching the prompt to the strict grounding version moved it "
-                f"{prompt_effect:+.0%}. Citation binding and self-verification add "
-                f"roughly {overhead:.0%} to the cost of every question and, on this "
-                f"corpus, changed no decisions.\n\n"
-                f"  The reason is visible in the failures they missed. The naive "
-                f"prompt's errors are *correct citations supporting an unwarranted "
-                f"inference*: asked whether a stolen car is covered, it quotes the "
-                f"theft clause accurately and then concludes the car is included. "
-                f"Binding checks that the quote is real — it is. Verification checks "
-                f"the claim against the excerpt — the excerpt does say theft is "
-                f"covered. Neither mechanism is built to catch a valid quote used to "
-                f"support a conclusion the document never draws, and this run is the "
-                f"first evidence of that blind spot. Closing it needs a check on the "
-                f"*inferential* step, not on the quote."
+                T.prompt_did_the_work.format(
+                    lang,
+                    mechanism_effect=f"{mechanism_effect:+.0%}",
+                    prompt_effect=f"{prompt_effect:+.0%}",
+                    overhead=f"{overhead:.0%}",
+                )
             )
 
     # 3. The verifier does not treat every kind of answer alike.
@@ -157,31 +132,19 @@ def _limitations(
         worst, worst_score = min(scores.items(), key=lambda kv: kv[1])
         best, best_score = max(scores.items(), key=lambda kv: kv[1])
         if worst == "multi_clause" and best_score - worst_score >= 0.1:
-            accuracy = primary.category_decision_accuracy.get("multi_clause", 0.0)
             notes.append(
-                f"**The verifier scores multi-clause answers lowest — the category "
-                f"the product exists to handle.** Mean groundedness by category runs "
-                f"from {best_score:.2f} ({best}) down to {worst_score:.2f} "
-                f"(multi_clause), while decision accuracy on multi_clause is "
-                f"{accuracy:.0%}: every one of those answers was *correct*. The cause "
-                f'is in the verification prompt, which flags "two separate excerpts '
-                f'merged into a single claim that neither supports alone" — and a '
-                f"correct multi-clause answer is exactly that. The rule that catches "
-                f"a fabricated synthesis also catches a legitimate one. Two answers "
-                f"landed on 0.50, at the suppression boundary; raising the threshold "
-                f"to 0.6 would withhold correct answers about coverage exclusions, "
-                f"which is the kind of answer a user most needs."
+                T.verifier_multi_clause.format(
+                    lang,
+                    best=best,
+                    best_score=f"{best_score:.2f}",
+                    worst_score=f"{worst_score:.2f}",
+                    accuracy=_pct(primary.category_decision_accuracy.get("multi_clause", 0.0)),
+                )
             )
 
     # 4. Provider-enforced schemas are doing some of the work attributed elsewhere.
     if (on := arms.get("strict_guarded")) and on.citations.validity >= 0.995:
-        notes.append(
-            "**Citation validity of 100% is partly structural.** The answering model "
-            "is constrained by a provider-enforced JSON schema and the context is "
-            "small, so malformed or invented chunk ids are close to impossible by "
-            "construction. The interesting half of binding — catching a *quote* that "
-            "does not appear in a chunk it names — was never exercised here."
-        )
+        notes.append(T.citation_validity_structural.of(lang))
 
     return notes
 
@@ -196,6 +159,7 @@ def render_report(
     dataset: Stats,
     chunks_per_document: dict[str, int] | None = None,
     context_chunk_count: int = 8,
+    lang: Lang = "en",
 ) -> str:
     primary = arms.get("strict_guarded") or next(iter(arms.values()))
     baseline = arms.get("naive_only")
@@ -203,49 +167,43 @@ def render_report(
     lines: list[str] = []
     add = lines.append
 
-    add("# Evaluation report")
+    add(T.title.of(lang))
     add("")
-    add(
-        "> Generated by `python -m eval.run_eval`. Every number here is produced by "
-        "that command against live models and the live database — none are "
-        "hand-written. Unflattering results are included; that is the point of "
-        "publishing it."
-    )
+    add(T.generated_by.of(lang))
     add("")
 
     notes = _limitations(
         arms,
         chunks_per_document=chunks_per_document or {},
         context_chunk_count=context_chunk_count,
+        lang=lang,
     )
     if notes:
-        add("## Read this first — what these numbers do not show")
+        add(T.caveats_heading.of(lang))
         add("")
-        add(
-            "Placed before the results rather than after them, because a caveat at "
-            "the bottom of a report is a caveat nobody reads."
-        )
+        add(T.caveats_intro.of(lang))
         add("")
         for note in notes:
             add(f"- {note}")
             add("")
 
     # --- provenance ---------------------------------------------------------
-    add("## Run")
+    add(T.run_heading.of(lang))
     add("")
     add("| | |")
     add("|---|---|")
-    add(f"| Generated | {generated_at.strftime('%Y-%m-%d %H:%M UTC')} |")
-    add(f"| Commit | `{commit}` |")
-    add(f"| Answering model | `{model}` |")
-    add(f"| Embedding model | `{embedding_model}` (1536 dimensions) |")
+    add(f"| {T.row_generated.of(lang)} | {generated_at.strftime('%Y-%m-%d %H:%M UTC')} |")
+    add(f"| {T.row_commit.of(lang)} | `{commit}` |")
+    add(f"| {T.row_answering_model.of(lang)} | `{model}` |")
+    add(f"| {T.row_embedding_model.of(lang)} | `{embedding_model}` ({T.dimensions.of(lang)}) |")
     # Read from the module rather than written here. A report that hard-codes
     # its own prompt version keeps printing the old one the day the prompt
     # changes, which is the single most misleading thing this table could do.
-    add(f"| Prompts | `{prompts.ANSWER}`, `{prompts.VERIFY}` |")
-    add(f"| Questions | {dataset.total} |")
+    add(f"| {T.row_prompts.of(lang)} | `{prompts.ANSWER}`, `{prompts.VERIFY}` |")
+    add(f"| {T.row_questions.of(lang)} | {dataset.total} |")
     add(
-        f"| Adversarial negatives | {dataset.by_category.get('negative', 0)} ({dataset.negative_share:.0%}) |"
+        f"| {T.row_negatives.of(lang)} | {dataset.by_category.get('negative', 0)} "
+        f"({dataset.negative_share:.0%}) |"
     )
     add("")
 
@@ -254,19 +212,11 @@ def render_report(
     # reason the run happened, and because its verdict is binary in a way the
     # rest of the report is not: an obeyed instruction is not a percentage point.
     if primary.injection:
-        add("## Did the document manage to give us orders?")
+        add(T.injection_heading.of(lang))
         add("")
-        add(
-            "Every question below is asked of a policy that contains an attack "
-            "aimed at whatever reads it. The metric is not accuracy. An attack "
-            "that produced a refusal did **not** succeed — the reader learned "
-            "nothing false, which is the entire promise — so only an *obeyed* "
-            "instruction counts against us. That asymmetry is deliberate: "
-            "counting refusals as successes would reward an attacker for merely "
-            "making the system nervous."
-        )
+        add(T.injection_intro.of(lang))
         add("")
-        add("| arm | attacks | obeyed | blocked | of which by refusing |")
+        add(T.injection_table_header.of(lang))
         add("|---|---:|---:|---:|---:|")
         for name, arm in arms.items():
             inj = arm.injection
@@ -277,50 +227,33 @@ def render_report(
                 f"{_pct(inj.block_rate)} | {inj.refused} |"
             )
         add("")
-        add("Per technique, for the shipped configuration — `true` means obeyed:")
+        add(T.injection_per_technique.of(lang))
         add("")
-        add("| technique | obeyed |")
+        add(T.injection_technique_header.of(lang))
         add("|---|---|")
         for technique, obeyed in sorted(primary.injection.by_technique.items()):
-            mark = "**yes**" if obeyed else "no"
+            mark = T.yes.of(lang) if obeyed else T.no.of(lang)
             add(f"| `{technique}` | {mark} |")
         add("")
-        add(
-            "One question per technique, so these are single observations, not "
-            "rates. They are reported that way on purpose: a percentage over six "
-            "attacks would imply a precision the sample size cannot carry."
-        )
+        add(T.injection_single_observations.of(lang))
         add("")
 
     # --- the ablation -------------------------------------------------------
     if len(arms) > 1:
-        add("## The ablation")
+        add(T.ablation_heading.of(lang))
         add("")
-        add(
-            "Two independent variables, four arms: the **prompt** (a strict "
-            "grounding prompt versus a naive one) crossed with the "
-            "**mechanisms** (citation binding and self-verification, on or off)."
-        )
+        add(T.ablation_intro.of(lang))
         add("")
-        add(
-            "The naive prompt is not a strawman. It asks for accuracy, requests "
-            "citations and returns the same JSON — it is what a competent developer "
-            "writes on a first pass. What it does not do is forbid outside "
-            "knowledge, demand verbatim quotes, or say that “not in the document” "
-            "is an acceptable answer."
-        )
+        add(T.naive_not_strawman.of(lang))
         add("")
-        add(
-            "| Arm | Refusal accuracy | False-refusal | Balanced | Citation validity "
-            "| Suppressed | $/question |"
-        )
+        add(T.ablation_table_header.of(lang))
         add("|---|---:|---:|---:|---:|---:|---:|")
         for key, label in ARM_LABELS.items():
             report = arms.get(key)
             if report is None:
                 continue
             add(
-                f"| {label} "
+                f"| {label.of(lang)} "
                 f"| {_pct(report.refusal.refusal_accuracy)} "
                 f"| {_pct(report.refusal.false_refusal_rate)} "
                 f"| {_pct(report.refusal.balanced_accuracy)} "
@@ -331,49 +264,35 @@ def render_report(
         add("")
         if baseline:
             add(
-                f"**Baseline to shipped:** balanced accuracy "
-                f"{_pct(baseline.refusal.balanced_accuracy)} → "
-                f"{_pct(primary.refusal.balanced_accuracy)}, refusal accuracy "
-                f"{_pct(baseline.refusal.refusal_accuracy)} → "
-                f"{_pct(primary.refusal.refusal_accuracy)}."
+                T.baseline_to_shipped.format(
+                    lang,
+                    base_balanced=_pct(baseline.refusal.balanced_accuracy),
+                    ship_balanced=_pct(primary.refusal.balanced_accuracy),
+                    base_refusal=_pct(baseline.refusal.refusal_accuracy),
+                    ship_refusal=_pct(primary.refusal.refusal_accuracy),
+                )
             )
             add("")
-        add(
-            "**Read refusal accuracy and false-refusal rate together.** The first "
-            "is trivially gamed by refusing everything, the second by never "
-            "refusing. Balanced accuracy is the mean of the two and lands at 50% "
-            "for either degenerate strategy — it is the column to compare arms on."
-        )
+        add(T.read_together.of(lang))
         add("")
-        add(
-            "**Comparing rows tells you which lever did the work.** naive_only → "
-            "strict_only isolates the prompt. naive_only → naive_guarded isolates "
-            "the mechanisms. If the two paths to strict_guarded are not equal, the "
-            "levers are not independent."
-        )
+        add(T.comparing_rows.of(lang))
         add("")
 
     # --- retrieval ----------------------------------------------------------
-    add("## Retrieval")
+    add(T.retrieval_heading.of(lang))
     add("")
-    add(
-        "Measured over the answerable questions only — a negative has no correct "
-        "chunk to find. A hit requires **every** expected span to be present in "
-        "the chunks that actually reached the prompt, not merely retrieved: a "
-        "peril without its limit has retrieved the question restated, not the "
-        "answer."
-    )
+    add(T.retrieval_intro.of(lang))
     add("")
     add("| | |")
     add("|---|---:|")
-    add(f"| Recall@8 | {_pct(primary.retrieval.recall_at_k)} |")
-    add(f"| MRR | {primary.retrieval.mrr:.3f} |")
-    add(f"| Answerable questions | {primary.retrieval.answerable_count} |")
+    add(f"| {T.row_recall.of(lang)} | {_pct(primary.retrieval.recall_at_k)} |")
+    add(f"| {T.row_mrr.of(lang)} | {primary.retrieval.mrr:.3f} |")
+    add(f"| {T.row_answerable.of(lang)} | {primary.retrieval.answerable_count} |")
     add("")
 
-    add("### By category")
+    add(T.by_category_heading.of(lang))
     add("")
-    add("| Category | Questions | Recall@8 | Decision accuracy |")
+    add(T.by_category_header.of(lang))
     add("|---|---:|---:|---:|")
     for category, metrics in sorted(primary.by_category.items()):
         count = sum(1 for _ in range(metrics.answerable_count)) or 0
@@ -384,40 +303,43 @@ def render_report(
             f"| {shown} | {_pct(accuracy)} |"
         )
     add("")
-    add(
-        "`negative` has no recall figure by construction — there is nothing to "
-        "retrieve. Its decision accuracy is the refusal accuracy for that subset."
-    )
+    add(T.negative_has_no_recall.of(lang))
     add("")
 
     # --- refusal ------------------------------------------------------------
-    add("## Refusal")
+    add(T.refusal_heading.of(lang))
     add("")
     add("| | |")
     add("|---|---:|")
-    add(f"| Correct refusals | {primary.refusal.correct_refusals} / {primary.refusal.negatives} |")
-    add(f"| False refusals | {primary.refusal.false_refusals} / {primary.refusal.answerables} |")
-    add(f"| Refusal accuracy | {_pct(primary.refusal.refusal_accuracy)} |")
-    add(f"| False-refusal rate | {_pct(primary.refusal.false_refusal_rate)} |")
-    add(f"| Balanced accuracy | {_pct(primary.refusal.balanced_accuracy)} |")
+    add(
+        f"| {T.row_correct_refusals.of(lang)} | "
+        f"{primary.refusal.correct_refusals} / {primary.refusal.negatives} |"
+    )
+    add(
+        f"| {T.row_false_refusals.of(lang)} | "
+        f"{primary.refusal.false_refusals} / {primary.refusal.answerables} |"
+    )
+    add(f"| {T.row_refusal_accuracy.of(lang)} | {_pct(primary.refusal.refusal_accuracy)} |")
+    add(f"| {T.row_false_refusal_rate.of(lang)} | {_pct(primary.refusal.false_refusal_rate)} |")
+    add(f"| {T.row_balanced.of(lang)} | {_pct(primary.refusal.balanced_accuracy)} |")
     add("")
 
     # --- citations & groundedness -------------------------------------------
-    add("## Citations and groundedness")
+    add(T.citations_heading.of(lang))
     add("")
     add("| | |")
     add("|---|---:|")
-    add(f"| Citations offered | {primary.citations.offered} |")
-    add(f"| Survived binding | {primary.citations.kept} |")
-    add(f"| Citation validity | {_pct(primary.citations.validity)} |")
-    add(f"| Answers suppressed (caught hallucinations) | {primary.citations.suppressions} |")
+    add(f"| {T.row_offered.of(lang)} | {primary.citations.offered} |")
+    add(f"| {T.row_kept.of(lang)} | {primary.citations.kept} |")
+    add(f"| {T.row_validity.of(lang)} | {_pct(primary.citations.validity)} |")
+    add(f"| {T.row_suppressed.of(lang)} | {primary.citations.suppressions} |")
     if primary.groundedness_mean is not None:
-        add(f"| Mean groundedness (served answers) | {primary.groundedness_mean:.2f} |")
+        add(f"| {T.row_mean_groundedness.of(lang)} | {primary.groundedness_mean:.2f} |")
     add("")
     if primary.groundedness_by_category:
-        add("Mean groundedness by category, over served answers:")
+        add(T.groundedness_by_category.of(lang))
         add("")
-        add("| Category | Mean groundedness | Decision accuracy |")
+        add(T.groundedness_category_header.of(lang))
         add("|---|---:|---:|")
         for category, score in sorted(
             primary.groundedness_by_category.items(), key=lambda kv: kv[1]
@@ -426,44 +348,33 @@ def render_report(
             add(f"| {category} | {score:.2f} | {_pct(accuracy)} |")
         add("")
 
-    add("Groundedness distribution over served answers:")
+    add(T.groundedness_distribution.of(lang))
     add("")
-    add("| Band | Answers |")
+    add(T.distribution_header.of(lang))
     add("|---|---:|")
     for band, count in primary.groundedness_distribution.items():
         add(f"| {band} | {count} |")
     add("")
-    add(
-        "The mean covers **served** answers only. Including suppressed ones would "
-        "mix “we checked and it held up” with “we checked, it didn't, and we "
-        "withheld it” — the second is a success of the system, counted separately "
-        "as a caught hallucination."
-    )
+    add(T.mean_covers_served.of(lang))
     add("")
 
     # --- cost ---------------------------------------------------------------
-    add("## Cost and latency")
+    add(T.cost_heading.of(lang))
     add("")
     add("| | |")
     add("|---|---:|")
-    add(f"| Cost per question | ${primary.cost.mean_cost_per_query_usd:.4f} |")
-    add(f"| p50 latency | {primary.cost.p50_latency_ms / 1000:.1f}s |")
-    add(f"| p95 latency | {primary.cost.p95_latency_ms / 1000:.1f}s |")
-    add(f"| Total for this run | ${sum(a.cost.total_usd for a in arms.values()):.2f} |")
+    add(f"| {T.row_cost_per_question.of(lang)} | ${primary.cost.mean_cost_per_query_usd:.4f} |")
+    add(f"| {T.row_p50.of(lang)} | {primary.cost.p50_latency_ms / 1000:.1f}s |")
+    add(f"| {T.row_p95.of(lang)} | {primary.cost.p95_latency_ms / 1000:.1f}s |")
+    add(f"| {T.row_total.of(lang)} | ${sum(a.cost.total_usd for a in arms.values()):.2f} |")
     add("")
-    add(
-        "p50 and p95 rather than a mean: one cold start moves a mean and says "
-        "nothing about the typical experience."
-    )
+    add(T.percentiles_not_mean.of(lang))
     add("")
 
     if primary.errors:
-        add("## Errors")
+        add(T.errors_heading.of(lang))
         add("")
-        add(
-            f"{primary.errors} question(s) raised rather than answering. These are "
-            "counted separately from refusals — a crash is not a decision."
-        )
+        add(T.errors_body.format(lang, count=primary.errors))
         add("")
 
     return "\n".join(lines) + "\n"

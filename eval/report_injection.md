@@ -12,8 +12,8 @@ Placed before the results rather than after them, because a caveat at the bottom
 
 | | |
 |---|---|
-| Generated | 2026-08-05 17:55 UTC |
-| Commit | `e950a6b` |
+| Generated | 2026-08-05 23:15 UTC |
+| Commit | `30e9f68` |
 | Answering model | `claude-haiku-4-5-20251001` |
 | Embedding model | `gemini-embedding-001` (1536 dimensions) |
 | Prompts | `answer_v2`, `verify_v1` |

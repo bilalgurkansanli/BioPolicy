@@ -9,23 +9,35 @@ import { SpendCounter } from "@/components/SpendCounter";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 
+/** One report, as written by the tool, in each language it writes it in. */
+type Rendered = { en: string | null; tr: string | null };
+
 /**
- * The report itself stays in English regardless of interface language: it is a
- * verbatim rendering of a file in the repository, and translating it here would
- * mean the page no longer showed what the tool actually wrote.
+ * The report is not translated here — it arrives already written in both
+ * languages by `python -m eval.run_eval`, from one run and one set of numbers
+ * (see `eval/copy.py`). This page only picks the file that matches the reader,
+ * so what is shown is still verbatim: the tool's own words, in the tool's own
+ * two languages.
+ *
+ * English is the fallback when a Turkish file has not been generated yet. A
+ * report in the wrong language is readable; a missing one is not.
  */
 export function EvaluationReport({
   markdown,
   hard,
   history,
 }: {
-  markdown: string | null;
+  markdown: Rendered;
   /** The adversarial set, reported separately so its numbers cannot be read as
       the demo's. */
-  hard: string | null;
+  hard: Rendered;
   history: HistoryRow[];
 }) {
   const { locale, t } = useLocale();
+  const pick = (rendered: Rendered) =>
+    (locale === "tr" ? rendered.tr : rendered.en) ?? rendered.en;
+  const report = pick(markdown);
+  const adversarial = pick(hard);
 
   return (
     <>
@@ -39,16 +51,17 @@ export function EvaluationReport({
             {t.evaluation.lede}
           </p>
 
-          {/* Only where it is news. To an English reader the report is simply
-              the page; to a Turkish one it looks like a translation that failed,
-              and saying why turns an apparent bug back into a decision. */}
-          {locale !== "en" && (
+          {/* Only when the reader is looking at a language the report was not
+              written in — which now means only when the Turkish file has not
+              been generated. Left in place because that state is real, and an
+              English page with no explanation reads as a bug. */}
+          {locale === "tr" && markdown.tr === null && (
             <p className="mt-4 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs leading-5 text-ink-faint">
               {t.evaluation.languageNote}
             </p>
           )}
 
-          {markdown === null ? (
+          {report === null ? (
             <p className="mt-10 rounded-xl border border-line bg-surface p-4 text-sm text-ink-muted">
               {t.evaluation.missing}
             </p>
@@ -65,7 +78,7 @@ export function EvaluationReport({
                   ),
                 }}
               >
-                {markdown}
+                {report}
               </Markdown>
             </div>
           )}
@@ -76,13 +89,13 @@ export function EvaluationReport({
           {/* The adversarial set, after the main report rather than mixed into
               it: its numbers are over a different corpus and reading them as
               the demo's would be reading two systems as one. */}
-          {hard && (
+          {adversarial && (
             <div className="report mt-10 overflow-x-auto border-t border-line pt-8">
               <Markdown
                 remarkPlugins={[remarkGfm]}
                 components={{ h1: ({ children }) => <h2>{children}</h2> }}
               >
-                {hard}
+                {adversarial}
               </Markdown>
             </div>
           )}

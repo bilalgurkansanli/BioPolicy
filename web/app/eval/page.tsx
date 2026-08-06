@@ -42,11 +42,23 @@ async function readHistory(): Promise<HistoryRow[]> {
 }
 
 export default async function EvaluationPage() {
-  const [markdown, hard, history] = await Promise.all([
+  // Both languages are read here rather than fetched on a locale change: they
+  // are two files in the repository, the locale is a client-side preference,
+  // and a report that arrives after the page has rendered is a report the
+  // reader watches appear.
+  const [markdown, markdownTr, hard, hardTr, history] = await Promise.all([
     readText("eval", "report.md"),
+    readText("eval", "report.tr.md"),
     readText("eval", "report_hard.md"),
+    readText("eval", "report_hard.tr.md"),
     readHistory(),
   ]);
 
-  return <EvaluationReport markdown={markdown} hard={hard} history={history} />;
+  return (
+    <EvaluationReport
+      markdown={{ en: markdown, tr: markdownTr }}
+      hard={{ en: hard, tr: hardTr }}
+      history={history}
+    />
+  );
 }

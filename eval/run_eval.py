@@ -59,6 +59,7 @@ from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.hybrid import HybridRetriever
 from api.retrieval.store import ChunkStore
 from eval import history
+from eval.copy import LANGS, Lang
 from eval.dataset import GoldenQuestion, load, stats
 from eval.metrics import QuestionResult, Report, build_report, locate_evidence
 from eval.report import render_report
@@ -111,6 +112,17 @@ ARMS: dict[str, tuple[str, str, bool, bool, bool]] = {
 }
 
 REPORT_PATH = Path(__file__).parent / "report.md"
+
+
+def translated_path(report_path: Path, lang: Lang) -> Path:
+    """`report.md` -> `report.tr.md`, beside the original rather than under it.
+
+    The web build reads both by name, and a sibling is one read away from a
+    path it already has.
+    """
+    return report_path.with_suffix(f".{lang}.md")
+
+
 RESULTS_DIR = Path(__file__).parent / "results"
 
 # Two question sets, two report files, two result directories.
@@ -485,16 +497,25 @@ async def run(*, limit: int | None, arm: str, question_set: str) -> int:
         }
 
         commit = git_commit()
-        markdown = render_report(
-            arms,
-            model=settings.anthropic_model,
-            embedding_model=settings.gemini_embedding_model,
-            commit=commit,
-            generated_at=datetime.now(UTC),
-            dataset=summary,
-            chunks_per_document=chunks_per_document,
-            context_chunk_count=CONTEXT_CHUNK_COUNT,
-        )
+        generated_at = datetime.now(UTC)
+
+        # One run, one set of numbers, two languages. Rendered together from the
+        # same `arms` so the pair cannot disagree: a Turkish report produced by a
+        # separate command would eventually be a report of a different run.
+        renders = {
+            lang: render_report(
+                arms,
+                model=settings.anthropic_model,
+                embedding_model=settings.gemini_embedding_model,
+                commit=commit,
+                generated_at=generated_at,
+                dataset=summary,
+                chunks_per_document=chunks_per_document,
+                context_chunk_count=CONTEXT_CHUNK_COUNT,
+                lang=lang,
+            )
+            for lang in LANGS
+        }
         if arm != "rerender":
             # Only arms that actually ran. A rerender rebuilds prose from saved
             # results and appending for it would record a run that never
@@ -517,8 +538,10 @@ async def run(*, limit: int | None, arm: str, question_set: str) -> int:
                 ]
             )
 
-        report_path.write_text(markdown, encoding="utf-8")
-        print(f"\n{G}Wrote {report_path}{RESET}")
+        for lang, markdown in renders.items():
+            path = report_path if lang == "en" else translated_path(report_path, lang)
+            path.write_text(markdown, encoding="utf-8")
+            print(f"\n{G}Wrote {path}{RESET}")
 
         primary = arms.get("strict_guarded") or next(iter(arms.values()))
         print(f"\n  recall@8            {primary.retrieval.recall_at_k:.0%}")
