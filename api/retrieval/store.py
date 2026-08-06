@@ -336,6 +336,48 @@ class ChunkStore:
         )
         return [_to_chunk(row) for row in rows]
 
+    async def all_chunks(
+        self,
+        *,
+        document_id: UUID,
+        user_id: UUID | None,
+        limit: int,
+    ) -> list[RetrievedChunk]:
+        """Every chunk of one document, in document order.
+
+        This is the sweep that typed extraction runs on, and it is deliberately
+        *not* a search: ordering by `ordinal` keeps a clause next to the table
+        that qualifies it, which relevance ordering would separate. Nothing here
+        scores anything, so the returned chunks carry no ranks.
+
+        Access is checked in SQL with the same predicate as `hybrid_search` —
+        samples are readable by anyone, everything else is owner-only. The
+        service-role key bypasses RLS (see `0005_rls.sql`), so this WHERE clause
+        is the actual guard, not a second line of defence.
+
+        `limit` is required rather than defaulted. A caller that forgets it on a
+        200-page policy gets an unbounded read into memory and an unbounded
+        extraction bill; making it explicit means the ceiling is always a
+        decision somebody made.
+        """
+        rows = await self._pool.fetch(
+            """
+            select c.id, c.content, c.content_type, c.page_start, c.page_end,
+                   c.bbox, c.section_path
+              from chunks c
+              join documents d on d.id = c.document_id
+             where c.document_id = $1
+               and d.status = 'ready'
+               and (d.is_sample or d.user_id = $2)
+             order by c.ordinal
+             limit $3
+            """,
+            document_id,
+            user_id,
+            limit,
+        )
+        return [_to_plain_chunk(row) for row in rows]
+
     async def chunk_count(self, document_id: UUID) -> int:
         count: int = await self._pool.fetchval(
             "select count(*) from chunks where document_id = $1", document_id
@@ -349,6 +391,30 @@ def _bbox_json(bbox: BBox | None) -> str | None:
     import json
 
     return json.dumps(bbox.as_dict())
+
+
+def _to_plain_chunk(row: Any) -> RetrievedChunk:
+    """A chunk read directly rather than retrieved, so it has no ranks.
+
+    Separate from `_to_chunk` because that one reads `vector_rank` and
+    `keyword_rank`, columns only the hybrid query produces. Reusing it here
+    would mean inventing two zeros and calling them ranks.
+    """
+    bbox = row["bbox"]
+    if isinstance(bbox, str):
+        import json
+
+        bbox = json.loads(bbox)
+
+    return RetrievedChunk(
+        chunk_id=row["id"],
+        content=row["content"],
+        content_type=row["content_type"],
+        page_start=row["page_start"] or 1,
+        page_end=row["page_end"] or row["page_start"] or 1,
+        section_path=row["section_path"] or "",
+        bbox=BBox(**bbox) if bbox else None,
+    )
 
 
 def _to_chunk(row: Any) -> RetrievedChunk:

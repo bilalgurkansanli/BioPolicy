@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, MaybeUser
 from api.constants import PIPELINE_STAGES
 from api.deps import Config, State
+from api.generation.profile import PROFILE_MAX_CHUNKS, PolicyProfile
 from api.logging_config import get_logger
 from api.safety.limits import LimitExceededError
 from api.storage import StorageError, upload_path
@@ -415,6 +416,142 @@ async def page_lines(document_id: UUID, page: int, user: MaybeUser, state: State
 
     lines = await state.store.page_lines(document_id, page)
     return PageLines(page=page, lines=[PageLine(text=text, bbox=bbox) for text, bbox in lines])
+
+
+# -----------------------------------------------------------------------------
+# typed extraction
+# -----------------------------------------------------------------------------
+#
+# Two verbs, deliberately. GET reads the cache and never spends anything, so the
+# workspace can ask on every document open. POST is the one that calls a model,
+# and it is the one that needs an account and a quota check.
+#
+# Folding both into GET would make opening a document a billable event, and a
+# refresh loop in somebody's browser an expensive one.
+
+
+async def _profile_owner(document_id: UUID, user: object, state: State) -> UUID:
+    """Check the caller may see this document, and return whose it is.
+
+    The owner id, not the caller's: a sample belongs to the seeder and is
+    readable by everyone, so scoping the chunk sweep to the *caller* would
+    return nothing for the documents the demo is built on.
+
+    404 rather than 403 for someone else's document, matching the rest of this
+    router — whether an id exists is not something a stranger should be able to
+    probe.
+    """
+    row = await state.pool.fetchrow(
+        "select user_id from documents "
+        "where id = $1 and (is_sample or user_id = $2) and status = 'ready'",
+        document_id,
+        getattr(user, "id", None),
+    )
+    if row is None:
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND, detail="No such document, or it is not ready yet."
+        )
+    return UUID(str(row["user_id"]))
+
+
+@router.get(
+    "/{document_id}/profile",
+    response_model=PolicyProfile | None,
+    summary="Cached typed extraction",
+)
+async def read_profile(document_id: UUID, user: MaybeUser, state: State) -> PolicyProfile | None:
+    """The document read into the fixed schema, if it has been read.
+
+    `null` means nobody has run the extraction yet — distinct from a profile
+    whose `entries` are empty, which means it ran and the document filled no
+    slots. The interface renders those two states differently, so this route
+    must not collapse them into one.
+    """
+    await _profile_owner(document_id, user, state)
+    cached = await state.documents.get_profile(document_id)
+    return PolicyProfile.model_validate(cached) if cached else None
+
+
+@router.post(
+    "/{document_id}/profile",
+    response_model=PolicyProfile,
+    summary="Run typed extraction",
+)
+async def build_profile(document_id: UUID, user: CurrentUser, state: State) -> PolicyProfile:
+    """Sweep the whole document into the schema, then cache it.
+
+    Returns the cache when there is one, without spending anything. That is what
+    keeps the sample documents affordable: the first signed-in visitor pays for
+    the extraction and everyone after them reads the result.
+
+    **Not counted against the daily question allowance**, because it is not a
+    question — but it is gated by it, so somebody who has spent their questions
+    cannot open a new spending path. The real ceiling is arithmetic rather than
+    a counter: a profile is cached per document, samples are shared, and a user
+    may upload one document a day, so the number of extractions one account can
+    trigger is bounded by the document limit that already exists.
+    """
+    owner = await _profile_owner(document_id, user, state)
+
+    cached = await state.documents.get_profile(document_id)
+    if cached:
+        return PolicyProfile.model_validate(cached)
+
+    try:
+        # Breaker before quota, as in `chat`: when the demo is out of money,
+        # telling a visitor they have allowance left would be a lie.
+        await state.breaker.ensure_capacity()
+        await state.quota.ensure_can_ask(user.id)
+    except LimitExceededError as exc:
+        raise exc.as_http() from exc
+
+    # One extraction per document at a time. Two browsers opening the same
+    # uncached sample together would otherwise both pay for it. Process-local,
+    # so it does not help across instances — the waste it prevents is the common
+    # case, and the cache makes the uncommon one self-correcting.
+    #
+    # The lock is never removed from the map. Deleting it on the way out looks
+    # tidier and is wrong: a waiter already holding a reference would keep using
+    # an entry no longer in the map, and the next arrival would create a second
+    # lock and run alongside it. An empty `asyncio.Lock` per document seen is a
+    # smaller cost than the bug.
+    async with _profile_locks.setdefault(document_id, asyncio.Lock()):
+        cached = await state.documents.get_profile(document_id)
+        if cached:
+            return PolicyProfile.model_validate(cached)
+
+        chunks = await state.store.all_chunks(
+            document_id=document_id,
+            user_id=owner,
+            limit=PROFILE_MAX_CHUNKS,
+        )
+        total = await state.store.chunk_count(document_id)
+
+        outcome = await state.profiler.extract(chunks)
+        # `chunks_total` from the store, not from what the sweep read: the
+        # profile's own coverage figure has to come from the document's real
+        # size or "complete" means nothing.
+        profile = outcome.profile.model_copy(update={"chunks_total": total})
+
+        cost = await state.usage.record(user_id=user.id, records=outcome.usage)
+        state.breaker.note_spend(cost)
+
+        # An extraction where every batch failed is a provider outage, not a
+        # reading of the document. Caching it would make the outage permanent
+        # for this document until somebody cleared the column by hand.
+        if profile.entries or profile.batches_failed == 0:
+            await state.documents.set_profile(document_id, profile.model_dump(mode="json"))
+        else:
+            log.warning(
+                "profile_not_cached",
+                document_id=str(document_id),
+                batches_failed=profile.batches_failed,
+            )
+
+    return profile
+
+
+_profile_locks: dict[UUID, asyncio.Lock] = {}
 
 
 class Capabilities(BaseModel):

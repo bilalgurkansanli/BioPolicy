@@ -16,6 +16,7 @@ import { ConversationList } from "@/components/workspace/ConversationList";
 import { DocumentList } from "@/components/workspace/DocumentList";
 import { MyDocumentList } from "@/components/workspace/MyDocumentList";
 import { InjectionNotice } from "@/components/workspace/InjectionNotice";
+import { PolicyProfile } from "@/components/workspace/PolicyProfile";
 import { RefusalTour } from "@/components/workspace/RefusalTour";
 import { SignInGate } from "@/components/workspace/SignInGate";
 import { PdfViewer, type Highlight } from "@/components/workspace/PdfViewer";
@@ -621,7 +622,11 @@ export function Workspace() {
 
                 {mine.length > 0 && (
                   <>
-                    <div className="mt-2 min-h-0 flex-1 overflow-y-auto">
+                    {/* A floor as well as a ceiling: on a short window the
+                        fixed content above can leave this box a single row,
+                        which is a scrollbar around nothing. Below the floor the
+                        panel itself starts scrolling instead. */}
+                    <div className="mt-2 min-h-36 flex-1 overflow-y-auto">
                       <MyDocumentList
                         documents={mine}
                         progress={ingesting}
@@ -663,6 +668,24 @@ export function Workspace() {
                 document, and it stays true for every answer below it. */}
             {selected?.injection_findings && (
               <InjectionNotice findings={selected.injection_findings} />
+            )}
+            {/* Also above the transcript, and for the same reason — but the
+                argument is stronger here. The profile is what somebody who has
+                not read their policy needs *before* they can think of a
+                question, so burying it under the empty state (where it would
+                vanish the moment they asked one) would put it exactly where it
+                stops being useful. */}
+            {selected && (
+              <PolicyProfile
+                // Remount per document rather than reset on change: fresh
+                // state comes free, and the alternative is a setState inside
+                // the fetch effect.
+                key={selected.id}
+                documentId={selected.id}
+                signedIn={signedIn}
+                onCite={showCitation}
+                activeCitation={activeCitation}
+              />
             )}
             {messages.length === 0 && stage === null && (
               <div className="px-1 pt-6">

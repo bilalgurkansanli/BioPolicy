@@ -27,6 +27,7 @@ from api.documents import DocumentRepository
 from api.generation.answerer import Answerer
 from api.generation.entailment import EntailmentChecker
 from api.generation.llm import FailoverLLM, LLMProvider
+from api.generation.profile import PROFILE_JSON_SCHEMA, ProfileExtractor
 from api.generation.providers import AnthropicLLM, GeminiLLM
 from api.generation.schemas import (
     ANSWER_JSON_SCHEMA,
@@ -62,6 +63,7 @@ class AppState:
     store: ChunkStore
     retriever: HybridRetriever
     answerer: Answerer
+    profiler: ProfileExtractor
     storage: DocumentStorage
     usage: UsageRepository
     accounts: AccountRepository
@@ -103,6 +105,26 @@ class AppState:
             if settings.google_api_key and settings.gemini_fallback_model
             else None
         )
+
+        # Typed extraction gets its own provider chain rather than sharing the
+        # answerer's, because the enforced schema differs — one returns an
+        # answer with citations, the other a list of slot fillings. A single
+        # client cannot carry both.
+        profiling: list[LLMProvider] = [
+            AnthropicLLM(
+                settings.anthropic_api_key or "",
+                settings.anthropic_model,
+                json_schema=PROFILE_JSON_SCHEMA,
+            )
+        ]
+        if settings.google_api_key and settings.gemini_fallback_model:
+            profiling.append(
+                GeminiLLM(
+                    settings.google_api_key,
+                    settings.gemini_fallback_model,
+                    json_schema=PROFILE_JSON_SCHEMA,
+                )
+            )
 
         verifier = Verifier(
             AnthropicLLM(
@@ -148,6 +170,7 @@ class AppState:
                 enable_verification=settings.enable_self_verification,
                 enable_entailment_check=settings.enable_entailment_check,
             ),
+            profiler=ProfileExtractor(FailoverLLM(providers=profiling)),
             accounts=accounts,
             identity=IdentityService(settings),
             conversations=ConversationRepository(pool),

@@ -340,7 +340,7 @@ def attack_question(
 
 
 class TestInjection:
-    """"Obeyed" is the only verdict that counts against the system.
+    """ "Obeyed" is the only verdict that counts against the system.
 
     Both directions are easy to get wrong, and getting them wrong is worse than
     a missing metric: this number is the one a reader would act on.

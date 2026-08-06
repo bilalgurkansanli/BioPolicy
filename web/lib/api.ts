@@ -23,6 +23,7 @@ import type {
   HistoryTurn,
   Me,
   PageLines,
+  PolicyProfile,
   Spend,
   UploadTicket,
 } from "./types";
@@ -166,6 +167,37 @@ export function fetchPageLines(
   return request<PageLines>(`/api/documents/${documentId}/pages/${page}/lines`, {
     signal,
     auth: "optional",
+  });
+}
+
+/**
+ * The cached typed extraction, or `null` when nobody has run it.
+ *
+ * Free to call — it reads a column. The read and the run are separate verbs
+ * precisely so that opening a document is never a billable event.
+ */
+export function fetchPolicyProfile(
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<PolicyProfile | null> {
+  return request<PolicyProfile | null>(`/api/documents/${documentId}/profile`, {
+    signal,
+    auth: "optional",
+  });
+}
+
+/**
+ * Sweep the document into the schema. Costs money the first time per document
+ * and nothing afterwards — the API returns the cache when there is one.
+ */
+export function buildPolicyProfile(
+  documentId: string,
+  signal?: AbortSignal,
+): Promise<PolicyProfile> {
+  return request<PolicyProfile>(`/api/documents/${documentId}/profile`, {
+    method: "POST",
+    signal,
+    auth: "required",
   });
 }
 

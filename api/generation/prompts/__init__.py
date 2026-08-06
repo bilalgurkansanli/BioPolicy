@@ -25,6 +25,12 @@ VERIFY = "verify_v1"
 ENTAIL = "entail_v1"
 REWRITE = "rewrite_v1"
 
+# Typed extraction, not question answering. Shares the anti-injection section
+# with `answer_v2` — a hostile document is hostile to a sweep as well, and the
+# omission attack is *worse* here: a reader scanning a profile has no question
+# in mind to notice the missing answer to.
+PROFILE = "profile_v1"
+
 # The baseline arm of the evaluation, not a production prompt.
 #
 # `answer_naive_v1` is what a competent developer writes on a first pass:

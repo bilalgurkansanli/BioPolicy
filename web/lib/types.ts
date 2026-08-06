@@ -147,6 +147,46 @@ export type Conversation = {
   messages: StoredMessage[];
 };
 
+/** The slots typed extraction fills. Mirrors `PROFILE_FIELDS` in the API. */
+export type ProfileField =
+  | "insured"
+  | "policy_period"
+  | "territorial_scope"
+  | "covered_peril"
+  | "sub_limit"
+  | "deductible"
+  | "waiting_period"
+  | "notification_deadline"
+  | "exclusion";
+
+export type ProfileEntry = {
+  field: ProfileField;
+  /** The item's name — `Deprem`, `Theft`. Empty for the singular fields. */
+  label: string;
+  value: string;
+  /** Already bound. Clicking it highlights the clause, as an answer's does. */
+  citation: Citation;
+};
+
+export type PolicyProfile = {
+  entries: ProfileEntry[];
+  /**
+   * Slots nothing filled — the half of this a chatbot cannot produce.
+   *
+   * Only meaningful when `complete` below is true. A slot can be empty because
+   * the document is silent or because nobody read that part of it, and the
+   * interface has to be able to tell those apart.
+   */
+  absent: ProfileField[];
+  chunks_seen: number;
+  chunks_total: number;
+  batches_failed: number;
+  /** Entries discarded because their quote was not in the chunk they named. */
+  dropped: number;
+  model: string;
+  prompt_version: string;
+};
+
 export type PageLines = {
   page: number;
   /** One visual row of text, boxed. Empty for a page with a text layer. */

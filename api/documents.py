@@ -183,6 +183,29 @@ class DocumentRepository:
             json.dumps(injection_findings) if injection_findings is not None else None,
         )
 
+    async def get_profile(self, document_id: UUID) -> dict[str, object] | None:
+        """The cached typed extraction, or None when it has not been run.
+
+        None and an extracted-but-empty profile are different states and must
+        stay different all the way to the interface — see the comment on the
+        column in `0010_policy_profile.sql`.
+        """
+        raw = await self._pool.fetchval(
+            "select policy_profile from documents where id = $1", document_id
+        )
+        if raw is None:
+            return None
+        # asyncpg hands back jsonb as a string unless a codec is registered.
+        parsed = json.loads(raw) if isinstance(raw, str) else raw
+        return parsed if isinstance(parsed, dict) else None
+
+    async def set_profile(self, document_id: UUID, profile: dict[str, object]) -> None:
+        await self._pool.execute(
+            "update documents set policy_profile = $2 where id = $1",
+            document_id,
+            json.dumps(profile),
+        )
+
     async def mark_ready(self, document_id: UUID) -> None:
         await self.set_status(document_id, STATUS_READY)
 
