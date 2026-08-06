@@ -84,6 +84,12 @@ def square(size: int, pad: float, background=None) -> Image.Image:
 logo = mark.resize((round(mark.width * 256 / mark.height), 256), Image.LANCZOS)
 logo.save(WEB / "public" / "logo.png", optimize=True)
 
+# The same mark beside its source, for the READMEs. Generated rather than
+# copied by hand: a brand asset that drifts from the one the app ships is worse
+# than no brand asset, and the README is the first thing anyone sees.
+logo.save(ROOT / "docs" / "brand" / "logo.png", optimize=True)
+
+
 def favicon(size: int, scale: float = 1.10, bottom: float = 0.015) -> Image.Image:
     """The mark, scaled past the canvas height and hung from the bottom edge."""
     height = round(size * scale)
@@ -108,6 +114,11 @@ square(180, 0.07, background=(247, 249, 253, 255)).convert("RGB").save(
     WEB / "app" / "apple-icon.png", optimize=True
 )
 
-for name in ("public/logo.png", "app/icon.png", "app/favicon.ico", "app/apple-icon.png"):
-    path = WEB / name
-    print(f"wrote {name} ({path.stat().st_size // 1024} KB)")
+for path in (
+    WEB / "public/logo.png",
+    WEB / "app/icon.png",
+    WEB / "app/favicon.ico",
+    WEB / "app/apple-icon.png",
+    ROOT / "docs/brand/logo.png",
+):
+    print(f"wrote {path.relative_to(ROOT)} ({path.stat().st_size // 1024} KB)")

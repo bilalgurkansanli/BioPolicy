@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="./docs/brand/logo.png" alt="" width="84">
+
 # BioPolicy
 
 **Poliçenize sorun. Tahmin değil, maddenin kendisini alın.**
@@ -24,11 +26,16 @@ soru-cevap — gösterilmek için değil, ölçülmek için yazıldı.
 
 ---
 
-> **Durum: yapım aşamasında.** Bu dosya bir vaka çalışması olarak yazılıyor ve
-> her faz bittikçe dolduruluyor. İçindeki her sayı, canlı modellere ve canlı
-> veritabanına karşı çalışan [`eval/run_eval.py`](./eval/run_eval.py) tarafından
-> üretiliyor — hâlâ _bekliyor_ diye işaretli bölümlerin henüz ölçümü yok ve
-> inandırıcı görünen yer tutucularla doldurulmak yerine bilerek boş bırakıldı.
+> **Aşağıdaki her sayı üretildi, yazılmadı.**
+> [`eval/run_eval.py`](./eval/run_eval.py) bunları canlı modellere ve canlı
+> veritabanına karşı üretiyor; yazdığı rapor da
+> [olduğu gibi](./eval/report.tr.md) yayımlanıyor — kendi yazdığım iki
+> mekanizmanın hiçbir kararı değiştirmediği ve her sorunun maliyetine %45
+> eklediği koşu dahil. Sistemi övmeyen bir sonuç, yayımlamaya değen tek sonuçtur.
+
+<picture>
+  <img src="./docs/screenshots/workspace.tr.png" alt="Çalışma ekranı: solda örnek belgeler, ortada cevap, sağda poliçenin kendisi" width="100%">
+</picture>
 
 ## Problem
 
@@ -239,6 +246,12 @@ Tamamı [mimari karar kayıtları](./docs/adr) olarak tutuluyor. Kısası:
 ## Arayüz
 
 Üç yüzey, üçü de statik olarak önceden render ediliyor:
+
+|  |  |
+|---|---|
+| ![Açılış sayfası](./docs/screenshots/landing.tr.png) | ![Değerlendirme sayfası](./docs/screenshots/evaluation.tr.png) |
+| İddia, ve sistemin yapmadıkları. | `eval/report.tr.md`, yazıldığı gibi. |
+
 
 - **`/`** — iddia, arkasındaki sayılar ve sistemin yapmadığı şeyler.
 - **`/app`** — çalışma alanı. Sağda belge, solda konuşma ve geldikleri maddenin
