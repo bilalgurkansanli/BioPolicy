@@ -18,7 +18,7 @@ dependencies = [
     # --- supabase / postgres ---
     "supabase>=2.10",
     "asyncpg>=0.30",
-    "pyjwt[crypto]>=2.9",
+    "pyjwt[crypto]>=2.13.0",
     # --- pdf parsing (permissive licences only; see docs/adr/002) ---
     "pypdfium2>=4.30",
     "pdfplumber>=0.11",
