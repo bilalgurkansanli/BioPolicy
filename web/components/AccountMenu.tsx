@@ -157,7 +157,20 @@ export function AccountMenu() {
         <div
           role="menu"
           aria-label={t.account.menu}
-          className="menu-pop absolute right-0 top-[calc(100%+0.6rem)] z-40 w-72 overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_28px_60px_-28px_rgb(15_23_42_/_0.5)]"
+          // Anchored to the viewport on a phone, to the button from `sm` up.
+          //
+          // The trigger sits near the left of the header, and a 288px panel
+          // hung off its right edge runs off the screen: measured at 375px it
+          // started at -135, so the name and the email were cut in half. Right
+          // alignment is correct on a desktop, where the control is at the far
+          // right of a wide row, and wrong on a phone for the same reason.
+          //
+          // `fixed inset-x-4` gives it the full width less an even margin, which
+          // is what a menu this size should do on a phone anyway. It stays a DOM
+          // child of the wrapper, so the click-outside and Escape handling that
+          // keys off `root.contains` is unaffected. `top-[4.6rem]` clears the
+          // 4rem header and keeps the same gap under it as the desktop rule.
+          className="menu-pop fixed inset-x-4 top-[4.6rem] z-40 overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_28px_60px_-28px_rgb(15_23_42_/_0.5)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-[calc(100%+0.6rem)] sm:w-72"
         >
           <div className="flex items-center gap-3 border-b border-line p-4">
             <UserAvatar size={40} />
