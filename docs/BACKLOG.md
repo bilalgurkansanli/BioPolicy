@@ -27,6 +27,18 @@ These were ruled out before the build started. Listed so the reasoning survives.
 ## Deferred during the build
 
 ### Parsing
+- **Borderless tables as tables.** A real AXA policy sets its coverage schedule
+  with alignment rather than ruled lines, so pdfplumber's line-based detection
+  finds nothing and the rows arrive as prose. Retrieval and citation both work
+  on it — `BİNA YANGIN 3.630.000,00` is retrieved first and quoted verbatim —
+  so this is quality rather than a defect: Markdown structure would help a model
+  keep figures attached to the right peril on a schedule wider than this one.
+
+  **Not a drop-in change.** pdfplumber's `text` strategy was measured on the
+  same document and reads a whole page as a 95×10 grid with 22% of cells filled,
+  splitting the letterhead across columns. Any attempt needs a detector that
+  fires only on genuine alignment, and the guard is the same one the column work
+  used: the single-column samples must parse byte-identically.
 - **Docling as an alternative `DocumentParser`.** The interface exists precisely
   so this is a drop-in. Worth doing if the eval shows table-category recall
   lagging the other categories — see [ADR 002](./adr/002-pdf-parsing-stack.md).

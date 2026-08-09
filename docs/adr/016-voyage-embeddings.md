@@ -106,14 +106,38 @@ tokens are gone.
 new package: Voyage is three fields over HTTP through `httpx`, which was already
 a dependency (ADR 002 keeps the dependency list short and licence-checked).
 
-## What this did not fix
+## The failure this warning describes, one hour later
 
-The policy now ingests — 132 chunks, all 28 coverage amounts present — and its
-schedule is still hard to retrieve. The table is set without ruled lines, so
-pdfplumber does not detect it as a table and it arrives as prose: a row of
-`*BİNA YANGIN 3.630.000,00 91,77`. As a data dump it embeds poorly against a
-natural-language question, and its density hurts it in `ts_rank_cd` too, so it
-ranks 5th on one phrasing of the question and off the list on another.
+The paragraph above about querying old rows with new query vectors was written
+while a second copy of the provider choice sat in `api/scripts/ask.py`. It built
+its own `GeminiEmbedder` rather than calling `build_embedder` — harmless with one
+provider, a silent correctness bug with two. The CLI embedded questions with
+Gemini and compared them against chunks embedded with Voyage.
 
-That is a table-extraction problem, not an embedding one, and it is the next
-thing worth measuring.
+The symptom pointed somewhere else entirely. Asked for a figure plainly present
+in the policy, the system refused, and the coverage schedule was absent from the
+retrieved context — so the schedule looked like the problem: a table set without
+ruled lines, arriving as prose, embedding poorly as a data dump. A whole
+investigation into borderless table extraction started from that.
+
+Measuring retrieval directly ended it. Through the store, on the same question
+the CLI could not answer, the schedule ranked **first** in both arms. Nothing
+was wrong with the table. With the embedders matched, "Bina yangın bedeli kaç
+TL?" returns 3.630.000,00 TL citing `BİNA YANGIN 3.630.000,00` verbatim at
+groundedness 1.00.
+
+The lesson is narrower than "test more": a provider choice must exist in exactly
+one place. Two call sites had copied it, and both were fixed by routing through
+`build_embedder`.
+
+## What is still true about the tables
+
+The schedule is retrieved and cited correctly, but it arrives as prose rather
+than as a Markdown table, because pdfplumber's line-based detection finds
+nothing on a borderless layout. The text strategy is not a drop-in replacement —
+measured on this document it reads a whole page as a 95×10 grid, 22% of cells
+filled, splitting the letterhead across columns.
+
+It is working, so it is a quality item rather than a defect: structure would
+help a model read which figure belongs to which peril on a wider table than
+this one.
