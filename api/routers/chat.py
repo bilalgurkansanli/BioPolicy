@@ -16,14 +16,17 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
-from api.auth import CurrentUser
-from api.deps import State
+from api.answer_cache import CachedAnswer, is_cacheable
+from api.auth import AuthenticatedUser, CurrentUser
+from api.deps import AppState, Config, State
+from api.generation import prompts
 from api.generation.answerer import AnswerOutcome, off_topic_refusal
 from api.generation.llm import Turn
 from api.generation.schemas import GroundedAnswer
@@ -69,16 +72,26 @@ def _snippet(content: str) -> str:
 
 
 def _answer_payload(
-    answer: GroundedAnswer, conversation_id: UUID | None, cost: float
+    answer: GroundedAnswer,
+    conversation_id: UUID | None,
+    cost: float,
+    *,
+    cached: int | None = None,
 ) -> dict[str, object]:
     """The `done` payload, in one place.
 
-    Two paths produce it — the ordinary one and the floor's early refusal — and
-    a field added to only one of them is a field the client reads as `undefined`
-    on the other.
+    Three paths produce it — the ordinary one, the floor's early refusal, and a
+    cache hit — and a field added to only one of them is a field the client
+    reads as `undefined` on the others.
+
+    `cached` is the number of times this answer had been served before, or None
+    if it was computed now. Not a boolean: "answered from cache" and "answered
+    from cache for the 40th time" are different things to show someone reading a
+    report that quotes per-question latency.
     """
     return {
         "conversation_id": str(conversation_id) if conversation_id else None,
+        "cached": cached,
         "answer": answer.answer,
         "refused": answer.refused,
         "suppressed": answer.suppressed,
@@ -105,8 +118,73 @@ def _answer_payload(
     }
 
 
+async def _serve_cached(
+    hit: CachedAnswer,
+    request: ChatRequest,
+    user: AuthenticatedUser,
+    state: AppState,
+    row: Any,
+) -> AsyncIterator[dict[str, str]]:
+    """Replay a stored answer as the same sequence of events a fresh one sends.
+
+    The client is not special-cased. It receives `retrieval_complete` with the
+    passages that were considered when the answer was produced, and `done` with
+    the answer — the difference is one labelled field, and no `answering` stage,
+    because nothing is being answered.
+
+    The turn is still written to the conversation. A question someone asked is
+    in their history whether or not we had to pay to answer it.
+    """
+    payload = dict(hit.payload)
+    considered = payload.pop("considered", [])
+
+    yield _event(
+        "retrieval_complete",
+        {
+            "chunk_ids": [c.get("context_id") for c in considered],
+            "count": len(considered),
+            "searched": request.question,
+            "rewritten": False,
+            "considered": considered,
+        },
+    )
+
+    conversation_id: UUID | None = None
+    try:
+        conversation_id = await state.conversations.ensure(
+            conversation_id=request.conversation_id,
+            user_id=user.id,
+            document_id=UUID(str(row["id"])),
+            question=request.question,
+        )
+        await state.conversations.append_turn(
+            conversation_id=conversation_id,
+            user_id=user.id,
+            question=request.question,
+            answer=str(payload.get("answer", "")),
+            citations=[],
+            groundedness=cast(float | None, payload.get("groundedness")),
+            refused=bool(payload.get("refused")),
+            suppressed=bool(payload.get("suppressed")),
+            prompt_version=str(payload.get("prompt_version", prompts.ANSWER)),
+            model=str(payload.get("model", "")),
+        )
+    except Exception as exc:
+        log.error("conversation_not_saved", exc_info=exc)
+
+    payload["conversation_id"] = str(conversation_id) if conversation_id else None
+    # Zero, and truthfully so: this answer cost nothing to serve. The figure the
+    # interface shows has to stay a measurement of what was actually spent.
+    payload["cost_usd"] = 0.0
+    payload["cached"] = hit.served_before
+    log.info("answer_served_from_cache", served_before=hit.served_before)
+    yield _event("done", payload)
+
+
 @router.post("/chat", summary="Ask a grounded question (SSE)")
-async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSourceResponse:
+async def chat(
+    user: CurrentUser, request: ChatRequest, state: State, settings: Config
+) -> EventSourceResponse:
     """Answer one question about one document.
 
     Every guard runs *before* the stream opens. An SSE response that has already
@@ -137,12 +215,54 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
         try:
             yield _event("retrieval_started")
 
+            # Looked up before retrieval rather than after it, so a hit costs
+            # nothing at all — not even the query embedding. The stored payload
+            # carries the passages too, so the interface shows the same evidence
+            # it would have shown for a fresh answer.
+            #
+            # A follow-up is never served from cache: its meaning depends on the
+            # turns before it, and the key holds only the question as typed.
+            hit = (
+                None
+                if request.history
+                else await state.answer_cache.get(
+                    document_id=UUID(str(row["id"])),
+                    question=request.question,
+                    language=request.language,
+                    prompt_version=prompts.ANSWER,
+                    model=settings.anthropic_model,
+                )
+            )
+            if hit is not None:
+                async for event in _serve_cached(hit, request, user, state, row):
+                    yield event
+                return
+
             retrieved = await state.retriever.retrieve(
                 question=request.question,
                 document_id=UUID(str(row["id"])),
                 user_id=UUID(str(row["user_id"])),
                 history=[Turn(role=t.role, content=t.content) for t in request.history],  # type: ignore[arg-type]
             )
+            # Every passage that reached the prompt, so the interface can show
+            # which of them the answer did not use. Built once: it is sent now,
+            # as a fact about retrieval that stays true even if generation then
+            # fails, and stored with the answer so a cache hit can replay it.
+            considered = [
+                {
+                    "context_id": chunk.context_id,
+                    "page": chunk.page_start,
+                    "page_end": chunk.page_end,
+                    "section_path": chunk.section_path,
+                    "snippet": _snippet(chunk.content),
+                    # Carried so an unused passage can be opened in the viewer
+                    # the way a cited one can. Without it the list would be
+                    # readable and unverifiable, which is the opposite of the
+                    # point.
+                    "bbox": chunk.bbox.as_dict() if chunk.bbox else None,
+                }
+                for chunk in retrieved.context.chunks
+            ]
             yield _event(
                 "retrieval_complete",
                 {
@@ -150,25 +270,7 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
                     "count": len(retrieved.context.chunks),
                     "searched": retrieved.search_query,
                     "rewritten": retrieved.rewritten,
-                    # Every passage that reached the prompt, so the interface can
-                    # show which of them the answer did not use. Sent here rather
-                    # than with the answer because it is a fact about retrieval,
-                    # and it stays true even if generation then fails.
-                    "considered": [
-                        {
-                            "context_id": chunk.context_id,
-                            "page": chunk.page_start,
-                            "page_end": chunk.page_end,
-                            "section_path": chunk.section_path,
-                            "snippet": _snippet(chunk.content),
-                            # Carried so an unused passage can be opened in the
-                            # viewer the way a cited one can. Without it the
-                            # list would be readable and unverifiable, which is
-                            # the opposite of what it is for.
-                            "bbox": chunk.bbox.as_dict() if chunk.bbox else None,
-                        }
-                        for chunk in retrieved.context.chunks
-                    ],
+                    "considered": considered,
                 },
             )
 
@@ -206,8 +308,8 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
                     await stages.put(None)
 
             answering = asyncio.create_task(run())
-            while (event := await stages.get()) is not None:
-                yield event
+            while (stage := await stages.get()) is not None:
+                yield stage
 
             outcome = await answering
             answer = outcome.answer
@@ -251,7 +353,27 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
             )
             state.breaker.note_spend(cost)
 
-            yield _event("done", _answer_payload(answer, conversation_id, cost))
+            payload = _answer_payload(answer, conversation_id, cost)
+
+            # Stored with the passages, so a hit can replay the whole stream.
+            # `conversation_id` and `cost_usd` are overwritten on the way out —
+            # they belong to the request, not to the answer.
+            if is_cacheable(payload):
+                await state.answer_cache.put(
+                    document_id=UUID(str(row["id"])),
+                    question=request.question,
+                    language=request.language,
+                    prompt_version=outcome.prompt_version,
+                    model=settings.anthropic_model,
+                    payload={
+                        **payload,
+                        "considered": considered,
+                        "prompt_version": outcome.prompt_version,
+                        "model": outcome.model,
+                    },
+                )
+
+            yield _event("done", payload)
         except Exception as exc:  # the stream must end with an event, not a hang
             log.error("chat_failed", exc_info=exc)
             yield _event(

@@ -184,7 +184,10 @@ const tr = {
     droppedCitations: "alıntı belgede bulunamadığı için atıldı",
     cost: "maliyet",
     costNote:
-      "Yalnızca Anthropic ücretlendirmesi. Gömme ve sorgu yeniden yazma için kullanılan Google modellerinin fiyatı bu projede doğrulanmadığı için toplama katılmıyor.",
+      "Bu soru için sağlayıcılara ödenen tutar: cevap ve doğrulama çağrıları (Anthropic) ile gömme ve sorgu yeniden yazma (Google). Her iki sağlayıcının fiyatları da doğrulandı ve kayıtlı.",
+    cached: "önbellekten · bu cevap {count}. kez sunuldu",
+    cachedNote:
+      "Bu soru daha önce aynı belgeye, aynı prompt sürümü ve aynı modelle soruldu; cevap saklanmıştı. Yeni bir model çağrısı yapılmadı, bu yüzden maliyeti sıfır. Değerlendirme raporundaki süre ve maliyet rakamları gerçek çağrıların ölçümüdür, bu değil.",
     errorTitle: "Bir şeyler ters gitti",
     errorBody: "Başarısız bir cevap için ücretlendirme yapılmaz.",
     viewerHint: "Bir alıntıya tıklayın, belgede yerini göstersin.",
@@ -573,7 +576,10 @@ const en: Dictionary = {
     droppedCitations: "citations were dropped for not appearing in the document",
     cost: "cost",
     costNote:
-      "Anthropic billing only. The Google models used for embedding and query rewriting are excluded because their pricing was not verified for this project.",
+      "What this question cost in provider spend: the answer and verification calls (Anthropic) plus embedding and query rewriting (Google). Both providers' rates are verified and registered.",
+    cached: "from cache · served {count} times",
+    cachedNote:
+      "This question was asked of this document before, under the same prompt version and model, and the answer was kept. No model call was made, so it cost nothing. The latency and cost figures in the evaluation report are measurements of real calls; this is not one.",
     errorTitle: "Something went wrong",
     errorBody: "Nothing is charged for a failed answer.",
     viewerHint: "Click a citation to see where it sits in the document.",

@@ -60,6 +60,15 @@ export type Citation = {
 export type Answer = {
   /** The thread this turn was saved to. Sent back on the next question. */
   conversation_id: string | null;
+  /**
+   * How many times this answer had been served before, or `null` if it was
+   * computed for this request.
+   *
+   * A number rather than a boolean, and shown rather than hidden: this project
+   * publishes per-question latency and cost, and an answer that arrived in
+   * milliseconds for nothing would quietly contradict both.
+   */
+  cached: number | null;
   answer: string;
   refused: boolean;
   suppressed: boolean;

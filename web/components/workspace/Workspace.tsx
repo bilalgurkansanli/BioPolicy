@@ -418,6 +418,11 @@ export function Workspace() {
                   // the model reported — are absent rather than invented.
                   answer: {
                     conversation_id: conversation.id,
+                    // A stored turn does not record whether it came from the
+                    // cache, and inventing `false` would be a claim nobody
+                    // made. `null` here means "computed", which is what the
+                    // cost line below already says by showing $0.0000.
+                    cached: null,
                     answer: message.content,
                     refused: message.refused,
                     suppressed: message.suppressed,

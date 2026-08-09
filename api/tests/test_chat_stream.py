@@ -16,10 +16,11 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
+from api.answer_cache import CachedAnswer
 from api.auth import AuthenticatedUser, required_user
 from api.deps import get_state
 from api.generation.answerer import AnswerOutcome
-from api.generation.schemas import GroundedAnswer
+from api.generation.schemas import BoundCitation, GroundedAnswer
 from api.main import create_app
 from api.retrieval.context import AssembledContext
 from api.retrieval.floor import FloorVerdict
@@ -73,7 +74,26 @@ class _Answerer:
 
     async def answer(self, **_: object) -> AnswerOutcome:
         self.calls += 1
-        return AnswerOutcome(answer=GroundedAnswer(answer="…", refused=False))
+        return AnswerOutcome(
+            answer=GroundedAnswer(
+                answer="Deprem teminatının limiti 1.800.000 TL.",
+                refused=False,
+                # A citation, because an answer without one is not cacheable and
+                # several assertions below are about what gets stored.
+                citations=[
+                    BoundCitation(
+                        chunk_id=uuid4(),
+                        context_id="C1",
+                        quote="1.800.000 TL",
+                        page=3,
+                        page_end=3,
+                        section_path="Madde 2",
+                        bbox=None,
+                        exact=True,
+                    )
+                ],
+            )
+        )
 
 
 class _Breaker:
@@ -102,7 +122,23 @@ class _Conversations:
     async def append_turn(self, **_: object) -> None: ...
 
 
-def _client(*, below_floor: bool) -> tuple[TestClient, _Retriever, _Answerer]:
+class _Cache:
+    """Misses unless handed a payload, and records what it was asked to store."""
+
+    def __init__(self, hit: CachedAnswer | None = None) -> None:
+        self.hit = hit
+        self.stored: list[dict[str, Any]] = []
+
+    async def get(self, **_: object) -> CachedAnswer | None:
+        return self.hit
+
+    async def put(self, *, payload: dict[str, Any], **_: object) -> None:
+        self.stored.append(payload)
+
+
+def _client(
+    *, below_floor: bool = False, cache: _Cache | None = None
+) -> tuple[TestClient, _Retriever, _Answerer]:
     retriever = _Retriever(below_floor=below_floor)
     answerer = _Answerer()
 
@@ -114,6 +150,7 @@ def _client(*, below_floor: bool) -> tuple[TestClient, _Retriever, _Answerer]:
         conversations = _Conversations()
 
     state = _State()
+    state.answer_cache = cache or _Cache()  # type: ignore[attr-defined]
     state.retriever = retriever  # type: ignore[attr-defined]
     state.answerer = answerer  # type: ignore[attr-defined]
 
@@ -209,15 +246,43 @@ def test_above_the_floor_the_model_is_called() -> None:
 # --- the two paths agree ------------------------------------------------------
 
 
-@pytest.mark.parametrize("below_floor", [True, False])
-def test_both_done_payloads_have_identical_keys(below_floor: bool) -> None:
-    """The regression this file was written for. Two code paths build `done`,
+CACHED_PAYLOAD = {
+    "conversation_id": None,
+    "cached": None,
+    "answer": "Deprem teminatının limiti 1.800.000 TL.",
+    "refused": False,
+    "suppressed": False,
+    "suppression_reason": None,
+    "confidence": "high",
+    "caveats": [],
+    "groundedness": 0.94,
+    "verified": True,
+    "entailment": None,
+    "citations": [],
+    "dropped_citations": 0,
+    "cost_usd": 0.0031,
+    "considered": [{"context_id": "C1", "page": 3, "snippet": "…"}],
+}
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: _client(below_floor=False),
+        lambda: _client(below_floor=True),
+        lambda: _client(cache=_Cache(CachedAnswer(payload=dict(CACHED_PAYLOAD), served_before=4))),
+    ],
+    ids=["answered", "below_floor", "cached"],
+)
+def test_every_done_payload_has_identical_keys(make: Any) -> None:
+    """The regression this file was written for. Three code paths build `done`,
     and a client reading a field only one of them sets sees `undefined`."""
-    client, _, _ = _client(below_floor=below_floor)
+    client, _, _ = make()
     done = dict(_events(client))["done"]
 
     assert set(done) == {
         "conversation_id",
+        "cached",
         "answer",
         "refused",
         "suppressed",
@@ -231,6 +296,61 @@ def test_both_done_payloads_have_identical_keys(below_floor: bool) -> None:
         "dropped_citations",
         "cost_usd",
     }
+
+
+# --- the cache ----------------------------------------------------------------
+
+
+def test_a_cache_hit_costs_nothing_and_says_so() -> None:
+    """The honesty rule. An answer served in milliseconds for nothing must not
+    look like one that was computed, or the latency and cost figures published
+    in eval/report.md are quietly contradicted by the product itself."""
+    cache = _Cache(CachedAnswer(payload=dict(CACHED_PAYLOAD), served_before=4))
+    client, retriever, answerer = _client(cache=cache)
+
+    done = dict(_events(client))["done"]
+
+    assert done["cached"] == 4
+    assert done["cost_usd"] == 0.0
+    assert retriever.calls == 0  # not even the query embedding
+    assert answerer.calls == 0
+
+
+def test_a_cache_hit_still_shows_what_was_considered() -> None:
+    """A replayed answer carries the same evidence a fresh one does."""
+    cache = _Cache(CachedAnswer(payload=dict(CACHED_PAYLOAD), served_before=0))
+    client, _, _ = _client(cache=cache)
+
+    events = dict(_events(client))
+
+    assert events["retrieval_complete"]["considered"][0]["context_id"] == "C1"
+    assert "considered" not in events["done"]
+
+
+def test_a_fresh_answer_says_it_is_not_cached() -> None:
+    client, _, _ = _client()
+    assert dict(_events(client))["done"]["cached"] is None
+
+
+def test_a_fresh_answer_is_stored_with_its_passages() -> None:
+    cache = _Cache()
+    client, _, _ = _client(cache=cache)
+
+    _events(client)
+
+    assert len(cache.stored) == 1
+    assert [c["context_id"] for c in cache.stored[0]["considered"]] == ["C1", "C2"]
+
+
+def test_a_floor_refusal_is_not_stored() -> None:
+    """`is_cacheable` rejects refusals, and the floor's is the cheapest answer
+    in the system anyway — there is nothing to save."""
+    cache = _Cache()
+    client, _, _ = _client(below_floor=True, cache=cache)
+
+    _events(client)
+
+    assert cache.stored == []
 
 
 def test_the_shape_survives_a_round_trip_through_json() -> None:

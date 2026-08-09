@@ -21,6 +21,7 @@ import asyncpg
 from fastapi import Depends, HTTPException, Request, status
 
 from api.accounts import AccountRepository
+from api.answer_cache import AnswerCache
 from api.config import Settings, get_settings
 from api.conversations import ConversationRepository
 from api.documents import DocumentRepository
@@ -60,6 +61,7 @@ class AppState:
 
     pool: asyncpg.Pool
     documents: DocumentRepository
+    answer_cache: AnswerCache
     store: ChunkStore
     retriever: HybridRetriever
     answerer: Answerer
@@ -153,6 +155,7 @@ class AppState:
         return cls(
             pool=pool,
             documents=documents,
+            answer_cache=AnswerCache(pool, enabled=settings.enable_answer_cache),
             store=store,
             storage=storage,
             usage=usage,

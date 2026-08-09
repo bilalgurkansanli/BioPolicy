@@ -218,6 +218,21 @@ function CitationChip({
 
 function CostLine({ answer }: { answer: Answer }) {
   const { t } = useLocale();
+
+  // A cached answer costs nothing and arrives in milliseconds. Printing
+  // "$0.0000" beside it without explanation would read as a free system rather
+  // than as a stored one — and this project publishes what a question costs.
+  if (answer.cached !== null) {
+    return (
+      <p
+        className="mt-3 font-mono text-[11px] text-ink-faint"
+        title={t.workspace.cachedNote}
+      >
+        {t.workspace.cached.replace("{count}", String(answer.cached + 1))}
+      </p>
+    );
+  }
+
   return (
     <p
       className="mt-3 font-mono text-[11px] text-ink-faint"

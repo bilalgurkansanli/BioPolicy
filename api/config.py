@@ -201,6 +201,11 @@ class Settings(BaseSettings):
     # See `api/retrieval/floor.py` for the distribution it was derived from.
     enable_retrieval_floor: bool = True
 
+    # Remember answers to sample documents, keyed by question, prompt version
+    # and model. Off makes every question a fresh call — which is what the eval
+    # harness needs, since a cached answer would measure nothing.
+    enable_answer_cache: bool = True
+
     # --- CORS ----------------------------------------------------------------
     # The browser talks to the API same-origin through a Next.js rewrite, so this
     # is normally empty. Populated only for local split-origin development.
