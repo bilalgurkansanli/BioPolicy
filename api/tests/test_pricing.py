@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import pytest
 
-from api.pricing import UnpricedModelError, estimate_cost, rate_for, register
+from api import pricing
+from api.config import Settings
+from api.pricing import UnpricedModelError, estimate_cost, rate_for, register, unpriced_models
 
 
 def test_verified_haiku_rate() -> None:
@@ -64,3 +66,90 @@ def test_registering_a_rate_requires_a_verification_date() -> None:
 def test_a_registered_rate_becomes_usable() -> None:
     register("test-model-xyz", input_per_mtok=2.0, output_per_mtok=8.0, verified_on="2026-08-04")
     assert estimate_cost("test-model-xyz", input_tokens=1_000_000, output_tokens=0) == 2.0
+
+
+# --- which models are unpriced ------------------------------------------------
+#
+# This set is the whole safety property. It was previously computed over the
+# rates that *exist*, which cannot contain a model nobody registered — so a
+# deployment whose every Gemini call was invisible reported nothing wrong.
+
+
+def test_unpriced_asks_about_the_models_that_will_be_called() -> None:
+    assert unpriced_models(["claude-haiku-4-5", "gemini-nobody-priced-this"]) == [
+        "gemini-nobody-priced-this"
+    ]
+
+
+def test_nothing_unpriced_when_every_called_model_has_a_rate() -> None:
+    assert unpriced_models(["claude-haiku-4-5"]) == []
+
+
+def test_priced_models_skips_capabilities_that_are_switched_off() -> None:
+    """An empty model id means the capability is unavailable, not unpriced."""
+    settings = Settings(
+        app_env="development",
+        gemini_fallback_model="",
+        gemini_ocr_model="",
+        _env_file=None,
+    )
+    assert "" not in settings.priced_models
+    assert settings.anthropic_model in settings.priced_models
+
+
+# --- rates arriving from configuration ---------------------------------------
+
+
+def test_model_prices_parse_from_the_comma_form() -> None:
+    settings = Settings(
+        app_env="development",
+        model_prices="gemini-embedding-001:0.15:0,gemini-3.6-flash:1.50:7.50",
+        model_prices_verified_on="2026-08-09",
+        _env_file=None,
+    )
+    assert settings.model_prices == {
+        "gemini-embedding-001": (0.15, 0.0),
+        "gemini-3.6-flash": (1.50, 7.50),
+    }
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        ("gemini-3.6-flash:1.50", "model:input:output"),
+        ("gemini-3.6-flash:1.50:7.50:extra", "model:input:output"),
+        ("gemini-3.6-flash:cheap:7.50", "not a number"),
+        (":1.50:7.50", "no model id"),
+    ],
+)
+def test_a_malformed_price_names_the_entry(value: str, match: str) -> None:
+    """A price parsed wrongly is worse than one absent: absent raises, wrong under-counts."""
+    with pytest.raises(ValueError, match=match):
+        Settings(app_env="development", model_prices=value, _env_file=None)
+
+
+def test_prices_without_a_date_are_refused() -> None:
+    with pytest.raises(ValueError, match="MODEL_PRICES_VERIFIED_ON"):
+        Settings(
+            app_env="development",
+            model_prices="gemini-3.6-flash:1.50:7.50",
+            model_prices_verified_on="",
+            _env_file=None,
+        )
+
+
+def test_configured_prices_reach_the_rate_table(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The path that was missing entirely: `register` existed, nothing called it."""
+    settings = Settings(
+        app_env="development",
+        model_prices="gemini-test-only:2.00:4.00",
+        model_prices_verified_on="2026-08-09",
+        _env_file=None,
+    )
+    monkeypatch.setattr(pricing, "_configured_from_environment", False)
+    monkeypatch.setattr("api.config.get_settings", lambda: settings)
+
+    rate = rate_for("gemini-test-only")
+    assert rate is not None
+    assert (rate.input_per_mtok, rate.output_per_mtok) == (2.00, 4.00)
+    assert rate.verified_on == "2026-08-09"

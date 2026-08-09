@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from api import __version__
 from api.config import Settings, get_settings
+from api.pricing import unpriced_models
 
 router = APIRouter(tags=["health"])
 
@@ -31,6 +32,10 @@ class HealthResponse(BaseModel):
     providers: dict[str, ProviderState]
     # Present only when something is missing, so a green response stays terse.
     missing: list[str] | None = None
+    # Models this deployment calls that have no verified rate. Their spend does
+    # not reach the breaker's running total, so a budget ceiling with an entry
+    # here is a ceiling on part of the bill only.
+    unpriced: list[str] | None = None
 
 
 def _shallow_providers(settings: Settings) -> dict[str, ProviderState]:
@@ -67,8 +72,11 @@ async def health(
         pass
 
     missing = settings.missing_credentials()
+    unpriced = unpriced_models(settings.priced_models)
     # In development a missing credential is expected and reported, not fatal.
-    status: Literal["ok", "degraded"] = "ok" if not missing else "degraded"
+    # An unpriced model counts as degraded in either environment: the breaker is
+    # watching a number that a real call does not move.
+    status: Literal["ok", "degraded"] = "ok" if not missing and not unpriced else "degraded"
 
     return HealthResponse(
         status=status,
@@ -76,6 +84,7 @@ async def health(
         app_env=settings.app_env,
         providers=providers,
         missing=[m.upper() for m in missing] or None,
+        unpriced=unpriced or None,
     )
 
 

@@ -30,6 +30,7 @@ from api.config import get_settings
 from api.db import create_pool
 from api.deps import AppState
 from api.logging_config import configure_logging, get_logger
+from api.pricing import unpriced_models
 from api.routers import (
     account,
     chat,
@@ -65,6 +66,18 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     else:
         app.state.app_state = None
 
+    # A model without a rate is not a smaller bill, it is a bill the breaker
+    # cannot see. Deployed, that is the same class of fault as a missing
+    # credential and gets the same treatment: refuse to start and say which.
+    unpriced = unpriced_models(settings.priced_models)
+    if unpriced and settings.is_deployed:
+        raise RuntimeError(
+            f"APP_ENV={settings.app_env} but these models have no verified rate: "
+            f"{', '.join(unpriced)}. Their spend would never reach the circuit "
+            "breaker's total, so GLOBAL_BUDGET_USD would cap part of the bill only. "
+            "Set MODEL_PRICES and MODEL_PRICES_VERIFIED_ON — see .env.example."
+        )
+
     missing = settings.missing_credentials()
     log.info(
         "startup",
@@ -75,6 +88,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         unconfigured=[m.upper() for m in missing] or None,
         citation_binding=settings.enable_citation_binding,
         self_verification=settings.enable_self_verification,
+        unpriced=unpriced or None,
     )
     if missing and not settings.is_deployed:
         log.warning(

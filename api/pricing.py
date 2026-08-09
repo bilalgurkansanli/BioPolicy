@@ -28,6 +28,7 @@ application accounting has bugs; a console limit does not.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -81,7 +82,37 @@ def register(
     RATES[model] = Rate(input_per_mtok, output_per_mtok, verified_on=verified_on)
 
 
+_configured_from_environment = False
+
+
+def configure_from_settings() -> None:
+    """Load `MODEL_PRICES` into `RATES`. Idempotent.
+
+    Called lazily from `rate_for` rather than from application startup, because
+    the eval harness and the CLI scripts price their own calls and never run a
+    FastAPI lifespan. A rate that exists only when the web server booted would
+    silently zero out every number in `eval/report.md`.
+    """
+    global _configured_from_environment
+    if _configured_from_environment:
+        return
+    # Imported here, not at module scope: `config` is the heavier module and
+    # nothing else in pricing needs it.
+    from api.config import get_settings
+
+    settings = get_settings()
+    _configured_from_environment = True
+    for model, (input_per_mtok, output_per_mtok) in settings.model_prices.items():
+        register(
+            model,
+            input_per_mtok=input_per_mtok,
+            output_per_mtok=output_per_mtok,
+            verified_on=settings.model_prices_verified_on,
+        )
+
+
 def rate_for(model: str) -> Rate | None:
+    configure_from_settings()
     if model in RATES:
         return RATES[model]
     # Allow a versioned id to inherit its family's rate: `claude-haiku-4-5-20251001`
@@ -102,6 +133,19 @@ def estimate_cost(model: str, *, input_tokens: int, output_tokens: int) -> float
     return rate.cost(input_tokens=input_tokens, output_tokens=output_tokens)
 
 
-def unpriced_models() -> list[str]:
-    """Models that are configured but have no usable rate. Surfaced by /api/health."""
-    return sorted(model for model, rate in RATES.items() if not rate.is_priced)
+def unpriced_models(models: Iterable[str]) -> list[str]:
+    """Which of these models would spend money the breaker cannot see.
+
+    It takes the models a deployment will *call*, not the ones it happens to
+    have rates for. The earlier version asked the second question, and so
+    answered "nothing is unpriced" on a configuration where every Gemini call
+    was invisible — the set it iterated could not contain a model nobody had
+    registered.
+    """
+    configure_from_settings()
+    unpriced = set()
+    for model in models:
+        rate = rate_for(model)
+        if rate is None or not rate.is_priced:
+            unpriced.add(model)
+    return sorted(unpriced)

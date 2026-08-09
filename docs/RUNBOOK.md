@@ -18,7 +18,8 @@ Things that must not be guessed, with the date they were checked.
 | Haiku 4.5 accepts `temperature` | yes — unlike the newest Opus/Sonnet models | 2026-08-04 |
 | Gemini fallback LLM model ID | `gemini-3.6-flash` | 2026-08-04 |
 | Gemini vision OCR model ID | `gemini-3.6-flash` | 2026-08-04 |
-| Gemini pricing | _not yet verified — configuration, defaults to unpriced_ | — |
+| `gemini-embedding-001` pricing | **$0.15** per million input tokens (no output tokens) | 2026-08-09 |
+| `gemini-3.6-flash` pricing | **$1.50 / $7.50** per million input / output tokens | 2026-08-09 |
 | Embedding model | `gemini-embedding-001` | 2026-08-04 |
 | Embedding dimensions requested | **1536 confirmed by a live call** (of 3072 native) | 2026-08-04 |
 | `turkish` FTS config present in Postgres | **yes** — `fts_tr` built with `'turkish'::regconfig`, not the `simple` fallback | 2026-08-04 |
@@ -59,16 +60,35 @@ date in the table above.
 ### Gemini pricing
 
 Not hardcoded, by design — the same do-not-fabricate rule that governs model IDs
-governs prices. Register them at startup with a verification date:
+governs prices. They arrive as configuration, with the date they were checked:
 
-```python
-from api.pricing import register
-register("gemini-embedding-001", input_per_mtok=..., output_per_mtok=..., verified_on="YYYY-MM-DD")
+```bash
+MODEL_PRICES=gemini-embedding-001:0.15:0,gemini-3.6-flash:1.50:7.50
+MODEL_PRICES_VERIFIED_ON=2026-08-09
 ```
 
-Until registered, a Gemini call raises `UnpricedModelError` rather than being
-recorded as free. That is deliberate: a zero rate does not make a call free, it
-makes it invisible to the circuit breaker.
+`model:input:output`, USD per million tokens. `MODEL_PRICES_VERIFIED_ON` is
+mandatory whenever a price is set — a rate nobody can date is a rate nobody
+checked.
+
+**Why this is not cosmetic.** Until these were set, every Gemini call was
+recorded at zero: not free, *invisible to the circuit breaker*. Measured on the
+real configuration, a 30-page OCR document costs **$0.24** — as much as this
+project had spent in total up to that point — and none of it moved the number
+`GLOBAL_BUDGET_USD` is watching. OCR dominates cost precisely because it bills
+per page image, so the cheapest path to blowing the ceiling was the one the
+accounting could not see.
+
+The consequences of leaving them unset are now graded by environment:
+
+| `APP_ENV` | behaviour |
+|---|---|
+| `development` | `/api/health` returns `degraded` and lists the models under `unpriced` |
+| `preview`, `production` | **refuses to boot**, naming the models |
+
+Re-check the figures whenever a model id changes, and update both the table
+above and the date. A stale price is a silent under-count, which is the same
+failure in a slower form.
 
 ### Verifying the Turkish text-search configuration
 

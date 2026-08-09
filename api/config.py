@@ -87,6 +87,58 @@ class Settings(BaseSettings):
     # address and this repository is public.
     unlimited_emails: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
+    # Provider rates the breaker cannot infer for itself. Anthropic's are
+    # verified in `api/pricing.py`; Google's arrive here, because ADR 004's rule
+    # against fabricating a model id applies to its price as well.
+    #
+    #   MODEL_PRICES=gemini-embedding-001:0.15:0,gemini-3.6-flash:1.50:7.50
+    #
+    # `model:input:output` in USD per million tokens. An unlisted model is not
+    # free — it raises, and the call is recorded as unpriced.
+    model_prices: Annotated[dict[str, tuple[float, float]], NoDecode] = Field(default_factory=dict)
+    # Required alongside a price, never defaulted to today. A date the operator
+    # did not type is a date nobody checked.
+    model_prices_verified_on: str = ""
+
+    @field_validator("model_prices", mode="before")
+    @classmethod
+    def _parse_model_prices(cls, value: object) -> object:
+        """Parse `model:in:out,model:in:out` into a mapping.
+
+        Every failure mode here is a typo in a deployment variable, so each one
+        names the offending entry rather than the field. A price parsed wrongly
+        is worse than one absent: absent raises, wrong quietly under-counts.
+        """
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        if not stripped:
+            return {}
+        if stripped.startswith("{"):
+            return stripped  # a JSON object; let the normal parser have it
+
+        prices: dict[str, tuple[float, float]] = {}
+        for entry in stripped.split(","):
+            entry = entry.strip()
+            if not entry:
+                continue
+            parts = entry.split(":")
+            if len(parts) != 3:
+                raise ValueError(
+                    f"MODEL_PRICES entry {entry!r} is not `model:input:output` — "
+                    "three colon-separated fields, prices in USD per million tokens."
+                )
+            model, raw_input, raw_output = (part.strip() for part in parts)
+            if not model:
+                raise ValueError(f"MODEL_PRICES entry {entry!r} has no model id.")
+            try:
+                prices[model] = (float(raw_input), float(raw_output))
+            except ValueError:
+                raise ValueError(
+                    f"MODEL_PRICES entry {entry!r} has a price that is not a number."
+                ) from None
+        return prices
+
     @field_validator("unlimited_emails", "cors_allow_origins", mode="before")
     @classmethod
     def _split_commas(cls, value: object) -> object:
@@ -171,6 +223,34 @@ class Settings(BaseSettings):
                     "fails in ways that look like bugs."
                 )
         return self
+
+    @model_validator(mode="after")
+    def _prices_carry_a_verification_date(self) -> Settings:
+        if self.model_prices and not self.model_prices_verified_on:
+            raise ValueError(
+                "MODEL_PRICES is set but MODEL_PRICES_VERIFIED_ON is empty. A rate "
+                "nobody can date is a rate nobody checked; see api/pricing.py."
+            )
+        return self
+
+    @property
+    def priced_models(self) -> tuple[str, ...]:
+        """Model ids this deployment will actually call.
+
+        The breaker watches a sum. Any model in this list without a rate spends
+        money that never reaches that sum, so this is the set health checks and
+        the deployed-boot check ask about.
+        """
+        return tuple(
+            model
+            for model in (
+                self.anthropic_model,
+                self.gemini_embedding_model,
+                self.gemini_fallback_model,
+                self.gemini_ocr_model,
+            )
+            if model
+        )
 
     @model_validator(mode="after")
     def _database_url_is_parseable(self) -> Settings:
