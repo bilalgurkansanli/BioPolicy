@@ -169,7 +169,11 @@ async def run(*, force: bool, which: str) -> int:
             documents=documents,
             store=store,
             parser=PdfParser(ocr=ocr),
-            embedder=GeminiEmbedder(settings.google_api_key or "", settings.gemini_embedding_model),
+            embedder=GeminiEmbedder(
+                settings.google_api_key or "",
+                settings.gemini_embedding_model,
+                texts_per_minute=settings.embed_texts_per_minute,
+            ),
             chunker=Chunker(),
         )
 

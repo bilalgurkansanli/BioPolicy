@@ -126,11 +126,26 @@ class QuotaGuard:
         )
 
     async def _documents_today(self, user_id: UUID) -> int:
+        """Documents this account uploaded today that we actually processed.
+
+        `failed` is excluded, and the reason is a real one rather than a
+        courtesy. The first genuine policy anyone uploaded failed on our side —
+        an embedding quota this client was exceeding by itself — and the row it
+        left behind spent the uploader's single daily document. They could not
+        retry until midnight UTC, because of our bug.
+
+        A quota is a price for a service rendered. Nothing was rendered here, so
+        nothing is owed. Repeatedly failing uploads is not a way around the
+        limit either: the work before the failure is local parsing, and the one
+        part that does cost money — OCR — is capped per document and watched by
+        the budget breaker.
+        """
         row = await self._pool.fetchrow(
             """
             select count(*) as n from documents
              where user_id = $1
                and not is_sample
+               and status <> 'failed'
                and created_at >= date_trunc('day', now() at time zone 'utc')
             """,
             user_id,

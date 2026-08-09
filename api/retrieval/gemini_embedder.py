@@ -27,6 +27,9 @@ from __future__ import annotations
 
 import asyncio
 import math
+import re
+import time
+from collections import deque
 from typing import Any, cast
 
 from google.genai import types as genai_types
@@ -43,10 +46,103 @@ from api.retrieval.embedder import EmbeddingError, validate_dimensions
 
 log = get_logger(__name__)
 
-# Gemini's embedding endpoint is rate-limited per minute. A 200-page document
-# produces enough batches to trip it, so retries back off rather than hammering.
-MAX_ATTEMPTS = 4
-BASE_BACKOFF_SECONDS = 1.5
+# -----------------------------------------------------------------------------
+# Rate limiting
+# -----------------------------------------------------------------------------
+# The quota counts **texts, not requests**, and that distinction is the whole
+# reason this section exists.
+#
+# Batching hid it. A real 27-page policy chunks into 148 passages, which this
+# client sends as 5 HTTP requests — comfortably under any per-request limit. The
+# free tier rejected it anyway:
+#
+#   Quota exceeded for metric: embed_content_free_tier_requests, limit: 100
+#
+# 5 requests against a limit of 100 cannot exceed it; 148 texts can. So the unit
+# to pace is the passage, and a single ordinary document is 1.5× the entire
+# minute's allowance on its own. Before this, the first real document anyone
+# uploaded failed — not a large one, an ordinary one.
+#
+# Paced rather than merely retried, because the two failures are different: a
+# retry recovers from a limit somebody else tripped, while pacing stops us from
+# tripping it ourselves. Ingestion runs in the background behind a progress
+# indicator, so spending ninety seconds on a document nobody is watching is a
+# far better outcome than failing it in ten.
+EMBED_TEXTS_PER_MINUTE = 100
+RATE_WINDOW_SECONDS = 60.0
+
+# Retries are for the limit we did not cause. More attempts than before and a
+# longer ceiling, because a quota window is a minute wide and the old schedule
+# (1.5s, 3s, 6s) gave up after ten seconds against a provider that had just
+# replied "retry in 58s".
+MAX_ATTEMPTS = 5
+BASE_BACKOFF_SECONDS = 2.0
+MAX_BACKOFF_SECONDS = 65.0
+
+# `'retryDelay': '58s'` in the error detail, or `Please retry in 1.23s` in its
+# message. The provider knows exactly how long its own window has left, and
+# guessing when it has already said so is how the old backoff got this wrong.
+_RETRY_AFTER = re.compile(r"retry(?:Delay|\s+in)['\":\s]+(\d+(?:\.\d+)?)s", re.IGNORECASE)
+
+
+def _retry_after(error: Exception) -> float | None:
+    match = _RETRY_AFTER.search(str(error))
+    if not match:
+        return None
+    return min(float(match.group(1)), MAX_BACKOFF_SECONDS)
+
+
+# The free tier has two ceilings and they need different words. A per-minute
+# limit clears on its own within a minute; a per-day one does not clear until
+# the next day, and telling somebody to "try again in a few minutes" then is
+# advice that cannot work — they will retry, fail, and have no idea why.
+_DAILY_QUOTA = re.compile(r"PerDay|per\s*day", re.IGNORECASE)
+
+
+def is_daily_quota(error: Exception) -> bool:
+    """Whether this failure is the daily allowance rather than the per-minute one.
+
+    Observed as `quotaId: EmbedContentRequestsPerDayPerProjectPerModel-FreeTier`
+    while ingesting a real 148-chunk policy. Pacing cannot help with this one —
+    it is a wall, not a window, and the only fixes are waiting for tomorrow or
+    enabling billing.
+    """
+    return bool(_DAILY_QUOTA.search(str(error)))
+
+
+class _RateWindow:
+    """A sliding window over the texts sent in the last minute.
+
+    Per process, which is the honest scope: on a scale-to-zero deployment each
+    instance keeps its own count, so two instances ingesting at once can still
+    exceed the quota between them. That case ends in a 429 and the retry below
+    handles it. What this prevents is the guaranteed failure — one document,
+    one instance, over the limit by itself.
+    """
+
+    def __init__(self, limit: int) -> None:
+        self._limit = limit
+        self._sent: deque[tuple[float, int]] = deque()
+
+    def _prune(self, now: float) -> int:
+        while self._sent and now - self._sent[0][0] >= RATE_WINDOW_SECONDS:
+            self._sent.popleft()
+        return sum(count for _, count in self._sent)
+
+    async def reserve(self, count: int) -> None:
+        """Wait until `count` more texts fit, then record them as sent."""
+        while True:
+            now = time.monotonic()
+            in_window = self._prune(now)
+            if in_window + count <= self._limit or not self._sent:
+                # `not self._sent` lets a batch larger than the whole limit
+                # through rather than blocking forever. It will 429, and the
+                # retry will carry it — a slow success beats a deadlock.
+                self._sent.append((now, count))
+                return
+            wait = RATE_WINDOW_SECONDS - (now - self._sent[0][0])
+            log.info("embedding_paced", waiting_seconds=round(wait, 1), in_window=in_window)
+            await asyncio.sleep(max(wait, 0.1))
 
 
 def _normalise(vector: list[float]) -> list[float]:
@@ -64,11 +160,13 @@ class GeminiEmbedder:
         *,
         dimensions: int = EMBEDDING_DIM,
         batch_size: int = EMBEDDING_BATCH_SIZE,
+        texts_per_minute: int = EMBED_TEXTS_PER_MINUTE,
     ) -> None:
         self._client = build_client(api_key)
         self._model = model
         self._dimensions = dimensions
         self._batch_size = batch_size
+        self._window = _RateWindow(texts_per_minute)
         self.total_tokens = 0
 
     @property
@@ -87,6 +185,9 @@ class GeminiEmbedder:
 
         last_error: Exception | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
+            # Counted before the call, not after: a request that is in flight
+            # has already spent its share of the quota.
+            await self._window.reserve(len(texts))
             try:
                 response = await self._client.aio.models.embed_content(
                     model=self._model,
@@ -101,7 +202,11 @@ class GeminiEmbedder:
                     raise EmbeddingError(
                         f"embedding failed after {MAX_ATTEMPTS} attempts: {exc}"
                     ) from exc
-                delay = BASE_BACKOFF_SECONDS * (2 ** (attempt - 1))
+                # The provider's own figure when it gave one. It knows how much
+                # of its window is left and we do not.
+                delay = _retry_after(exc) or min(
+                    BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)), MAX_BACKOFF_SECONDS
+                )
                 log.warning("embedding_retry", attempt=attempt, delay=delay, error=str(exc))
                 await asyncio.sleep(delay)
         else:  # pragma: no cover - the loop always breaks or raises

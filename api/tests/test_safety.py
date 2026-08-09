@@ -106,6 +106,29 @@ async def test_the_upload_count_ignores_samples() -> None:
     assert "not is_sample" in pool.queries[0]
 
 
+async def test_a_document_that_failed_does_not_spend_the_daily_allowance() -> None:
+    """Asserted on the SQL, like the sample exclusion above, and for a reason
+    that was not hypothetical.
+
+    The first real policy anyone uploaded failed on our side — this client was
+    exceeding an embedding quota by itself — and the failed row spent the
+    uploader's single daily document. They could not retry until midnight UTC
+    because of our bug. A quota prices a service rendered; nothing was.
+    """
+    pool = FakePool(fetchrow=[{"n": 0}])
+    guard = QuotaGuard(
+        cast(Any, pool),
+        UsageRepository(cast(Any, pool)),
+        cast(Any, StubAccounts(False)),
+        daily_questions=10,
+        daily_documents=1,
+    )
+
+    await guard.ensure_can_upload(USER)
+
+    assert "status <> 'failed'" in pool.queries[0]
+
+
 async def test_an_allowlisted_account_is_not_counted() -> None:
     """The owner's own account, so the demo can be tested without burning it.
 

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import re
 import statistics
 import time
 from collections.abc import Iterable
@@ -55,6 +56,11 @@ MAX_BOLD_HEADING_CHARS = 90
 # No heading in a policy document runs longer than this. Anything longer is a
 # paragraph, whatever its glyphs are doing.
 MAX_HEADING_CHARS = 120
+
+# A thousands-separated amount: `3.630.000,00`, `1,271,820`, `550.000`. Requires
+# a grouping separator, so `Madde 4.1` and `Article 7` are not matched — those
+# are numbered headings and have to remain headings.
+_MONEY = re.compile(r"\d{1,3}(?:([.,])\d{3})+(?:[.,]\d{1,2})?\b")
 
 # Vertical gap between lines, as a multiple of the typical gap, above which a
 # new paragraph starts.
@@ -494,6 +500,24 @@ def _is_heading(line: dict[str, Any], body_size: float) -> tuple[bool, int]:
     # A heading is short. This guard is what stops a body paragraph that happens
     # to contain one large glyph from being promoted.
     if not text or len(text) > MAX_HEADING_CHARS:
+        return False, 0
+
+    # A line carrying a money amount is a schedule row, not a heading, whatever
+    # its glyphs are doing.
+    #
+    # This cost a real document. An AXA home policy sets its coverage table in
+    # bold, so "Deprem Bina 3.630.000,00" satisfied the bold-and-short rule
+    # below and was classified as a heading — and the chunker puts a heading in
+    # the *section path* rather than in the chunk's text. Of 28 amounts in that
+    # policy, 25 sat in lines marked as headings, so exactly one reached
+    # retrieval. Asked what the earthquake limit was, the system correctly
+    # reported that it could not find one: the number had been read, parsed,
+    # and then dropped on the floor between the parser and the chunker.
+    #
+    # Deliberately narrow. It matches a thousands-separated figure —
+    # `3.630.000,00`, `1,271,820` — and not `Madde 4.1` or `Article 7`, which
+    # are numbered headings and must stay headings.
+    if _MONEY.search(text):
         return False, 0
 
     # WHY median rather than max: a single oversized glyph is common and means

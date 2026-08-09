@@ -79,7 +79,11 @@ class AppState:
 
     @classmethod
     def build(cls, pool: asyncpg.Pool, settings: Settings) -> AppState:
-        embedder = GeminiEmbedder(settings.google_api_key or "", settings.gemini_embedding_model)
+        embedder = GeminiEmbedder(
+            settings.google_api_key or "",
+            settings.gemini_embedding_model,
+            texts_per_minute=settings.embed_texts_per_minute,
+        )
         store = ChunkStore(pool)
         documents = DocumentRepository(pool)
         storage = DocumentStorage(settings)

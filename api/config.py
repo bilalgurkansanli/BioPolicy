@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     # --- Google --------------------------------------------------------------
     google_api_key: str | None = None
     gemini_embedding_model: str = "gemini-embedding-001"
+    # Texts — not requests — the embedding endpoint accepts per minute. Google's
+    # quota counts each passage in a batch separately, so an ordinary 27-page
+    # policy (148 chunks) exceeds the free tier's 100 on its own. The default
+    # matches that tier; raise it on a paid plan and ingestion simply goes
+    # faster. See `api/retrieval/gemini_embedder.py`.
+    embed_texts_per_minute: int = 100
     # WHY these have no default: the spec forbids fabricating model IDs. They are
     # filled in from a verified live model list at build time (docs/adr/004).
     # Empty means "this capability is unavailable", and health reports it.

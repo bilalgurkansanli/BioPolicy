@@ -46,6 +46,7 @@ from api.ingest.protocols import DocumentParser
 from api.ingest.types import ParsedDocument
 from api.logging_config import get_logger
 from api.retrieval.embedder import EmbeddingError, EmbeddingProvider
+from api.retrieval.gemini_embedder import is_daily_quota
 from api.retrieval.store import ChunkStore
 
 log = get_logger(__name__)
@@ -183,9 +184,20 @@ class IngestionPipeline:
         try:
             embeddings = await self._embedder.embed_documents([c.embed_text for c in chunks])
         except EmbeddingError as exc:
+            # Two different ceilings, two different pieces of advice. The
+            # per-minute one clears by itself; the daily one does not clear
+            # until tomorrow, and "try again in a few minutes" sends somebody
+            # into a retry loop that cannot succeed.
             raise IngestionError(
-                "This document could not be prepared for search. Please try again "
-                "in a few minutes.",
+                (
+                    "The daily processing allowance for this demo has been used up. "
+                    "Please try again tomorrow."
+                )
+                if is_daily_quota(exc)
+                else (
+                    "This document could not be prepared for search. Please try "
+                    "again in a few minutes."
+                ),
                 cause=str(exc),
             ) from exc
 

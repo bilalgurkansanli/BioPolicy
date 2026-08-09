@@ -93,7 +93,11 @@ async def run(question: str, doc: str, *, verify: bool, binding: bool, language:
             return 2
 
         # --- retrieval ------------------------------------------------------
-        embedder = GeminiEmbedder(settings.google_api_key or "", settings.gemini_embedding_model)
+        embedder = GeminiEmbedder(
+            settings.google_api_key or "",
+            settings.gemini_embedding_model,
+            texts_per_minute=settings.embed_texts_per_minute,
+        )
         retriever = HybridRetriever(ChunkStore(pool), embedder)
 
         started = time.monotonic()
