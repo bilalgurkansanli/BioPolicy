@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useLocale } from "@/components/LocaleProvider";
@@ -36,6 +37,20 @@ export function SiteFooter() {
           </SlideLink>
           {/* Retention is a promise, so it is stated on every page rather than
               buried in a privacy document nobody opens. */}
+          {/* Same `-my-2 py-2` reasoning as the link above: at 12px type these
+              would be 16px targets, under the 24px minimum. */}
+          <Link
+            href="/privacy"
+            className="-my-2 py-2 underline-offset-4 transition-colors hover:text-ink hover:underline"
+          >
+            {t.footer.privacy}
+          </Link>
+          <Link
+            href="/terms"
+            className="-my-2 py-2 underline-offset-4 transition-colors hover:text-ink hover:underline"
+          >
+            {t.footer.terms}
+          </Link>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1">
             <span
               aria-hidden

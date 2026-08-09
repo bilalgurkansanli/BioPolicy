@@ -63,7 +63,11 @@ export function CookieConsent() {
             <p className="flex-1 text-xs leading-5 text-ink-muted">
               {t.cookies.bannerBody}{" "}
               <Link
-                href="/signin"
+                // The cookie notice itself, not the sign-in page it used to
+                // live inside. Someone reading a consent banner is asking what
+                // they are consenting to, and answering with a sign-in form is
+                // not an answer.
+                href="/cookies"
                 className="font-medium text-accent underline-offset-2 hover:underline"
               >
                 {t.cookies.bannerLink}

@@ -36,5 +36,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.6,
     },
+    // Listed so they are reachable and citable from outside the app. Low
+    // priority and yearly: nobody arrives here from a search, but a policy
+    // that cannot be linked to is not much of a policy.
+    ...(["privacy", "terms", "cookies"] as const).map((slug) => ({
+      url: `${SITE_URL}/${slug}`,
+      lastModified,
+      changeFrequency: "yearly" as const,
+      priority: 0.3,
+    })),
   ];
 }

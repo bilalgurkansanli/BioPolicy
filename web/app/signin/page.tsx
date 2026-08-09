@@ -225,11 +225,21 @@ export default function SignInPage() {
                     </div>
                   ))}
                 </dl>
+                {/* These panels are the thirty-second version, read in the
+                    moment before signing in. The full document is a page of its
+                    own — linkable, readable without an account, and quotable —
+                    because a policy nobody can link to is not much of a policy. */}
+                <Link
+                  href={`/${document.key}`}
+                  className="mt-4 inline-block text-xs text-accent underline-offset-4 hover:underline"
+                >
+                  {t.legal.full} →
+                </Link>
                 {document.key === "cookies" && (
                   <button
                     type="button"
                     onClick={() => clearConsent()}
-                    className="mt-5 rounded-full border border-line-strong px-4 py-2 text-xs font-medium text-ink transition-colors hover:bg-surface-sunken"
+                    className="mt-5 block rounded-full border border-line-strong px-4 py-2 text-xs font-medium text-ink transition-colors hover:bg-surface-sunken"
                   >
                     {t.cookies.reset}
                   </button>

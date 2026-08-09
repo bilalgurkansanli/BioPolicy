@@ -409,6 +409,13 @@ const tr = {
       "BioPolicy bir portföy projesidir. Hukuki ya da sigortacılık tavsiyesi vermez.",
     retention: "Belgeler 24 saat sonra silinir · sohbetler hesabınızda kalır",
     license: "MIT lisanslı",
+    privacy: "Gizlilik",
+    terms: "Koşullar",
+  },
+  legal: {
+    updated: "Son güncelleme",
+    home: "Ana sayfa",
+    full: "Tam metni okuyun",
   },
 };
 
@@ -802,6 +809,13 @@ const en: Dictionary = {
       "BioPolicy is a portfolio project. It does not give legal or insurance advice.",
     retention: "Documents deleted after 24 hours · chats kept in your account",
     license: "MIT licensed",
+    privacy: "Privacy",
+    terms: "Terms",
+  },
+  legal: {
+    updated: "Last updated",
+    home: "Home",
+    full: "Read the full text",
   },
 };
 
