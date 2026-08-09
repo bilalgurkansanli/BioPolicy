@@ -53,6 +53,25 @@ G, R, Y, C, D, RESET = (
 )
 
 
+def _use_utf8() -> None:
+    """Stop a Turkish Windows console from killing the run on a box-drawing dash.
+
+    `python -m api.scripts.ask` died with a UnicodeEncodeError before printing
+    anything: the default console encoding here is cp1254, which has no `─`, and
+    the failure happens in `print` rather than anywhere near the pipeline being
+    debugged. Since this tool exists to inspect Turkish documents, a console
+    that cannot encode the output is the environment it is most likely to meet.
+
+    `errors="replace"` on top of UTF-8 because a debugging aid must never be the
+    thing that fails: on a console that still cannot represent a character, a
+    question mark in the rule is a better outcome than a traceback.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def rule(title: str) -> None:
     print(f"\n{C}{'─' * 4} {title} {'─' * max(0, 66 - len(title))}{RESET}")
 
@@ -212,6 +231,7 @@ async def run(question: str, doc: str, *, verify: bool, binding: bool, language:
 
 
 def main() -> int:
+    _use_utf8()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("question")
     parser.add_argument("--doc", default="konut", help=f"One of: {', '.join(sorted(ALIASES))}")
