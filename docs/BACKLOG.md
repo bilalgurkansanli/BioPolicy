@@ -146,6 +146,16 @@ adding ~55% to the cost.** These are the open threads from that.
   OCR path degrades rather than assuming 200 DPI clean renders are typical.
 
 ### Operations
+- **Record embedding calls in `usage_events`.** They are the one provider call
+  the ledger never sees: `api/ingest/pipeline.py` embeds a whole document
+  without writing a usage row, so the spend counter and the budget breaker both
+  under-report by the cost of every ingest. The obstacle is real rather than
+  laziness — the endpoint reports `billable_character_count` while the rate card
+  is per *token*, and converting between them would be the fabricated number
+  `api/pricing.py` refuses on principle. Either find Google's stated ratio, or
+  price embeddings per character with its own verified rate. The counters on
+  `GeminiEmbedder` (`passages`, `requests`, `billable_characters`) are logged in
+  the meantime, so the quota is at least visible.
 - **Structured cost attribution per conversation**, not just per user. Would make
   the "cost per query" figure in the eval report a live metric rather than a
   measured one.

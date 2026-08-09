@@ -169,6 +169,14 @@ class GeminiEmbedder:
         self._window = _RateWindow(texts_per_minute)
         self.total_tokens = 0
 
+        # What this client has spent against the quota, for the life of the
+        # process. `passages` is the number that matters: the free tier's
+        # allowance is counted in them, not in HTTP requests, which is what a
+        # 27-page policy discovered by being rejected as 148 of a possible 100.
+        self.requests = 0
+        self.passages = 0
+        self.billable_characters = 0
+
     @property
     def name(self) -> str:
         return "gemini"
@@ -212,6 +220,12 @@ class GeminiEmbedder:
         else:  # pragma: no cover - the loop always breaks or raises
             raise EmbeddingError(str(last_error))
 
+        metadata = getattr(response, "metadata", None)
+        if metadata is not None and metadata.billable_character_count:
+            self.billable_characters += int(metadata.billable_character_count)
+        self.requests += 1
+        self.passages += len(texts)
+
         embeddings = response.embeddings or []
         if len(embeddings) != len(texts):
             raise EmbeddingError(
@@ -238,6 +252,15 @@ class GeminiEmbedder:
             count=len(out),
             dimensions=self._dimensions,
             batches=math.ceil(len(texts) / self._batch_size),
+            # What the provider says it billed, and what the quota counts. Not
+            # converted to tokens and not priced: the endpoint reports
+            # characters while the rate card is per token, and inventing the
+            # ratio between them would be exactly the fabricated number
+            # `api/pricing.py` exists to refuse. Reported so the cost of an
+            # ingest is at least *visible* — a 27-page policy is 132 passages
+            # against a free-tier allowance of 1,000 a day.
+            billable_characters=self.billable_characters,
+            passages_this_run=len(texts),
         )
         return out
 
