@@ -27,13 +27,13 @@ from uuid import UUID
 
 from api.config import get_settings
 from api.db import create_pool
+from api.deps import build_embedder
 from api.generation.answerer import Answerer
 from api.generation.llm import FailoverLLM
 from api.generation.providers import AnthropicLLM, GeminiLLM
 from api.generation.schemas import ANSWER_JSON_SCHEMA, VERIFICATION_JSON_SCHEMA
 from api.generation.verifier import Verifier
 from api.pricing import UnpricedModelError, estimate_cost
-from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.hybrid import HybridRetriever
 from api.retrieval.store import ChunkStore
 
@@ -93,11 +93,13 @@ async def run(question: str, doc: str, *, verify: bool, binding: bool, language:
             return 2
 
         # --- retrieval ------------------------------------------------------
-        embedder = GeminiEmbedder(
-            settings.google_api_key or "",
-            settings.gemini_embedding_model,
-            texts_per_minute=settings.embed_texts_per_minute,
-        )
+        # The application's own choice, not a second copy of it. Embedding a
+        # query with a different provider than the chunks were stored with does
+        # not error — it silently compares points in two unrelated spaces, and
+        # every distance that comes back is arbitrary. This script reported the
+        # coverage table as missing for exactly that reason after the Voyage
+        # migration, while the API found it at rank 1.
+        embedder = build_embedder(settings)
         retriever = HybridRetriever(ChunkStore(pool), embedder)
 
         started = time.monotonic()
