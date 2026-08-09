@@ -96,15 +96,28 @@ def test_section_path_is_built_from_heading_hierarchy(konut_chunks: list[Chunk])
     assert "1.1 Teminat Tablosu" in schedule.section_path
 
 
-def test_section_path_is_embedded_but_not_displayed(konut_chunks: list[Chunk]) -> None:
-    """Retrieval gets the context; the user gets the clause as written.
+def test_the_assembled_path_is_embedded_but_never_written_into_content(
+    konut_chunks: list[Chunk],
+) -> None:
+    """Retrieval gets the assembled context; content stays what the page says.
 
-    If the path leaked into `content`, a citation quote would be checked against
-    text the document does not actually contain.
+    The risk this guards is precise: `section_path` is *built* — ancestors
+    joined with `>` — and that string appears nowhere in the document. If it
+    reached `content`, a model could quote it and citation binding would check
+    the quote against text the PDF does not contain.
+
+    A chunk's own heading is a different matter and is expected in `content`
+    now: it is a real line of the document. Dropping it made bold schedule rows
+    unsearchable, which cost a real policy 25 of its 28 coverage amounts.
     """
     exclusions = next(c for c in konut_chunks if "Savaş, iç savaş" in c.content)
     assert exclusions.section_path
-    assert exclusions.section_path not in exclusions.content
+
+    if " > " in exclusions.section_path:
+        assert exclusions.section_path not in exclusions.content
+    # The leaf heading may open the content; its ancestors must not be joined
+    # into it.
+    assert " > " not in exclusions.content
     assert exclusions.embed_text.startswith(exclusions.section_path)
     assert exclusions.content in exclusions.embed_text
 
@@ -227,7 +240,22 @@ def test_empty_document_produces_no_chunks() -> None:
     assert Chunker().chunk(_doc([])) == []
 
 
-def test_headings_alone_produce_no_chunks() -> None:
-    """A heading annotates its section; it is not content in its own right."""
-    blocks = [ParsedBlock(kind="heading", text="Madde 1", page=1, level=1)]
-    assert Chunker().chunk(_doc(blocks)) == []
+def test_a_heading_is_content_as_well_as_a_path() -> None:
+    """This assertion was inverted, deliberately, by a real document.
+
+    It used to read `== []`, on the principle that a heading annotates its
+    section rather than being content in its own right. An AXA home policy
+    disproved it: the coverage schedule is set one bold row per line, the parser
+    reads each row as a heading — correctly, they *are* set as headings — and
+    filing them only in the section path made 25 of the document's 28 amounts
+    unreachable by any search. The system then truthfully reported that it could
+    not find the earthquake limit it had already parsed.
+
+    A line of the document must be searchable, whatever weight it is set in.
+    """
+    blocks = [ParsedBlock(kind="heading", text="Deprem Bina 3.630.000,00", page=1, level=1)]
+
+    chunks = Chunker().chunk(_doc(blocks))
+
+    assert len(chunks) == 1
+    assert "3.630.000,00" in chunks[0].content

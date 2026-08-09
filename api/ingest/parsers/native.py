@@ -25,7 +25,7 @@ import re
 import statistics
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import pdfplumber
@@ -335,7 +335,53 @@ def _blocks_from_page(page: Any, number: int, body_size: float) -> list[ParsedBl
     # would be lifted above them, and is a layout to revisit if one ever shows
     # up rather than to speculate about now.
     blocks.sort(key=lambda b: (_column_of(b, layout), b.bbox.top if b.bbox else 0.0))
-    return blocks
+    return _demote_heading_runs(blocks)
+
+
+# A heading introduces the text beneath it, so headings come in ones and twos —
+# an article and its sub-clause. A *run* of them is not a hierarchy, it is body
+# text that happens to be set in bold.
+#
+# The real AXA policy sets its schedule that way, and the effect was severe: 161
+# of 342 blocks were classified as headings, including the four consecutive
+# lines of a single sentence
+#
+#   "(*) İŞARETLİ TEMİNATLAR YSV'YE KONU" / "OLUP BU TEMİNAT PRİMLERİ ÜZERİNDEN"
+#   / "YSV HESAPLANARAK PRİM TABLOSUNDA" / "GÖSTERİLMİŞTİR."
+#
+# and every row of the coverage table. The chunker starts a new chunk at each
+# heading, so the document came out as 150 chunks averaging 242 tokens against
+# a 700-token target — nearly three times what the text needs, each fragment too
+# small to answer from, and each one spending its own share of the embedding
+# quota.
+#
+# Three, not two: an article followed by its first sub-heading is a real and
+# common pair, and demoting that would flatten the section paths the citations
+# are built from.
+MAX_CONSECUTIVE_HEADINGS = 2
+
+
+def _demote_heading_runs(blocks: list[ParsedBlock]) -> list[ParsedBlock]:
+    """Turn runs of three or more consecutive headings back into text."""
+    out = list(blocks)
+    run_start: int | None = None
+
+    def resolve(end: int) -> None:
+        if run_start is None:
+            return
+        if end - run_start > MAX_CONSECUTIVE_HEADINGS:
+            for index in range(run_start, end):
+                out[index] = replace(out[index], kind="text", level=None)
+
+    for index, block in enumerate([*out, None]):
+        if block is not None and block.kind == "heading":
+            if run_start is None:
+                run_start = index
+            continue
+        resolve(index)
+        run_start = None
+
+    return out
 
 
 def _column_of(block: ParsedBlock, layout: ColumnLayout) -> int:

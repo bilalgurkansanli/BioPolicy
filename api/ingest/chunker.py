@@ -99,6 +99,16 @@ class _Accumulator:
     def empty(self) -> bool:
         return not self.texts
 
+    @property
+    def has_prose(self) -> bool:
+        """Whether anything here is body text rather than a run of headings.
+
+        A heading now opens the chunk it introduces, so `empty` alone can no
+        longer decide where to split: an article and its first sub-heading would
+        each become a chunk of nothing but their own title.
+        """
+        return any(block.kind != "heading" for block in self.blocks)
+
 
 class Chunker:
     def __init__(
@@ -151,10 +161,34 @@ class Chunker:
             if block.kind == "heading":
                 # A chunk never spans a heading: the text before it belongs to
                 # the previous section and must not inherit the new one's path.
-                flush()
+                #
+                # A version of this tried to relax that — absorbing a heading
+                # when the chunk so far was small, to cut a densely-headed
+                # policy from 148 chunks to 88. `test_deeper_headings_nest`
+                # rejected it immediately and was right to: with short clauses,
+                # `Madde 4.2` and `Madde 5` merged into one chunk carrying the
+                # earlier path. Citations are bound to that path. A boundary
+                # that moves to save vectors is not a saving.
+                #
+                # Split on the prose, though, not on the heading count: `Madde 4`
+                # immediately followed by `4.1 Genel` is one section opening, and
+                # flushing between them would file the article number as a chunk
+                # of its own.
+                if acc.has_prose:
+                    flush()
                 level = block.level or 1
                 heading_stack = [(lvl, txt) for lvl, txt in heading_stack if lvl < level]
                 heading_stack.append((level, block.text))
+                # The heading opens the chunk it introduces, rather than living
+                # only in the path. Dropping it from the body made it text no
+                # search could reach, and on a real AXA policy — which sets its
+                # coverage schedule in bold, one row per line — that silently
+                # removed 25 of the document's 28 amounts before they were ever
+                # embedded. Asked for the earthquake limit, the system truthfully
+                # reported it had not found one.
+                acc.blocks.append(block)
+                acc.texts.append(block.text)
+                acc.tokens += count_tokens(block.text)
                 continue
 
             if block.kind == "table":
