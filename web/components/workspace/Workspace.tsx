@@ -12,6 +12,7 @@ import { BrandAvatar, UserAvatar } from "@/components/Avatar";
 import { useLocale } from "@/components/LocaleProvider";
 import { useSession } from "@/components/SessionProvider";
 import { AnswerCard } from "@/components/workspace/AnswerCard";
+import { ConsideredPanel } from "@/components/workspace/ConsideredPanel";
 import { ConversationList } from "@/components/workspace/ConversationList";
 import { DocumentList } from "@/components/workspace/DocumentList";
 import { MyDocumentList } from "@/components/workspace/MyDocumentList";
@@ -44,6 +45,7 @@ import type {
   Answer,
   Capabilities,
   Citation,
+  ConsideredChunk,
   ConversationSummary,
   DocumentStatus,
   DocumentSummary,
@@ -65,7 +67,16 @@ const SIDEBAR_TABS = ["documents", "chats"] as const;
 
 type Message =
   | { kind: "question"; id: string; text: string }
-  | { kind: "answer"; id: string; answer: Answer }
+  // `considered` is present on a live answer and absent on one restored from
+  // history — the passages a question retrieved are not stored with the turn.
+  // Absent rather than empty, so the panel can tell "nothing was unused" from
+  // "we no longer know what was retrieved".
+  | {
+      kind: "answer";
+      id: string;
+      answer: Answer;
+      considered?: ConsideredChunk[];
+    }
   // A limit is not a failure: the system worked and declined. Rendered as its
   // own kind so it does not look like something broke.
   | { kind: "refused"; id: string; title: string; message: string }
@@ -253,6 +264,7 @@ export function Workspace() {
 
       const controller = new AbortController();
       abortRef.current = controller;
+      let considered: ConsideredChunk[] = [];
 
       try {
         for await (const event of askQuestion(
@@ -270,6 +282,10 @@ export function Workspace() {
           switch (event.event) {
             case "retrieval_complete":
               setRetrieval(event.data);
+              // Held locally as well as in state: `done` arrives in the same
+              // loop and reading it back through `retrieval` would read the
+              // value this closure captured, which is the previous turn's.
+              considered = event.data.considered ?? [];
               break;
             case "answering":
               setStage("answering");
@@ -280,7 +296,12 @@ export function Workspace() {
             case "done":
               setMessages((current) => [
                 ...current,
-                { kind: "answer", id: `${id}:a`, answer: event.data },
+                {
+                  kind: "answer",
+                  id: `${id}:a`,
+                  answer: event.data,
+                  considered,
+                },
               ]);
               if (event.data.conversation_id) {
                 setConversationId(event.data.conversation_id);
@@ -452,6 +473,28 @@ export function Workspace() {
         nonce: Date.now(),
       });
     }
+    setMobilePane("viewer");
+  }, []);
+
+  /**
+   * Open a passage the answer did not cite.
+   *
+   * The snippet is used as the quote, so the viewer locates the opening of the
+   * chunk precisely when it can. When it cannot — the snippet is truncated, and
+   * a cut mid-word will not match — the block box takes over and the viewer
+   * marks the region as approximate. That is the honest fallback rather than a
+   * failure: nothing here claims to be a citation.
+   */
+  const showPassage = useCallback((chunk: ConsideredChunk) => {
+    if (!chunk.bbox) return;
+    setActiveCitation(null);
+    setHighlight({
+      page: chunk.page,
+      pageEnd: chunk.page_end,
+      bbox: chunk.bbox,
+      quote: chunk.snippet.replace(/…$/, "").trim(),
+      nonce: Date.now(),
+    });
     setMobilePane("viewer");
   }, []);
 
@@ -769,7 +812,15 @@ export function Workspace() {
                       const index = message.answer.citations.indexOf(citation);
                       showCitation(citation, `${citation.context_id}:${index}`);
                     }}
-                  />
+                  >
+                    {message.considered && (
+                      <ConsideredPanel
+                        considered={message.considered}
+                        citations={message.answer.citations}
+                        onOpen={showPassage}
+                      />
+                    )}
+                  </AnswerCard>
                 </Turn>
               );
             })}

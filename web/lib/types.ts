@@ -73,11 +73,30 @@ export type Answer = {
   cost_usd: number;
 };
 
+/**
+ * A passage that reached the prompt.
+ *
+ * The half of retrieval a chat interface normally throws away. Kept because a
+ * wrong answer has two very different causes — the right passage was never
+ * retrieved, or it was retrieved and not used — and only this tells them apart.
+ */
+export type ConsideredChunk = {
+  context_id: string;
+  page: number;
+  page_end: number;
+  section_path: string;
+  /** First ~180 characters, flattened. A label, not the clause itself. */
+  snippet: string;
+  /** The chunk's block box, so an unused passage can be opened in the viewer. */
+  bbox: BBox | null;
+};
+
 export type RetrievalComplete = {
   chunk_ids: string[];
   count: number;
   searched: string;
   rewritten: boolean;
+  considered: ConsideredChunk[];
 };
 
 export type ChatEvent =

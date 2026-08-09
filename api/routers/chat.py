@@ -161,6 +161,11 @@ async def chat(user: CurrentUser, request: ChatRequest, state: State) -> EventSo
                             "page_end": chunk.page_end,
                             "section_path": chunk.section_path,
                             "snippet": _snippet(chunk.content),
+                            # Carried so an unused passage can be opened in the
+                            # viewer the way a cited one can. Without it the
+                            # list would be readable and unverifiable, which is
+                            # the opposite of what it is for.
+                            "bbox": chunk.bbox.as_dict() if chunk.bbox else None,
                         }
                         for chunk in retrieved.context.chunks
                     ],

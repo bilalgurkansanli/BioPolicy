@@ -70,6 +70,14 @@ const tr = {
       "Üçü de bu proje için yazılmış sentetik metinlerdir. Biri bilerek taranmış (OCR) olarak hazırlandı.",
     lang: { tr: "Türkçe", en: "İngilizce" },
     sourceType: { native: "dijital metin", scanned: "taranmış · OCR" },
+    considered: {
+      toggle: "Bulunan {total} bölümün {used} tanesi kullanıldı",
+      explainer:
+        "Aşağıdakiler cevabın önüne konuldu ama alıntılanmadı. Cevap eksikse, " +
+        "aranan maddenin burada olup olmadığı size bir şey söyler: buradaysa " +
+        "sorun cevabı üretirken, değilse belgeyi ararken oluşmuş demektir.",
+      page: "sayfa",
+    },
     injection: {
       badge: "talimat metni",
       title: "Bu belge, kendisini okuyan sisteme talimat veriyor",
@@ -452,6 +460,15 @@ const en: Dictionary = {
       "All three are synthetic, written for this project. One is deliberately a scan, so OCR is on the critical path.",
     lang: { tr: "Turkish", en: "English" },
     sourceType: { native: "digital text", scanned: "scanned · OCR" },
+    considered: {
+      toggle: "{used} of {total} retrieved passages were used",
+      explainer:
+        "These were put in front of the answer and not cited. If the answer " +
+        "looks wrong, whether the clause you wanted is in this list tells you " +
+        "where it went wrong: present means the answer failed to use it, " +
+        "absent means the search failed to find it.",
+      page: "page",
+    },
     injection: {
       badge: "instruction text",
       title: "This document gives orders to the system reading it",

@@ -14,10 +14,19 @@ export function AnswerCard({
   answer,
   onCite,
   activeCitation,
+  children,
 }: {
   answer: Answer;
   onCite: (citation: Citation) => void;
   activeCitation: string | null;
+  /**
+   * Rendered at the foot of every variant, including the refusals.
+   *
+   * A refusal is exactly when someone wants to know what was retrieved — "it
+   * says it cannot find it, but is the clause in there?" — so the evidence
+   * panel must not be reserved for the answers that worked.
+   */
+  children?: React.ReactNode;
 }) {
   const { t } = useLocale();
 
@@ -36,6 +45,7 @@ export function AnswerCard({
           </p>
         )}
         <CostLine answer={answer} />
+        {children}
       </article>
     );
   }
@@ -50,6 +60,7 @@ export function AnswerCard({
           {answer.answer}
         </p>
         <CostLine answer={answer} />
+        {children}
       </article>
     );
   }
@@ -145,6 +156,7 @@ export function AnswerCard({
       </div>
 
       <CostLine answer={answer} />
+      {children}
     </article>
   );
 }
