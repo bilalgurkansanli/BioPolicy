@@ -78,6 +78,12 @@ These were ruled out before the build started. Listed so the reasoning survives.
   retrieval numbers published side by side.
 
 ### Retrieval
+- **A floor that can separate answerable from unanswerable.** The one that
+  shipped cannot, and the measurement in `api/retrieval/floor.py` says why: those
+  two populations overlap almost completely in embedding distance. It separates
+  on-topic from off-topic, which is a narrower claim than the idea started with.
+  Closing the real gap needs a signal that is not distance — the entailment
+  check in ADR 014 is the closest thing this codebase already has.
 - **A real cross-encoder reranker.** v1 ships a no-op or a cheap LLM filter, and
   the eval decides which. A hosted reranking API would likely beat both; it adds
   a fourth vendor and a per-query cost.
@@ -99,9 +105,11 @@ These were ruled out before the build started. Listed so the reasoning survives.
 ### Generation
 - **Streaming the verification pass** so groundedness appears progressively
   rather than at the end.
-- **Answer caching** keyed on (document_id, normalised question). Would cut cost
-  on the sample documents, which will receive the same questions repeatedly from
-  demo visitors.
+- ~~**Answer caching**~~ **Done.** Keyed on (document, normalised question,
+  prompt version, model), samples only, and always labelled as cached in the
+  response — a stored answer served in milliseconds for nothing would otherwise
+  quietly contradict the latency and cost figures the report publishes. See
+  `api/answer_cache.py`.
 
 ### Frontend
 - **Keyboard navigation between citations.**

@@ -53,11 +53,20 @@ export function PolicyProfile({
   signedIn,
   onCite,
   activeCitation,
+  onProfile,
 }: {
   documentId: string;
   signedIn: boolean;
   onCite: (citation: Citation, key: string) => void;
   activeCitation: string | null;
+  /**
+   * Handed up so the workspace can suggest questions from it.
+   *
+   * The profile is fetched here and needed there, and the alternative — a
+   * second fetch in the parent — would ask the API for the same thing twice
+   * and let the two copies disagree about whether extraction had run.
+   */
+  onProfile?: (profile: Profile | null) => void;
 }) {
   const { t } = useLocale();
   const copy = t.workspace.profile;
@@ -77,7 +86,10 @@ export function PolicyProfile({
     const controller = new AbortController();
 
     fetchPolicyProfile(documentId, controller.signal)
-      .then((result) => setProfile(result))
+      .then((result) => {
+        setProfile(result);
+        onProfile?.(result);
+      })
       .catch(() => {
         // A profile that cannot be read is not an error worth interrupting the
         // workspace for — the document and the chat still work. It renders as
@@ -88,19 +100,21 @@ export function PolicyProfile({
       });
 
     return () => controller.abort();
-  }, [documentId]);
+  }, [documentId, onProfile]);
 
   const build = useCallback(async () => {
     setBuilding(true);
     setFailed(false);
     try {
-      setProfile(await buildPolicyProfile(documentId));
+      const built = await buildPolicyProfile(documentId);
+      setProfile(built);
+      onProfile?.(built);
     } catch {
       setFailed(true);
     } finally {
       setBuilding(false);
     }
-  }, [documentId]);
+  }, [documentId, onProfile]);
 
   // Nothing at all until the first read settles, so the card does not flash a
   // call-to-action at somebody whose profile is already cached.

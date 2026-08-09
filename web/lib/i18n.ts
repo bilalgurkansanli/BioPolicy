@@ -151,6 +151,8 @@ const tr = {
     emptyBody:
       "Cevap belgedeyse maddesiyle birlikte gösterilir. Değilse sistem uydurmaz, reddeder — ikincisini de deneyin.",
     suggestions: "Örnek sorular",
+    suggestionsDerived:
+      "Bu sorular belgenin şemaya çıkarılmış hâlinden türetildi — her biri belgede karşılığı bulunan bir maddeye denk geliyor.",
     askPlaceholder: "Bu belge hakkında bir soru sorun…",
     ask: "Sor",
     asking: "Bekleyin…",
@@ -543,6 +545,8 @@ const en: Dictionary = {
     emptyBody:
       "If the answer is in the document, you get it with the clause it came from. If it is not, the system refuses instead of inventing one — try that too.",
     suggestions: "Try one of these",
+    suggestionsDerived:
+      "Derived from this document's extracted profile — each one corresponds to a clause the document actually contains.",
     askPlaceholder: "Ask something about this document…",
     ask: "Ask",
     asking: "Working…",
