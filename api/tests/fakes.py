@@ -376,6 +376,8 @@ def _first_words(query: str) -> str:
 class FakeStorage:
     """Object storage that can be told to fail, which is the interesting case."""
 
+    bucket = "documents"
+
     def __init__(self, *, removable: bool = True, size: int | None = 1024) -> None:
         self.removable = removable
         self.size = size

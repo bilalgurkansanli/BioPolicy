@@ -46,6 +46,9 @@ class PurgeResult(BaseModel):
     purged: int
     chunks_deleted: int
     failed: int
+    # Bucket objects no row referred to — what the database-side fallback in
+    # migration 0007 leaves behind when it expires rows the API could not.
+    orphans_deleted: int
 
 
 @router.post("/purge", response_model=PurgeResult, summary="Delete expired documents")

@@ -15,11 +15,25 @@ mistake that looks like it worked.
 
 So a document whose file could not be deleted keeps its row and is retried on
 the next sweep. A row without its file is the one state this must never produce.
+
+## Except that something else produces it
+
+Migration 0007 also schedules `purge_expired_rows()`, a database-side fallback
+for the case where this API is down longer than the retention window. It deletes
+rows and cannot touch the bucket, so it produces exactly the state above: a file
+with no row, no owner and no timer. The migration says it is "reconciled by the
+API's own sweep" — and until `reconcile_orphans` below, no such sweep existed.
+On the development project it had run 5 times and left 6 PDFs in the bucket, the
+oldest 5 days past its deletion date.
+
+That is why reconciliation reads `storage.objects` rather than the `documents`
+table: once the row is gone, the row is not where the evidence is.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 from uuid import UUID
 
 import asyncpg
@@ -33,12 +47,29 @@ log = get_logger(__name__)
 # expiries. Bounded so one sweep cannot run for minutes on a serverless clock.
 PURGE_BATCH_SIZE = 100
 
+# How old an unreferenced object must be before it counts as abandoned.
+#
+# Upload is: create the row, hand out a signed URL, browser uploads, confirm. The
+# row therefore exists before the object does, and an unreferenced object is
+# already anomalous. The hour is margin for the reverse case — a row rolled back
+# after an upload landed — and it is six times the signed URL's own lifetime. It
+# stays far below the retention window so a genuine orphan is collected within
+# the promise rather than a day after it.
+#
+# A `timedelta`, not the string `'1 hour'`: asyncpg maps `interval` to
+# `timedelta` in both directions, and a string reaches the driver as a type
+# error naming `'str' object has no attribute 'days'` — which is caught by the
+# scan's own error handler and degrades to "no orphans found". The fakes cannot
+# see this; only running it against Postgres can.
+ORPHAN_GRACE_INTERVAL = timedelta(hours=1)
+
 
 @dataclass(slots=True)
 class PurgeReport:
     purged: int = 0
     chunks_deleted: int = 0
     failed: int = 0
+    orphans_deleted: int = 0
 
     @property
     def as_dict(self) -> dict[str, int]:
@@ -46,6 +77,7 @@ class PurgeReport:
             "purged": self.purged,
             "chunks_deleted": self.chunks_deleted,
             "failed": self.failed,
+            "orphans_deleted": self.orphans_deleted,
         }
 
 
@@ -71,9 +103,58 @@ class RetentionService:
             else:
                 report.failed += 1
 
-        if report.purged or report.failed:
+        report.orphans_deleted = await self.reconcile_orphans()
+
+        if report.purged or report.failed or report.orphans_deleted:
             log.info("retention_sweep", **report.as_dict)
         return report
+
+    async def reconcile_orphans(self, *, limit: int = PURGE_BATCH_SIZE) -> int:
+        """Delete bucket objects that no document row refers to.
+
+        The database-side fallback in migration 0007 deletes rows it cannot
+        match with files. Without this, those files stay indefinitely: nothing
+        expires them, because expiry is a column on a row that no longer exists.
+
+        Scoped to `uploads/` so it can only ever reach user uploads. Samples are
+        never expired, so a sample object is not an orphan — but the scope means
+        that even a bug in the join cannot delete one.
+
+        No audit row is written here. `retention_audit` records the purge of a
+        *document*, and by this point there is no document id to record — the
+        count goes to the log and to the endpoint's response instead.
+        """
+        try:
+            rows = await self._pool.fetch(
+                """
+                select o.name from storage.objects o
+                 where o.bucket_id = $1
+                   and o.name like 'uploads/%'
+                   and o.created_at < now() - $2::interval
+                   and not exists (
+                     select 1 from documents d where d.storage_path = o.name
+                   )
+                 order by o.created_at
+                 limit $3
+                """,
+                self._storage.bucket,
+                ORPHAN_GRACE_INTERVAL,
+                limit,
+            )
+        except Exception as exc:
+            # Reading storage metadata is a privilege this service has but does
+            # not control. Losing it must degrade reconciliation, not the purge.
+            log.error("retention_orphan_scan_failed", error=str(exc))
+            return 0
+
+        deleted = 0
+        for row in rows:
+            if await self._storage.remove(row["name"]):
+                deleted += 1
+                log.info("retention_orphan_removed", path=row["name"])
+            else:
+                log.error("retention_orphan_failed", path=row["name"])
+        return deleted
 
     async def purge_document(self, document_id: UUID) -> bool:
         """Delete one document now, on its owner's request.

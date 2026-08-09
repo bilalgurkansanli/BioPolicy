@@ -70,6 +70,11 @@ class DocumentStorage:
         self._settings = settings
         self._client: AsyncClient | None = None
 
+    @property
+    def bucket(self) -> str:
+        """The bucket name. Retention needs it to read `storage.objects`."""
+        return self._settings.supabase_storage_bucket
+
     async def _bucket(self) -> Any:
         if self._client is None:
             if not (self._settings.supabase_url and self._settings.supabase_service_role_key):

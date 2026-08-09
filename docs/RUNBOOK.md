@@ -417,7 +417,38 @@ end to end by hand:
 curl -s -X POST "$API_BASE/api/internal/purge" -H "X-Job-Secret: $PURGE_JOB_SECRET"
 ```
 
-It answers `{"purged": n, "chunks_deleted": n, "failed": n}`. A non-zero
-`failed` means the storage object could not be deleted; those rows are kept
-deliberately and retried on the next sweep, because a row without its file is
-the one state retention must never produce.
+It answers `{"purged": n, "chunks_deleted": n, "failed": n, "orphans_deleted": n}`.
+A non-zero `failed` means the storage object could not be deleted; those rows are
+kept deliberately and retried on the next sweep, because a row without its file
+is the one state retention must never produce.
+
+### The state the fallback produces, and how to see it
+
+`orphans_deleted` counts the *other* direction: a file with no row. Migration
+0007's database-side fallback `purge_expired_rows()` runs hourly, deletes rows
+and cannot touch the bucket, so every document it expires leaves its PDF behind.
+The migration said the API reconciled those. It did not — that sweep did not
+exist until `RetentionService.reconcile_orphans`, and on the development project
+the fallback had run 5 times and left **6 PDFs in the bucket, the oldest 5 days
+past its deletion date**. They were deleted on 2026-08-09.
+
+Two symptoms distinguish the fallback from a real purge, and both are worth
+checking after any outage:
+
+```sql
+select storage_deleted, count(*) from retention_audit group by 1;
+```
+
+Every `false` is a document whose row went without its file. The API always
+writes `true`; only the fallback writes `false`. A column of `false` means the
+API purge has never once run — check `app_settings` before anything else.
+
+```sql
+select count(*) from storage.objects o
+ where o.bucket_id = 'documents' and o.name like 'uploads/%'
+   and not exists (select 1 from documents d where d.storage_path = o.name);
+```
+
+This must be zero. Anything else is a file outliving the promise printed on the
+workspace. Reconciliation now runs inside every purge sweep, so a non-zero count
+means the sweep itself is not running.

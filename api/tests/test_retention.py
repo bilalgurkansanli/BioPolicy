@@ -13,10 +13,11 @@ at it.
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, cast
 from uuid import uuid4
 
-from api.retention import RetentionService
+from api.retention import ORPHAN_GRACE_INTERVAL, RetentionService
 from api.tests.fakes import FakePool, FakeStorage
 
 DOC = uuid4()
@@ -168,3 +169,88 @@ async def test_a_bucket_that_refuses_a_delete_keeps_the_account_alive() -> None:
 
     assert await service.purge_user_documents(USER) is False
     assert "delete from" not in pool.statements
+
+
+# --- orphaned objects ---------------------------------------------------------
+#
+# Migration 0007's database-side fallback deletes rows and cannot reach the
+# bucket, producing the one state the ordering above exists to prevent: a file
+# with no row, no owner and no expiry. It said the API reconciled them. Nothing
+# did, and 6 PDFs sat in the development bucket, the oldest 5 days past its
+# deletion date.
+
+
+ORPHAN = "uploads/8b1c/dead-beef.pdf"
+
+
+def _orphan_service(
+    orphans: list[dict[str, object]], *, removable: bool = True
+) -> tuple[RetentionService, FakePool, FakeStorage]:
+    # First fetch is the expired-documents query, second is the orphan scan.
+    pool = FakePool(fetch=[[], orphans])
+    storage = FakeStorage(removable=removable)
+    storage.share_log(pool.log)
+    return RetentionService(cast(Any, pool), cast(Any, storage)), pool, storage
+
+
+async def test_an_object_no_row_points_at_is_deleted() -> None:
+    service, _, storage = _orphan_service([{"name": ORPHAN}])
+
+    report = await service.purge_expired()
+
+    assert report.orphans_deleted == 1
+    assert storage.removed == [ORPHAN]
+
+
+async def test_reconciliation_can_only_reach_uploads_and_only_after_a_grace_period() -> None:
+    """Assertions about the query text, for the same reason the sample one is.
+
+    Neither condition is observable through the fake, and dropping either is
+    destructive in a way a test that watched behaviour would not notice: without
+    the prefix a sample object becomes deletable, without the grace period an
+    upload in flight does.
+    """
+    service, pool, _ = _orphan_service([])
+
+    await service.purge_expired()
+
+    scan = pool.queries[1]
+    assert "like 'uploads/%'" in scan
+    assert "not exists" in scan
+    assert "created_at < now() - $2::interval" in scan
+
+
+async def test_a_failed_orphan_scan_does_not_fail_the_purge() -> None:
+    """Reading storage metadata is a privilege we hold, not one we control."""
+    service, pool, _ = _orphan_service([])
+
+    async def explode(query: str, *args: object) -> list[dict[str, object]]:
+        if "storage.objects" in query:
+            raise RuntimeError("permission denied for schema storage")
+        return []
+
+    pool.fetch = explode  # type: ignore[method-assign]
+
+    report = await service.purge_expired()
+
+    assert report.orphans_deleted == 0
+    assert report.failed == 0
+
+
+async def test_an_orphan_the_bucket_refuses_is_not_counted_as_deleted() -> None:
+    service, _, _ = _orphan_service([{"name": ORPHAN}], removable=False)
+
+    report = await service.purge_expired()
+
+    assert report.orphans_deleted == 0
+
+
+def test_the_grace_period_is_a_timedelta_not_a_string() -> None:
+    """Looks pedantic; caught a real bug that every other test was blind to.
+
+    asyncpg maps `interval` to `timedelta`. Passing `'1 hour'` reaches the driver
+    as `'str' object has no attribute 'days'`, which the scan's own error handler
+    swallows — so reconciliation reports zero orphans and looks like it worked.
+    The fakes understand no SQL and cannot see it; only Postgres could, and did.
+    """
+    assert isinstance(ORPHAN_GRACE_INTERVAL, timedelta)
