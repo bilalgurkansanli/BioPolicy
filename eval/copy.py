@@ -26,7 +26,7 @@ it.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import ClassVar, Literal
 
 Lang = Literal["en", "tr"]
 
@@ -421,6 +421,50 @@ class T:
     row_refusal_accuracy = Text(en="Refusal accuracy", tr="Ret doğruluğu")
     row_false_refusal_rate = Text(en="False-refusal rate", tr="Yanlış ret oranı")
     row_balanced = Text(en="Balanced accuracy", tr="Dengeli doğruluk")
+
+    # --- retrieval floor ----------------------------------------------------
+    floor_heading = Text(en="### The retrieval floor", tr="### Getirme eşiği")
+    floor_intro = Text(
+        en=(
+            "Before any model is called, the nearest retrieved passage is checked against a "
+            "cosine-distance threshold. A question nothing is close to is refused for free. "
+            "Reproduce with `uv run python -m eval.measure_floor`."
+        ),
+        tr=(
+            "Herhangi bir model çağrılmadan önce, getirilen en yakın bölüm bir kosinüs "
+            "mesafesi eşiğine karşı denetlenir. Hiçbir şeyin yakın olmadığı bir soru "
+            "bedelsiz reddedilir. Yeniden üretmek için: "
+            "`uv run python -m eval.measure_floor`."
+        ),
+    )
+    floor_finding = Text(
+        en=(
+            "**What the floor does not do is the point.** The answerable and "
+            "on-topic-unanswerable populations overlap almost completely — the nearest "
+            "unanswerable question is closer than the median answerable one — so no "
+            "threshold separates them and the floor does not try. It separates on-topic "
+            "from off-topic, where the gap is real, and leaves the harder judgement to the "
+            "prompt."
+        ),
+        tr=(
+            "**Eşiğin yapmadığı şey asıl mesele.** Cevaplanabilir ve konuyla ilgili ama "
+            "cevapsız kümeler neredeyse tümüyle örtüşüyor — cevapsızların en yakını, "
+            "cevaplanabilirlerin medyanından daha yakın — dolayısıyla hiçbir eşik bu ikisini "
+            "ayıramaz ve eşik bunu denemiyor. Aradaki boşluğun gerçek olduğu yerde, konu "
+            "içi ile konu dışını ayırıyor; zor yargıyı prompt'a bırakıyor."
+        ),
+    )
+    floor_population = Text(en="Population", tr="Küme")
+    floor_refused = Text(en="Refused by the floor", tr="Eşiğin reddettiği")
+    # A mapping rather than one attribute per band: the bands come out of
+    # `measure_floor` as data, and the renderer looks each one up by name.
+    floor_bands: ClassVar[dict[str, Text]] = {
+        "answerable": Text(en="answerable", tr="cevaplanabilir"),
+        "unanswerable": Text(en="on-topic, unanswerable", tr="konu içi, cevapsız"),
+        "other_topic": Text(en="other insurance topic", tr="başka sigorta konusu"),
+        "unrelated": Text(en="unrelated entirely", tr="tümüyle alakasız"),
+        "lexical": Text(en="identifier queries", tr="tanımlayıcı sorguları"),
+    }
 
     # --- citations ----------------------------------------------------------
     citations_heading = Text(

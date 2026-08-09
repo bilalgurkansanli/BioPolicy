@@ -74,6 +74,10 @@ REFUSALS: dict[str, dict[str, str]] = {
             "Bu soruyla ilgili bir bölüm belgede bulunamadı. Soruyu belgede geçen "
             "terimlerle yeniden ifade etmeyi deneyebilirsiniz."
         ),
+        "off_topic": (
+            "Bu soru, bu belgenin konusuyla ilgili görünmüyor. Belge yalnızca kendi "
+            "içeriği hakkındaki sorulara yanıt verebilir."
+        ),
         "no_valid_citations": (
             "Bu soruya bir yanıt taslağı oluşturuldu, ancak dayandığı alıntılar belgede "
             "doğrulanamadı. Doğrulanamayan bir yanıtı göstermemeyi tercih ediyoruz."
@@ -93,6 +97,10 @@ REFUSALS: dict[str, dict[str, str]] = {
         "no_context": (
             "No passage in this document appears to address that question. You could try "
             "rephrasing it using wording that appears in the document."
+        ),
+        "off_topic": (
+            "That question does not appear to be about this document. It can only answer "
+            "questions about its own contents."
         ),
         "no_valid_citations": (
             "An answer was drafted, but the passages it relied on could not be verified "
@@ -303,6 +311,24 @@ class Answerer:
             usage=usage,
             model=response.model,
         )
+
+
+def off_topic_refusal(language: str) -> AnswerOutcome:
+    """Refuse a question the retrieval floor judged to be about something else.
+
+    Produced without calling any model, which is the entire point: the outcome
+    carries no usage, so the caller records nothing and the breaker sees nothing,
+    because nothing was spent.
+
+    Lives here rather than in the router so that every refusal this system can
+    emit is written in one file, in both languages, next to the reasoning for
+    why refusals are fixed strings (see REFUSALS above).
+
+    `refused`, not `suppressed`. Suppression means an answer existed and was
+    withheld; here no answer was ever drafted, and the eval's safety metrics
+    depend on not confusing the two.
+    """
+    return AnswerOutcome(answer=_refusal(language, "off_topic", reason=None))
 
 
 def _refusal(language: str, key: str, *, reason: str | None) -> GroundedAnswer:

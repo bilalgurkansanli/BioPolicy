@@ -1,0 +1,42 @@
+[
+  {
+    "band": "answerable",
+    "n": 49,
+    "min": 0.2021,
+    "median": 0.3028,
+    "max": 0.4194,
+    "fired": 0
+  },
+  {
+    "band": "unanswerable",
+    "n": 21,
+    "min": 0.271,
+    "median": 0.3368,
+    "max": 0.4402,
+    "fired": 0
+  },
+  {
+    "band": "other_topic",
+    "n": 18,
+    "min": 0.3206,
+    "median": 0.4386,
+    "max": 0.5093,
+    "fired": 7
+  },
+  {
+    "band": "unrelated",
+    "n": 18,
+    "min": 0.4681,
+    "median": 0.5057,
+    "max": 0.5718,
+    "fired": 18
+  },
+  {
+    "band": "lexical",
+    "n": 8,
+    "min": 0.3059,
+    "median": 0.3807,
+    "max": 0.4038,
+    "fired": 0
+  }
+]

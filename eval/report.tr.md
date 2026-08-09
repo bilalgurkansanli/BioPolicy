@@ -20,8 +20,8 @@ Sonuçlardan sonra değil önce duruyor, çünkü raporun altına yazılan çeki
 
 | | |
 |---|---|
-| Üretildi | 2026-08-05 23:14 UTC |
-| Commit | `ef03e78` |
+| Üretildi | 2026-08-09 18:54 UTC |
+| Commit | `7b38611` |
 | Cevaplayan model | `claude-haiku-4-5-20251001` |
 | Gömme modeli | `gemini-embedding-001` (1536 boyut) |
 | İstemler | `answer_v2`, `verify_v1` |
@@ -78,6 +78,20 @@ Yalnızca cevaplanabilir sorular üzerinden ölçülüyor — cevabı belgede ol
 | Ret doğruluğu | 100% |
 | Yanlış ret oranı | 4% |
 | Dengeli doğruluk | 98% |
+
+### Getirme eşiği
+
+Herhangi bir model çağrılmadan önce, getirilen en yakın bölüm bir kosinüs mesafesi eşiğine karşı denetlenir. Hiçbir şeyin yakın olmadığı bir soru bedelsiz reddedilir. Yeniden üretmek için: `uv run python -m eval.measure_floor`.
+
+| Küme | n | min | median | max | Eşiğin reddettiği |
+|---|---:|---:|---:|---:|---:|
+| cevaplanabilir | 49 | 0.2021 | 0.3028 | 0.4194 | 0 / 49 |
+| konu içi, cevapsız | 21 | 0.2710 | 0.3368 | 0.4402 | 0 / 21 |
+| başka sigorta konusu | 18 | 0.3206 | 0.4386 | 0.5093 | 7 / 18 |
+| tümüyle alakasız | 18 | 0.4681 | 0.5057 | 0.5718 | 18 / 18 |
+| tanımlayıcı sorguları | 8 | 0.3059 | 0.3807 | 0.4038 | 0 / 8 |
+
+**Eşiğin yapmadığı şey asıl mesele.** Cevaplanabilir ve konuyla ilgili ama cevapsız kümeler neredeyse tümüyle örtüşüyor — cevapsızların en yakını, cevaplanabilirlerin medyanından daha yakın — dolayısıyla hiçbir eşik bu ikisini ayıramaz ve eşik bunu denemiyor. Aradaki boşluğun gerçek olduğu yerde, konu içi ile konu dışını ayırıyor; zor yargıyı prompt'a bırakıyor.
 
 ## Alıntılar ve dayanak
 

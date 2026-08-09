@@ -41,6 +41,15 @@ class RetrievedChunk:
     rrf_score: float = 0.0
     rerank_score: float | None = None
 
+    # Cosine distance between the query and this chunk, straight out of pgvector
+    # — 0 is identical, 1 is orthogonal. `None` when the keyword arm found this
+    # chunk and the vector arm did not.
+    #
+    # Kept alongside the ranks rather than folded into them because it answers a
+    # question ranks cannot: not "which chunk is best" but "is the best one any
+    # good". The retrieval floor is built on this and could not be built on RRF.
+    vector_distance: float | None = None
+
     # Assigned by context assembly. None until the chunk is actually placed in a
     # prompt — a chunk that was retrieved but trimmed away has no id, and a
     # citation naming it must therefore be dropped.

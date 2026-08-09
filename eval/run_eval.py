@@ -153,6 +153,26 @@ QUESTION_SETS: dict[str, tuple[Path, Path, Path]] = {
 G, R, Y, D, RESET = "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"
 
 
+FLOOR_PATH = Path(__file__).parent / "floor.json"
+
+
+def _floor_measurement() -> list[dict[str, object]] | None:
+    """The floor's distribution, if it has been measured.
+
+    Produced by `eval.measure_floor`, not by this run: the populations it needs
+    include questions no document answers, which the golden set has no schema
+    for. Absent is a legitimate state — the section is then simply not rendered,
+    rather than the report inventing a threshold's provenance.
+    """
+    if not FLOOR_PATH.exists():
+        return None
+    try:
+        loaded = json.loads(FLOOR_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return loaded if isinstance(loaded, list) else None
+
+
 def git_commit() -> str:
     try:
         return subprocess.run(
@@ -512,6 +532,7 @@ async def run(*, limit: int | None, arm: str, question_set: str) -> int:
                 dataset=summary,
                 chunks_per_document=chunks_per_document,
                 context_chunk_count=CONTEXT_CHUNK_COUNT,
+                floor=_floor_measurement(),
                 lang=lang,
             )
             for lang in LANGS

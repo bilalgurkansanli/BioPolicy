@@ -60,8 +60,15 @@ def to_pgvector(values: list[float]) -> str:
 # access state could change between them.
 #
 # `row_number()` is what turns each arm into ranks, which is all RRF consumes —
-# the raw distances and ts_rank scores are deliberately left behind, since they
+# the raw ts_rank score is deliberately left behind, since the two arms' scores
 # are on incomparable scales (see fusion.py).
+#
+# The cosine distance is the one exception, and it is carried out of the vector
+# arm for a purpose fusion has no use for: deciding whether anything here is
+# relevant *at all*. Ranks cannot answer that question. Something is always at
+# rank 1, so RRF gives an irrelevant question the same top score as a good one.
+# Cosine distance is absolute — the same 0.42 means the same thing on any
+# question — which is what a floor needs. See `api/retrieval/floor.py`.
 #
 # ---------------------------------------------------------------------------
 # WHY the `& -> |` rewrite on the tsquery, which is the least obvious line here
@@ -97,7 +104,9 @@ q as (
         replace(websearch_to_tsquery('english', $4)::text, ' & ', ' | ')::tsquery as en
 ),
 vector_arm as (
-    select c.id, row_number() over (order by c.embedding <=> $3::vector) as rank
+    select c.id,
+           row_number() over (order by c.embedding <=> $3::vector) as rank,
+           c.embedding <=> $3::vector as distance
     from chunks c
     join accessible a on a.id = c.document_id
     order by c.embedding <=> $3::vector
@@ -121,7 +130,8 @@ keyword_arm as (
 )
 select c.id, c.content, c.content_type, c.page_start, c.page_end,
        c.section_path, c.bbox,
-       v.rank as vector_rank, k.rank as keyword_rank
+       v.rank as vector_rank, k.rank as keyword_rank,
+       v.distance as vector_distance
 from chunks c
 left join vector_arm  v on v.id = c.id
 left join keyword_arm k on k.id = c.id
@@ -434,4 +444,7 @@ def _to_chunk(row: Any) -> RetrievedChunk:
         bbox=BBox(**bbox) if bbox else None,
         vector_rank=row["vector_rank"],
         keyword_rank=row["keyword_rank"],
+        vector_distance=(
+            float(row["vector_distance"]) if row["vector_distance"] is not None else None
+        ),
     )

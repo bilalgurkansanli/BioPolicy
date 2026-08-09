@@ -17,7 +17,9 @@ two languages the same report rather than two reports about the same run.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 from api.generation import prompts
 from eval.copy import ARM_LABELS, Lang, T
@@ -149,6 +151,34 @@ def _limitations(
     return notes
 
 
+def _render_floor(add: Callable[[str], None], bands: list[dict[str, Any]], *, lang: Lang) -> None:
+    """The floor's own measurement, which the answering run does not produce.
+
+    It comes from `eval.measure_floor` — embedding calls only, over populations
+    the golden set has no schema for (a question about football has no expected
+    answer and no evidence spans). Rendered here anyway, because a threshold
+    published without the distribution it was derived from is a magic number.
+    """
+    add(T.floor_heading.of(lang))
+    add("")
+    add(T.floor_intro.of(lang))
+    add("")
+    add(f"| {T.floor_population.of(lang)} | n | min | median | max | {T.floor_refused.of(lang)} |")
+    add("|---|---:|---:|---:|---:|---:|")
+    for band in bands:
+        if not band.get("n"):
+            continue
+        label = T.floor_bands.get(band["band"])
+        name = label.of(lang) if label else band["band"]
+        add(
+            f"| {name} | {band['n']} | {band['min']:.4f} | {band['median']:.4f} "
+            f"| {band['max']:.4f} | {band['fired']} / {band['n']} |"
+        )
+    add("")
+    add(T.floor_finding.of(lang))
+    add("")
+
+
 def render_report(
     arms: dict[str, Report],
     *,
@@ -159,6 +189,7 @@ def render_report(
     dataset: Stats,
     chunks_per_document: dict[str, int] | None = None,
     context_chunk_count: int = 8,
+    floor: list[dict[str, Any]] | None = None,
     lang: Lang = "en",
 ) -> str:
     primary = arms.get("strict_guarded") or next(iter(arms.values()))
@@ -323,6 +354,9 @@ def render_report(
     add(f"| {T.row_false_refusal_rate.of(lang)} | {_pct(primary.refusal.false_refusal_rate)} |")
     add(f"| {T.row_balanced.of(lang)} | {_pct(primary.refusal.balanced_accuracy)} |")
     add("")
+
+    if floor is not None:
+        _render_floor(add, floor, lang=lang)
 
     # --- citations & groundedness -------------------------------------------
     add(T.citations_heading.of(lang))

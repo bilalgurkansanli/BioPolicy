@@ -23,6 +23,8 @@ from api.generation.llm import LLMProvider, ProviderError, Turn, UsageRecord
 from api.logging_config import get_logger
 from api.retrieval.context import AssembledContext, assemble
 from api.retrieval.embedder import EmbeddingProvider
+from api.retrieval.floor import FloorVerdict
+from api.retrieval.floor import evaluate as evaluate_floor
 from api.retrieval.fusion import fuse
 from api.retrieval.store import ChunkSearcher
 from api.retrieval.types import RetrievedChunk
@@ -43,6 +45,14 @@ class RetrievalResult:
 
     rewritten: bool = False
     usage: list[UsageRecord] = field(default_factory=list)
+    floor: FloorVerdict | None = None
+    """Whether anything retrieved is about this document at all.
+
+    Computed here because this is where the distances are, and acted on by the
+    caller, because whether to answer is a decision about the request rather
+    than about the search. `None` when the floor is switched off — which the
+    eval does, to measure what it changes.
+    """
 
 
 class HybridRetriever:
@@ -53,11 +63,13 @@ class HybridRetriever:
         *,
         rewriter: LLMProvider | None = None,
         enable_rewrite: bool = True,
+        enable_floor: bool = True,
     ) -> None:
         self._store = store
         self._embedder = embedder
         self._rewriter = rewriter
         self._enable_rewrite = enable_rewrite and rewriter is not None
+        self._enable_floor = enable_floor
 
     async def retrieve(
         self,
@@ -89,11 +101,19 @@ class HybridRetriever:
 
         ranked = fuse(candidates)
         context = assemble(ranked, max_chunks=max_chunks)
+        # Judged on every candidate, not on the eight that survived assembly:
+        # the question is whether the document has anything on this subject,
+        # and trimming for the context window is about the prompt's budget.
+        floor = evaluate_floor(candidates) if self._enable_floor else None
 
         log.info(
             "retrieval_complete",
             document_id=str(document_id),
             rewritten=rewritten,
+            below_floor=floor.below if floor else None,
+            best_distance=(
+                round(floor.best_distance, 4) if floor and floor.best_distance is not None else None
+            ),
             candidates=len(candidates),
             vector_only=sum(1 for c in candidates if c.keyword_rank is None),
             keyword_only=sum(1 for c in candidates if c.vector_rank is None),
@@ -110,6 +130,7 @@ class HybridRetriever:
             search_query=search_query,
             rewritten=rewritten,
             usage=usage,
+            floor=floor,
         )
 
     async def _resolve_query(

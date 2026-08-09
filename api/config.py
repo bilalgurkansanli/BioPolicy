@@ -193,6 +193,14 @@ class Settings(BaseSettings):
     enable_query_rewrite: bool = True
     enable_rerank: bool = False
 
+    # Refuse a question nothing retrieved is close enough to answer, before any
+    # model is called. Measured over 106 questions: it fired on 0 of 49
+    # answerable ones and 18 of 18 unrelated ones. It deliberately does not fire
+    # on a question the document is about but does not answer — those overlap
+    # the answerable distribution completely, and the prompt handles them.
+    # See `api/retrieval/floor.py` for the distribution it was derived from.
+    enable_retrieval_floor: bool = True
+
     # --- CORS ----------------------------------------------------------------
     # The browser talks to the API same-origin through a Next.js rewrite, so this
     # is normally empty. Populated only for local split-origin development.

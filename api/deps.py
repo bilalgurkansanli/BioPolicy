@@ -161,6 +161,7 @@ class AppState:
                 embedder,
                 rewriter=rewriter,
                 enable_rewrite=settings.enable_query_rewrite,
+                enable_floor=settings.enable_retrieval_floor,
             ),
             answerer=Answerer(
                 FailoverLLM(providers=answering),
