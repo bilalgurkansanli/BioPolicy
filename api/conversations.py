@@ -24,9 +24,9 @@ the statement, on every statement.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 

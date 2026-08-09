@@ -3,6 +3,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { HeadlineMetrics } from "@/components/HeadlineMetrics";
 import { useLocale } from "@/components/LocaleProvider";
 import { MetricHistory, type HistoryRow } from "@/components/MetricHistory";
 import { SpendCounter } from "@/components/SpendCounter";
@@ -11,6 +12,40 @@ import { SiteHeader } from "@/components/SiteHeader";
 
 /** One report, as written by the tool, in each language it writes it in. */
 type Rendered = { en: string | null; tr: string | null };
+
+/**
+ * A report, folded away until asked for.
+ *
+ * `<details>` rather than a React toggle: it is keyboard-operable, it is in the
+ * accessibility tree as a disclosure without any ARIA, and a reader who prints
+ * the page or searches it with the browser's own find can still reach the text
+ * inside. None of that is true of a `useState` that unmounts its content.
+ */
+function Details({
+  summary,
+  note,
+  children,
+}: {
+  summary: string;
+  note: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="group mt-8 border-t border-line pt-6">
+      <summary className="flex cursor-pointer list-none items-baseline gap-2 text-sm font-medium text-ink marker:content-none">
+        <span
+          aria-hidden
+          className="font-mono text-xs text-ink-faint transition-transform group-open:rotate-90"
+        >
+          ›
+        </span>
+        {summary}
+      </summary>
+      <p className="mt-1.5 pl-5 text-xs leading-5 text-ink-faint">{note}</p>
+      <div className="report mt-5 overflow-x-auto">{children}</div>
+    </details>
+  );
+}
 
 /**
  * The report is not translated here — it arrives already written in both
@@ -61,12 +96,24 @@ export function EvaluationReport({
             </p>
           )}
 
+          <HeadlineMetrics rows={history} />
+
+          {/* The one caveat that changes how the numbers above should be read,
+              stated here rather than left for whoever opens the full report.
+              The rest of the qualifications are in it, at length. */}
+          <p className="mt-6 rounded-xl border border-line bg-surface-sunken px-4 py-3 text-xs leading-5 text-ink-muted">
+            {t.evaluation.caveat}
+          </p>
+
+          <SpendCounter />
+          <MetricHistory rows={history} />
+
           {report === null ? (
             <p className="mt-10 rounded-xl border border-line bg-surface p-4 text-sm text-ink-muted">
               {t.evaluation.missing}
             </p>
           ) : (
-            <div className="report mt-10 overflow-x-auto">
+            <Details summary={t.evaluation.fullReport} note={t.evaluation.fullReportNote}>
               <Markdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -80,24 +127,24 @@ export function EvaluationReport({
               >
                 {report}
               </Markdown>
-            </div>
+            </Details>
           )}
 
-          <SpendCounter />
-          <MetricHistory rows={history} />
-
-          {/* The adversarial set, after the main report rather than mixed into
-              it: its numbers are over a different corpus and reading them as
-              the demo's would be reading two systems as one. */}
+          {/* The adversarial set, separate rather than mixed in: its numbers are
+              over a different corpus and reading them as the demo's would be
+              reading two systems as one. */}
           {adversarial && (
-            <div className="report mt-10 overflow-x-auto border-t border-line pt-8">
+            <Details
+              summary={t.evaluation.adversarial}
+              note={t.evaluation.adversarialNote}
+            >
               <Markdown
                 remarkPlugins={[remarkGfm]}
                 components={{ h1: ({ children }) => <h2>{children}</h2> }}
               >
                 {adversarial}
               </Markdown>
-            </div>
+            </Details>
           )}
 
           <p className="mt-12 border-t border-line pt-4 text-xs text-ink-faint">

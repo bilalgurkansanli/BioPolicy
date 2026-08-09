@@ -379,7 +379,27 @@ const tr = {
   },
   evaluation: {
     title: "Değerlendirme",
-    lede: "Bu sayfa depodaki eval/report.md dosyasını olduğu gibi gösterir. Rapor python -m eval.run_eval komutuyla, canlı modeller ve canlı veritabanı üzerinde üretilir.",
+    lede: "Bu sistemin iddiası ölçülebilir: cevap verebildiğinde maddeyi gösterir, veremediğinde reddeder. Aşağıdaki sayılar 70 soruluk bir sınavın sonucudur ve hiçbiri elle yazılmadı.",
+    caveat:
+      "Bu sayılar, bu proje için yazılmış üç sentetik belge üzerinde ölçüldü. Gerçek bir poliçe derleminde ne olacağını göstermezler; raporun tamamı, neyi göstermediklerini de anlatıyor.",
+    fullReport: "Raporun tamamı",
+    fullReportNote:
+      "Yöntem, kategori kırılımları, mekanizmaların açık ve kapalı ölçümü, bu koşunun çekinceleri.",
+    adversarial: "Sistemi zorlamak için yazılmış belgeler",
+    adversarialNote:
+      "Kendisiyle çelişen ve sisteme talimat vermeye çalışan belgeler. Ayrı derlem, ayrı sayılar.",
+    cards: {
+      refusalAccuracy: "Doğru ret",
+      refusalAccuracyNote: "Belgede cevabı olmayan sorularda uydurmadı.",
+      falseRefusal: "Yanlış ret",
+      falseRefusalNote: "Cevabı belgede olduğu hâlde reddettikleri.",
+      recall: "Doğru bölümü buldu",
+      recallNote: "Cevabın dayandığı madde, getirilen 8 parçanın içindeydi.",
+      citationValidity: "Alıntı geçerliliği",
+      citationValidityNote: "Gösterilen her alıntı belgede gerçekten vardı.",
+      footnote:
+        "{questions} soru · soru başına ${cost} · commit {commit}. İlk iki sayı birlikte okunmalı: her şeyi reddeden bir sistem birincisinden %100 alır.",
+    },
     missing:
       "Rapor bu derlemede bulunamadı. Depoda eval/report.md dosyasına bakabilirsiniz.",
     regenerate: "Yeniden üretmek için",
@@ -391,7 +411,7 @@ const tr = {
     spendQuestions: "Cevaplanan soru",
     spendBudget: "Bütçe tavanı",
     spendCaveat:
-      "Yalnızca Anthropic ücretlendirmesi: sağlayıcı çağrılarının {share} kadarı fiyatlandırılabiliyor. Gömme ve sorgu yeniden yazma için kullanılan Google modellerinin fiyatı bu projede doğrulanmadı, o yüzden gerçek fatura bu rakamdan yüksek.",
+      "Anthropic ve Google çağrılarının tamamı fiyatlandırılıyor. Bu toplamın {share} kadarı fiyatlandırılmış çağrılardan geliyor; kalanı, Google fiyatları doğrulanmadan önce kaydedilmiş eski çağrılar ve sıfır maliyetle yazıldı. Yeni her çağrı tam olarak sayılıyor.",
     historyTitle: "Sayılar zaman içinde",
     historyNote:
       "Yayımlanan yapılandırma (katı prompt + mekanizmalar), 70 soruluk küme üzerinde. Her nokta bir koşum.",
@@ -779,7 +799,27 @@ const en: Dictionary = {
   },
   evaluation: {
     title: "Evaluation",
-    lede: "This page renders eval/report.md from the repository verbatim. The report is produced by python -m eval.run_eval against live models and the live database.",
+    lede: "The claim this system makes is measurable: cite the clause when it can answer, refuse when it cannot. The numbers below come from a 70-question exam, and none of them were written by hand.",
+    caveat:
+      "These were measured on three synthetic documents written for this project. They do not tell you what happens on a real corpus of policies — and the full report is explicit about what else they do not show.",
+    fullReport: "The full report",
+    fullReportNote:
+      "Method, per-category breakdowns, each mechanism measured on and off, and this run's caveats.",
+    adversarial: "Documents written to break it",
+    adversarialNote:
+      "Documents that contradict themselves, and documents that try to give the system orders. A different corpus, different numbers.",
+    cards: {
+      refusalAccuracy: "Correct refusals",
+      refusalAccuracyNote: "Questions the document cannot answer, refused.",
+      falseRefusal: "False refusals",
+      falseRefusalNote: "Answerable questions it refused anyway.",
+      recall: "Found the right passage",
+      recallNote: "The clause the answer needed was among the 8 retrieved.",
+      citationValidity: "Citation validity",
+      citationValidityNote: "Every quote shown was really in the document.",
+      footnote:
+        "{questions} questions · ${cost} per question · commit {commit}. Read the first two together: a system that refuses everything scores 100% on the first.",
+    },
     missing:
       "The report was not found in this build. It lives at eval/report.md in the repository.",
     regenerate: "To regenerate it",
@@ -791,7 +831,7 @@ const en: Dictionary = {
     spendQuestions: "Questions answered",
     spendBudget: "Budget ceiling",
     spendCaveat:
-      "Anthropic billing only: {share} of provider calls can be priced. The Google models used for embedding and query rewriting were never price-verified for this project, so the real bill is higher than this figure.",
+      "Every Anthropic and Google call is priced. {share} of this total comes from priced calls; the rest are older ones, recorded at zero before Google's rates were verified. Every new call is counted in full.",
     historyTitle: "The numbers over time",
     historyNote:
       "The shipped configuration (strict prompt + mechanisms) over the 70-question set. One point per run.",

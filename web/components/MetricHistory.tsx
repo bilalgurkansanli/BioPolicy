@@ -23,6 +23,12 @@ export type HistoryRow = {
   false_refusal_rate: number;
   balanced_accuracy: number;
   cost_per_question: number;
+  // Written by every run but not charted — the chart tracks the two refusal
+  // numbers over time, while these two are read once, for the current
+  // configuration, by `HeadlineMetrics`. Optional because rows appended before
+  // they were recorded are still valid history.
+  recall_at_k?: number;
+  citation_validity?: number;
 };
 
 const SERIES = [
