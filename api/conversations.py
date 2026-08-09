@@ -26,12 +26,12 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import datetime
+from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
 import asyncpg
 
-from api.generation.schemas import BoundCitation
 from api.logging_config import get_logger
 
 log = get_logger(__name__)
@@ -128,7 +128,7 @@ class ConversationRepository:
         user_id: UUID,
         question: str,
         answer: str,
-        citations: list[BoundCitation],
+        citations: Sequence[Mapping[str, Any]],
         groundedness: float | None,
         refused: bool,
         suppressed: bool,
@@ -140,8 +140,16 @@ class ConversationRepository:
         Both messages go in one transaction. A question saved without its
         answer would come back as a conversation that appears to have been
         ignored.
+
+        Citations arrive already serialised rather than as `BoundCitation`.
+        Two paths reach here and only one of them has the objects: an answer
+        replayed from the cache has the same citations as JSON and cannot
+        reconstruct them, because `chunk_id` is not part of what the client was
+        sent. Taking dictionaries lets both paths store the same thing — the
+        alternative, which was what shipped, was passing an empty list from the
+        cached path and silently losing every citation from a user's history.
         """
-        payload = [citation.model_dump(mode="json") for citation in citations]
+        payload = list(citations)
 
         async with self._pool.acquire() as connection, connection.transaction():
             await connection.execute(

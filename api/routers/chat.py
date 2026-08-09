@@ -136,7 +136,13 @@ async def _serve_cached(
     in their history whether or not we had to pay to answer it.
     """
     payload = dict(hit.payload)
+    # Fields stored for the replay, not part of what a fresh answer sends.
+    # Leaving them in would give `done` a different shape depending on whether
+    # the answer came from cache — the exact defect this file's key test exists
+    # to catch, which it missed because its fixture omitted them.
     considered = payload.pop("considered", [])
+    stored_prompt = str(payload.pop("prompt_version", prompts.ANSWER))
+    stored_model = str(payload.pop("model", ""))
 
     yield _event(
         "retrieval_complete",
@@ -162,12 +168,12 @@ async def _serve_cached(
             user_id=user.id,
             question=request.question,
             answer=str(payload.get("answer", "")),
-            citations=[],
+            citations=[c for c in payload.get("citations", []) if isinstance(c, dict)],
             groundedness=cast(float | None, payload.get("groundedness")),
             refused=bool(payload.get("refused")),
             suppressed=bool(payload.get("suppressed")),
-            prompt_version=str(payload.get("prompt_version", prompts.ANSWER)),
-            model=str(payload.get("model", "")),
+            prompt_version=stored_prompt,
+            model=stored_model,
         )
     except Exception as exc:
         log.error("conversation_not_saved", exc_info=exc)
@@ -331,7 +337,9 @@ async def chat(
                     user_id=user.id,
                     question=request.question,
                     answer=answer.answer,
-                    citations=answer.citations,
+                    # Serialised here rather than in the repository, so the
+                    # cached path can hand over the same shape it stored.
+                    citations=[citation.model_dump(mode="json") for citation in answer.citations],
                     groundedness=answer.groundedness,
                     refused=answer.refused,
                     suppressed=answer.suppressed,

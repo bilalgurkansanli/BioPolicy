@@ -116,10 +116,14 @@ class _Usage:
 
 
 class _Conversations:
+    def __init__(self) -> None:
+        self.turns: list[dict[str, Any]] = []
+
     async def ensure(self, **_: object) -> object:
         return uuid4()
 
-    async def append_turn(self, **_: object) -> None: ...
+    async def append_turn(self, **kwargs: Any) -> None:
+        self.turns.append(kwargs)
 
 
 class _Cache:
@@ -137,7 +141,10 @@ class _Cache:
 
 
 def _client(
-    *, below_floor: bool = False, cache: _Cache | None = None
+    *,
+    below_floor: bool = False,
+    cache: _Cache | None = None,
+    conversations: _Conversations | None = None,
 ) -> tuple[TestClient, _Retriever, _Answerer]:
     retriever = _Retriever(below_floor=below_floor)
     answerer = _Answerer()
@@ -147,9 +154,9 @@ def _client(
         breaker = _Breaker()
         quota = _Quota()
         usage = _Usage()
-        conversations = _Conversations()
 
     state = _State()
+    state.conversations = conversations or _Conversations()  # type: ignore[attr-defined]
     state.answer_cache = cache or _Cache()  # type: ignore[attr-defined]
     state.retriever = retriever  # type: ignore[attr-defined]
     state.answerer = answerer  # type: ignore[attr-defined]
@@ -246,6 +253,10 @@ def test_above_the_floor_the_model_is_called() -> None:
 # --- the two paths agree ------------------------------------------------------
 
 
+# Deliberately the shape `AnswerCache.put` really stores, extra keys included.
+# The first version of this fixture held only the keys `done` sends, so the test
+# below passed while the live cached path emitted two fields a fresh answer does
+# not — the precise defect that test claims to prevent.
 CACHED_PAYLOAD = {
     "conversation_id": None,
     "cached": None,
@@ -258,10 +269,12 @@ CACHED_PAYLOAD = {
     "groundedness": 0.94,
     "verified": True,
     "entailment": None,
-    "citations": [],
+    "citations": [{"context_id": "C1", "quote": "1.800.000 TL", "page": 3}],
     "dropped_citations": 0,
     "cost_usd": 0.0031,
     "considered": [{"context_id": "C1", "page": 3, "snippet": "…"}],
+    "prompt_version": "answer_v2",
+    "model": "claude-haiku-4-5",
 }
 
 
@@ -325,6 +338,29 @@ def test_a_cache_hit_still_shows_what_was_considered() -> None:
 
     assert events["retrieval_complete"]["considered"][0]["context_id"] == "C1"
     assert "considered" not in events["done"]
+
+
+def test_a_replayed_answer_keeps_its_citations_in_the_users_history() -> None:
+    """The defect this catches shipped: the cached path passed an empty list.
+
+    The same question then produced two different histories depending on whether
+    it happened to hit — a stored turn with its clauses, or one with none — and
+    nothing anywhere reported the difference.
+    """
+    conversations = _Conversations()
+    client, _, _ = _client(
+        cache=_Cache(CachedAnswer(payload=dict(CACHED_PAYLOAD), served_before=1)),
+        conversations=conversations,
+    )
+
+    _events(client)
+
+    assert len(conversations.turns) == 1
+    stored = conversations.turns[0]
+    assert [c["context_id"] for c in stored["citations"]] == ["C1"]
+    # And the provenance of the answer being replayed, not of today's config.
+    assert stored["prompt_version"] == "answer_v2"
+    assert stored["model"] == "claude-haiku-4-5"
 
 
 def test_a_fresh_answer_says_it_is_not_cached() -> None:
