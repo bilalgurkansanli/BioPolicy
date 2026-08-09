@@ -214,6 +214,8 @@ class PdfParser:
                 else:
                     document.blocks.extend(_blocks_from_page(page, number, body_size))
 
+        removed = _strip_running_headers(document)
+
         log.info(
             "document_parsed",
             parser=self.name,
@@ -221,6 +223,7 @@ class PdfParser:
             blocks=len(document.blocks),
             tables=document.table_count,
             ocr_pages=len(ocr_pages),
+            running_headers_removed=removed,
         )
         return document
 
@@ -360,16 +363,97 @@ def _blocks_from_page(page: Any, number: int, body_size: float) -> list[ParsedBl
 # are built from.
 MAX_CONSECUTIVE_HEADINGS = 2
 
+# -----------------------------------------------------------------------------
+# Running headers and footers
+# -----------------------------------------------------------------------------
+# A printed policy repeats its letterhead on every page. The AXA document
+# carries two such lines on all 27 pages: the insurer's postal address, and the
+# product name — which is set in bold and therefore read as a heading, so it
+# opened a new chunk 27 times over.
+#
+# The cost is three-fold and only one part of it is obvious. It wastes 3,770
+# tokens of embedding on text nobody will ever ask about; it manufactures 27
+# chunk boundaries where the document has none; and it puts 27 near-identical
+# vectors into a store that retrieval then has to rank, which is noise competing
+# with the clauses that matter.
+#
+# A block is a running header when the same text appears on most of the pages.
+# The threshold is a majority rather than all of them, because a first page with
+# its own masthead, or a final page without a footer, is normal.
+MIN_REPEAT_PAGE_SHARE = 0.5
+
+# Below this many pages the test cannot mean anything: a clause legitimately
+# repeated on both pages of a two-page document is not a header.
+MIN_PAGES_FOR_REPEAT_DETECTION = 4
+
+
+def _strip_running_headers(document: ParsedDocument) -> int:
+    """Drop the letterhead that repeats on most pages. Returns how many went.
+
+    Compared on normalised text rather than on position: a footer that shifts
+    with the length of the page above it is still the same footer, and a
+    page-number line differs on every page and so is left alone — correctly,
+    since it is not repeated text.
+
+    Tables are never removed. A coverage schedule reprinted on several pages is
+    the answer to most questions worth asking, and losing it to a header rule
+    would be a far worse outcome than keeping a little noise.
+    """
+    if document.page_count < MIN_PAGES_FOR_REPEAT_DETECTION:
+        return 0
+
+    pages_with: dict[str, set[int]] = {}
+    for block in document.blocks:
+        if block.kind == "table":
+            continue
+        pages_with.setdefault(" ".join(block.text.split()), set()).add(block.page)
+
+    threshold = document.page_count * MIN_REPEAT_PAGE_SHARE
+    repeated = {text for text, pages in pages_with.items() if len(pages) >= threshold}
+    if not repeated:
+        return 0
+
+    before = len(document.blocks)
+    document.blocks[:] = [
+        block
+        for block in document.blocks
+        if block.kind == "table" or " ".join(block.text.split()) not in repeated
+    ]
+    return before - len(document.blocks)
+
 
 def _demote_heading_runs(blocks: list[ParsedBlock]) -> list[ParsedBlock]:
-    """Turn runs of three or more consecutive headings back into text."""
+    """Turn heading runs that are not hierarchies back into text.
+
+    Two shapes are demoted, and the distinction between them and a real heading
+    is *nesting*:
+
+    * **Siblings.** Two or more consecutive headings at the same level are a
+      list, not a hierarchy. `ASİSTANS` / `KONUT MİNİ ONARIM` / `LÜKS KONUT` are
+      rows of a benefits table that happen to be set in bold — which is a
+      legitimate way to set a table, so the parser is right to notice the
+      weight and wrong to conclude each row introduces a section.
+      `Madde 4` followed by `4.1 Genel` is the opposite: a level 1 and a level 2,
+      an article opening its first clause, and it stays a heading.
+
+    * **Long runs.** Three or more in a row, whatever their levels. The same
+      policy splits one sentence across four bold lines; a hierarchy four deep
+      with no text between the levels is not a hierarchy.
+
+    This matters beyond tidiness because the chunker starts a new chunk at every
+    heading. Each false heading is another chunk, another vector, and another
+    unit of an embedding quota that a 27-page policy was already exceeding.
+    """
     out = list(blocks)
     run_start: int | None = None
 
     def resolve(end: int) -> None:
         if run_start is None:
             return
-        if end - run_start > MAX_CONSECUTIVE_HEADINGS:
+        run = out[run_start:end]
+        levels = [block.level or 1 for block in run]
+        strictly_nested = len(set(levels)) == len(levels)
+        if len(run) > MAX_CONSECUTIVE_HEADINGS or (len(run) > 1 and not strictly_nested):
             for index in range(run_start, end):
                 out[index] = replace(out[index], kind="text", level=None)
 
