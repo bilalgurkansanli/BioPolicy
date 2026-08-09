@@ -37,11 +37,23 @@ These were ruled out before the build started. Listed so the reasoning survives.
 - **Table continuation across page breaks.** A coverage schedule that spans
   pages 12–13 currently becomes two chunks. Detecting and stitching them is
   meaningful work and meaningfully better.
-- **Multi-column reading order.** `native.py` sorts blocks by `(top, x0)`, which
-  is correct for one column and wrong for two: a two-column page comes out as
-  left line 1, right line 1, left line 2, interleaved into nonsense. Every
-  sample document is single-column, so the eval cannot see this at all. It is
-  the largest *unmeasured* gap in parsing.
+- ~~**Multi-column reading order.**~~ **Done.** It was worse than this entry
+  described. The damage was not in the sort but one level below it, in
+  `extract_text_lines`, which groups glyphs by vertical position: a line from
+  each column came back as *one line*, splicing "Madde 5 — İstisnalar" into the
+  middle of Article 1's opening sentence. Fixing the sort alone would have
+  changed nothing.
+
+  Now detected per page and read column by column, with lines that cross the
+  gutter — titles, full-width tables — collected separately so cropping does not
+  cut them in half. Detection is deliberately reluctant, and the guard that
+  matters is the last test in `api/tests/test_columns.py`: the parser's output
+  on the single-column samples is asserted byte-identical to what it was before.
+
+  Two things it still cannot do: three or more columns, and a full-width band
+  *between* two columns, which is lifted above both rather than read in place.
+  Neither occurs in any document this parser has seen, and both are cheap to add
+  when one does.
 - **Evaluate [`pdf-inspector`](https://github.com/firecrawl/pdf-inspector) as an
   alternative parser and detector.** MIT, Rust with abi3 manylinux wheels on
   PyPI, so no toolchain in the build. `classify_pdf` returns
