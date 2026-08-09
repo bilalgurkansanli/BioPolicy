@@ -30,12 +30,12 @@ from supabase import acreate_client
 from api.config import get_settings
 from api.constants import STATUS_READY
 from api.db import create_pool
+from api.deps import build_embedder
 from api.documents import DocumentRepository
 from api.ingest.chunker import Chunker
 from api.ingest.ocr import GeminiOCR
 from api.ingest.parsers import PdfParser
 from api.ingest.pipeline import IngestionPipeline
-from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.store import ChunkStore
 from eval.sample_content import ALL_DOCUMENTS, HARD_DOCUMENTS, INJECTION_DOCUMENTS
 
@@ -169,11 +169,11 @@ async def run(*, force: bool, which: str) -> int:
             documents=documents,
             store=store,
             parser=PdfParser(ocr=ocr),
-            embedder=GeminiEmbedder(
-                settings.google_api_key or "",
-                settings.gemini_embedding_model,
-                texts_per_minute=settings.embed_texts_per_minute,
-            ),
+            # The same choice the application makes, rather than a second
+            # copy of it. Seeding with a different provider than the API serves
+            # with would fill the store with vectors from one space and query
+            # them from another — no error, just wrong answers.
+            embedder=build_embedder(settings),
             chunker=Chunker(),
         )
 

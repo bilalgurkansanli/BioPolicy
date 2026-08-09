@@ -28,6 +28,7 @@ example: anonymous accounts were shipped, then replaced.
 | [013](./013-google-only-sign-in.md) | Google-only sign-in, and one allowlisted account | accepted |
 | [014](./014-entailment-check.md) | The entailment check: built, measured, switched off | accepted |
 | [015](./015-hostile-documents.md) | When the document is the attacker | accepted |
+| [016](./016-voyage-embeddings.md) | Embeddings move to Voyage | accepted |
 
 ## The four worth reading first
 

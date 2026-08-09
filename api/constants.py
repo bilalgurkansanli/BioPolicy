@@ -10,25 +10,28 @@ from typing import Final
 # -----------------------------------------------------------------------------
 # Embeddings
 # -----------------------------------------------------------------------------
-# WHY 1536 and not the model's native 3072:
+# WHY 1024, and why the number moved.
 #
-# `gemini-embedding-001` emits 3072-dimensional vectors by default. pgvector's
-# `vector` type accepts up to 16000 dimensions for *storage*, but an HNSW index
-# can only be built over at most 2000 of them. An unindexed 3072-d column would
-# force a sequential scan across every chunk on every query — fine for a demo
-# with 200 rows, useless at any real size.
+# The ceiling first: pgvector stores up to 16000 dimensions but an HNSW index
+# can only be built over 2000 of them. An unindexed column forces a sequential
+# scan on every query — fine for a demo with 200 rows, useless at any real size.
+# So whatever the provider offers, this has to stay under 2000.
 #
-# The model is Matryoshka-trained: the dimensions are ordered by how much
-# information they carry, so truncating to a prefix is a designed-for operation
-# rather than lossy mangling. 1536 sits comfortably under the index ceiling,
-# halves storage and distance-computation cost, and retains nearly all retrieval
-# quality. We request it explicitly via `output_dimensionality` on every call —
-# document and query embeddings MUST use the same value or the distances are
-# meaningless.
+# It was 1536, a truncation of `gemini-embedding-001`'s native 3072. That model
+# is Matryoshka-trained, so a prefix is a designed-for operation rather than
+# lossy mangling, and 1536 was simply the largest round number under the
+# ceiling.
 #
-# The SQL column type `vector(1536)` in migration 0002 is derived from this
-# constant by hand. They must agree.
-EMBEDDING_DIM: Final[int] = 1536
+# It is now 1024 because embeddings moved to `voyage-4-lite` (ADR 016), which
+# offers 256, 512, 1024 and 2048 — and 2048 is over the index ceiling. 1024 is
+# also a width `gemini-embedding-001` can produce via `output_dimensionality`,
+# so the fallback embedder still lines up with the column and a switch between
+# providers does not silently write vectors of the wrong shape.
+#
+# Document and query embeddings MUST use the same value or the distances are
+# meaningless. The SQL column type in migration 0012 is derived from this
+# constant by hand; they must agree.
+EMBEDDING_DIM: Final[int] = 1024
 
 # Gemini's embedding endpoint accepts a limited number of texts per request.
 EMBEDDING_BATCH_SIZE: Final[int] = 32

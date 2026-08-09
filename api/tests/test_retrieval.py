@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from api.constants import RRF_K
+from api.constants import EMBEDDING_DIM, RRF_K
 from api.generation.llm import Turn
 from api.retrieval import hybrid
 from api.retrieval.fusion import fuse, reciprocal_rank_fusion
@@ -135,7 +135,7 @@ async def test_both_the_text_and_the_vector_reach_the_store() -> None:
     )
 
     assert store.queries == ["Madde 7.3 nedir?"]
-    assert len(store.embeddings[0]) == 1536
+    assert len(store.embeddings[0]) == EMBEDDING_DIM
 
 
 async def test_the_accessor_is_passed_through_for_the_access_check() -> None:
@@ -284,9 +284,14 @@ async def test_rewriting_can_be_switched_off_for_ablation() -> None:
 
 class TestPgVector:
     def test_format_is_exact(self) -> None:
-        assert to_pgvector([1.0, 2.5] + [0.0] * 1534).startswith("[1.0,2.5,0.0")
+        assert to_pgvector([1.0, 2.5] + [0.0] * (EMBEDDING_DIM - 2)).startswith("[1.0,2.5,0.0")
 
     def test_a_wrong_width_vector_is_refused_before_it_reaches_postgres(self) -> None:
-        """The error is much clearer here than as an opaque Postgres cast failure."""
-        with pytest.raises(ValueError, match="1536"):
+        """The error is much clearer here than as an opaque Postgres cast failure.
+
+        Asserted against the constant rather than a literal: the width moved
+        from 1536 to 1024 with the Voyage migration (ADR 016), and a test that
+        pins the old number fails for the wrong reason.
+        """
+        with pytest.raises(ValueError, match=str(EMBEDDING_DIM)):
             to_pgvector([0.1, 0.2, 0.3])

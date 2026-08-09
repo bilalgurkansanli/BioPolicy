@@ -44,15 +44,46 @@ from api.ingest.pipeline import IngestionPipeline
 from api.ingest.worker import IngestionWorker
 from api.logging_config import get_logger
 from api.retention import RetentionService
+from api.retrieval.embedder import EmbeddingProvider
 from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.hybrid import HybridRetriever
 from api.retrieval.store import ChunkStore
+from api.retrieval.voyage_embedder import VoyageEmbedder
 from api.safety.breaker import BudgetBreaker
 from api.safety.quota import QuotaGuard
 from api.storage import VIEW_URL_TTL_SECONDS, DocumentStorage
 from api.usage import UsageRepository
 
 log = get_logger(__name__)
+
+
+def build_embedder(settings: Settings) -> EmbeddingProvider:
+    """Voyage when it is configured, Gemini otherwise.
+
+    Not a failover chain — one document's vectors must all come from one model,
+    since a vector is only meaningful in the space that produced it. This picks
+    a provider once, at startup, and stays with it.
+
+    Both are configured to the same width, so the column fits either and a
+    deployment that switches gets an obvious failure at insert time rather than
+    a subtly wrong distance. What it does *not* get is correct results: swapping
+    providers means re-embedding everything (ADR 016, migration 0012).
+    """
+    if settings.voyage_api_key:
+        return VoyageEmbedder(settings.voyage_api_key, settings.voyage_model)
+
+    log.warning(
+        "embedding_fallback_provider",
+        detail=(
+            "VOYAGE_API_KEY is unset, so embeddings use Gemini. Its free tier "
+            "allows 1,000 passages a day and a 27-page policy is ~130 of them."
+        ),
+    )
+    return GeminiEmbedder(
+        settings.google_api_key or "",
+        settings.gemini_embedding_model,
+        texts_per_minute=settings.embed_texts_per_minute,
+    )
 
 
 @dataclass(slots=True)
@@ -79,11 +110,7 @@ class AppState:
 
     @classmethod
     def build(cls, pool: asyncpg.Pool, settings: Settings) -> AppState:
-        embedder = GeminiEmbedder(
-            settings.google_api_key or "",
-            settings.gemini_embedding_model,
-            texts_per_minute=settings.embed_texts_per_minute,
-        )
+        embedder = build_embedder(settings)
         store = ChunkStore(pool)
         documents = DocumentRepository(pool)
         storage = DocumentStorage(settings)

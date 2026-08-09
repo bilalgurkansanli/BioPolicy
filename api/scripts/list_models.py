@@ -12,7 +12,7 @@ It does three things, in increasing order of importance:
 
 3. **Tests constraint C3 against reality.** This is the one that matters. The
    entire storage design rests on `gemini-embedding-001` honouring
-   `output_dimensionality: 1536`. Until this script has run, that is a
+   `output_dimensionality` at EMBEDDING_DIM. Until this script has run, that is a
    documented assumption and nothing more — a plausible claim in an ADR. This
    makes one real embedding call and measures the vector.
 

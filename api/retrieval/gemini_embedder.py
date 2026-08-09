@@ -1,11 +1,20 @@
-"""Gemini embeddings at 1536 dimensions — the concrete side of constraint C3.
+"""Gemini embeddings — the fallback vector provider.
+
+No longer the default: embeddings moved to Voyage in ADR 016, because Google's
+free tier counts passages rather than requests and a real 27-page policy is 132
+of them against a daily allowance of 1,000. This is kept, working and tested,
+because a provider swap that leaves no way back is not a swap, it is a bet.
+
+It now produces `EMBEDDING_DIM` (1024) rather than 1536, which the model
+supports through the same `output_dimensionality` parameter — so the column
+fits either provider and a switch cannot silently write the wrong shape.
 
 Two things make this file more than an SDK wrapper.
 
 **`output_dimensionality` is requested explicitly, every time.** The model's
 native width is 3072, and pgvector's HNSW index tops out at 2000. A vector that
 arrives at full width does not raise a helpful error — it is rejected by the
-`vector(1536)` column at insert time, which is the *good* outcome. The bad
+`vector(1024)` column at insert time, which is the *good* outcome. The bad
 outcome is a code path that silently drops the parameter and starts producing
 vectors of a different width than everything already stored, at which point the
 distances are arithmetic performed on unrelated numbers. `validate_dimensions`

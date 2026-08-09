@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     database_url: str | None = None
     supabase_storage_bucket: str = "documents"
 
+    # --- Voyage (embeddings) -------------------------------------------------
+    # The vector side. Anthropic has no embedding endpoint and points at Voyage
+    # for them, so this is a third provider rather than a second use of the
+    # first. Set, it is used; unset, embeddings fall back to Gemini at the same
+    # width — see ADR 016.
+    voyage_api_key: str | None = None
+    voyage_model: str = "voyage-4-lite"
+
     # --- Anthropic -----------------------------------------------------------
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-haiku-4-5-20251001"
