@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { useLocale } from "@/components/LocaleProvider";
 import { SlideLink } from "@/components/SlideLink";
 
+const REPO_URL = "https://github.com/bilalgurkansanli/BioPolicy";
+
 export function SiteFooter() {
   const { t } = useLocale();
   const pathname = usePathname();
@@ -63,6 +65,18 @@ export function SiteFooter() {
             />
             {t.footer.retention}
           </span>
+          {/* The header folds this away on a phone because six controls do not
+              fit the row, which left it reachable from nowhere at all on the
+              device most people arrive on. Here it costs nothing: the footer
+              wraps, so one more item is one more item on a new line. */}
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="-my-2 py-2 underline-offset-4 transition-colors hover:text-ink hover:underline"
+          >
+            {t.nav.source}
+          </a>
           <span>{t.footer.license}</span>
         </div>
       </div>
