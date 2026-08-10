@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   title: "Cookies",
   description:
     "One storage key keeps you signed in; measurement is optional and never loads unless accepted.",
+  // See the note in `privacy/page.tsx`: omitting these inherits the root's `/`
+  // and declares this page a duplicate of the home page.
+  alternates: { canonical: "/cookies" },
+  openGraph: { url: "/cookies" },
 };
 
 export default function Page() {

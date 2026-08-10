@@ -11,6 +11,12 @@ import { SITE_URL } from "@/lib/site";
  *
  * The locale is a stored preference rather than a URL segment (ADR 011), so
  * there is one entry per page rather than one per language.
+ *
+ * `lastModified` is the build time for every entry, and that is a weaker claim
+ * than it looks: a deploy that changed one page dates all seven. Crawlers
+ * discount a `lastmod` that moves on everything at once, so this is honest in
+ * effect rather than precise — a per-page date would need the git history of
+ * each route, which is not worth a build-time subprocess.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
