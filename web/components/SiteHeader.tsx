@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { AccountMenu } from "@/components/AccountMenu";
+import { HeaderMenu } from "@/components/HeaderMenu";
 import { LeaveConfirm } from "@/components/LeaveConfirm";
 import { useLocale } from "@/components/LocaleProvider";
 import { SlideLink } from "@/components/SlideLink";
@@ -234,7 +235,15 @@ export function SiteHeader() {
             <span className="hidden sm:inline">{t.nav.source}</span>
           </a>
 
-          <LocaleSwitch locale={locale} setLocale={setLocale} label={t.language.label} />
+          {/* Desktop only. On a phone it lives in the menu, where it gets a
+              44px target instead of the 28 it was squeezed to — a control that
+              small reads as broken rather than as missed. */}
+          <div className="hidden sm:block">
+            <LocaleSwitch locale={locale} setLocale={setLocale} label={t.language.label} />
+          </div>
+
+          {/* Everything the row cannot hold, behind one control. */}
+          <HeaderMenu repoUrl={REPO_URL} />
 
           {/* Last but one, next to the button rather than first in the row.
               It used to lead the cluster, which put a personal control — an
@@ -375,7 +384,7 @@ function LocaleSwitch({
           // aligned. At 320px the header ran 18px past its own width, and this
           // control was the widest thing in it that could give ground without
           // losing a feature — two letters do not need 36px to be legible.
-          className={`relative z-10 w-7 rounded-full py-1 text-center text-xs font-semibold uppercase tracking-wide transition-colors duration-200 sm:w-9 ${
+          className={`relative z-10 w-9 rounded-full py-1 text-center text-xs font-semibold uppercase tracking-wide transition-colors duration-200 ${
             locale === code ? "text-accent" : "text-ink-faint hover:text-ink"
           }`}
         >

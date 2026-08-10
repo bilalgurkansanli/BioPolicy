@@ -32,6 +32,7 @@ const tr = {
     // call-to-action off the end.
     backToProjects: "Diğer Projelerim için Tıklayınız",
     backToProjectsShort: "Diğer projelerim",
+    menu: "Menü",
     // Shown only on the narrow layout, where the link is an unlabelled arrow.
     leave: {
       title: "Siteden ayrılıyorsunuz",
@@ -496,6 +497,7 @@ const en: Dictionary = {
     backHome: "Back to home",
     backToProjects: "See my other projects",
     backToProjectsShort: "My projects",
+    menu: "Menu",
     leave: {
       title: "You are leaving this site",
       body:
