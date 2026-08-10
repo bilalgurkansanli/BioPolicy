@@ -197,8 +197,18 @@ export function PolicyProfile({
                   {copy.fields[group.field]}
                 </h4>
                 <ul className="mt-1.5 space-y-1">
-                  {group.entries.map((entry) => {
-                    const key = `profile:${entry.field}:${entry.citation.context_id}:${entry.value}`;
+                  {/* The index is in the key because field + chunk + value is
+                      not unique and a policy makes that obvious: seven cover
+                      rows on the sample all read "Teminat kapsamında" and all
+                      cite C3, differing only in their label. React logged a
+                      duplicate-key error for each, and — the visible half —
+                      `activeCitation` is this same string, so clicking one of
+                      the seven lit up all seven at once.
+
+                      Position is stable here: `entries` is filtered from a
+                      profile that is fetched once and never reordered. */}
+                  {group.entries.map((entry, index) => {
+                    const key = `profile:${entry.field}:${entry.citation.context_id}:${index}`;
                     return (
                       <li key={key}>
                         <Row

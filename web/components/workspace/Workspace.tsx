@@ -42,6 +42,9 @@ import {
 } from "@/lib/api";
 import { SUGGESTIONS } from "@/lib/i18n";
 import { suggestQuestions } from "@/lib/suggest";
+import type { Summary, SummaryKind } from "@/lib/summary";
+import { summarise, summaryIntent } from "@/lib/summary";
+import { SummaryCard } from "./SummaryCard";
 import { NotSignedInError } from "@/lib/supabase";
 import type {
   Answer,
@@ -83,6 +86,11 @@ type Message =
   // A limit is not a failure: the system worked and declined. Rendered as its
   // own kind so it does not look like something broke.
   | { kind: "refused"; id: string; title: string; message: string }
+  // Answered from the extracted schema instead of from a model. Its own kind
+  // rather than a dressed-up `answer` because it has no usage, no groundedness
+  // and no verification — giving it an `Answer` shape would mean inventing
+  // zeroes for three fields whose whole purpose is to be real.
+  | { kind: "summary"; id: string; summary: Summary }
   | { kind: "error"; id: string };
 
 export function Workspace() {
@@ -134,6 +142,7 @@ export function Workspace() {
 
   const abortRef = useRef<AbortController | null>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -231,6 +240,31 @@ export function Workspace() {
     });
   }, [messages, stage]);
 
+  // The composer's height follows its content.
+  //
+  // `height = "auto"` first, then `scrollHeight`: without the reset, a textarea
+  // that has grown never reports a smaller `scrollHeight` than its current
+  // height, so it would expand and never shrink back when the text is deleted.
+  //
+  // The border is added because `scrollHeight` does not include it while
+  // `height` under `box-sizing: border-box` does. Measured, the difference is
+  // not cosmetic: the box came out 2px short at every size, leaving the field
+  // permanently scrolled by 2px — a smaller version of the problem this whole
+  // change exists to fix.
+  //
+  // The ceiling stays in CSS (`max-h-40`) rather than being clamped here —
+  // `max-height` constrains an inline height for free, and a number that lives
+  // in two places is a number that disagrees with itself.
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+    composer.style.height = "auto";
+    const style = getComputedStyle(composer);
+    const border =
+      parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    composer.style.height = `${composer.scrollHeight + border}px`;
+  }, [question]);
+
   const selectDocument = useCallback((document: DocumentSummary) => {
     // Switching documents clears the conversation. Carrying a Turkish home
     // policy's history into a question about a commercial liability contract
@@ -250,10 +284,48 @@ export function Workspace() {
     setProfile(null);
   }, []);
 
+  /**
+   * Show a summary built from the schema, as a turn in the conversation.
+   *
+   * No network call and no allowance spent, because nothing is asked of any
+   * provider: every row already exists, already carries a citation, and that
+   * citation was already checked against the chunk it names.
+   */
+  const showSummary = useCallback(
+    (kind: SummaryKind, asked: string, summary: Summary) => {
+      const id = `${Date.now()}`;
+      setMessages((current) => [
+        ...current,
+        { kind: "question", id, text: asked },
+        { kind: "summary", id: `${id}:summary`, summary },
+      ]);
+      setQuestion("");
+      // Left over from the previous turn otherwise, and a summary retrieved
+      // nothing — the panel would attribute another question's passages to it.
+      setRetrieval(null);
+    },
+    [],
+  );
+
   const ask = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
       if (!trimmed || !selected || stage !== null) return;
+
+      // Asked for a summary of something the schema already holds: answer from
+      // it. Costs nothing, arrives immediately, and comes out as the table the
+      // question was asking for rather than a paragraph describing one.
+      //
+      // Both halves must hold. A summary request against a document with no
+      // profile falls through to the ordinary path and is answered by the
+      // model, exactly as before — the feature can only add an outcome here,
+      // never remove one.
+      const intent = summaryIntent(trimmed, locale);
+      const summary = intent ? summarise(profile, intent) : null;
+      if (intent && summary) {
+        showSummary(intent, trimmed, summary);
+        return;
+      }
 
       const history: HistoryTurn[] = [];
       for (const message of messages) {
@@ -365,7 +437,17 @@ export function Workspace() {
           .catch(() => undefined);
       }
     },
-    [conversationId, locale, messages, refreshAccount, selected, stage, t],
+    [
+      conversationId,
+      locale,
+      messages,
+      profile,
+      refreshAccount,
+      selected,
+      showSummary,
+      stage,
+      t,
+    ],
   );
 
   const onUploaded = useCallback((documentId: string, filename: string) => {
@@ -535,6 +617,20 @@ export function Workspace() {
   const suggestions = selected
     ? (SUGGESTIONS[selected.filename]?.[locale] ?? derived)
     : [];
+
+  // Only the summaries this document can actually produce. Offering "cover
+  // summary" on a profile with no sub-limits in it would be the same mistake as
+  // suggesting a question the document cannot answer — the chip is a claim.
+  const summaryChips = useMemo(
+    () =>
+      (["cover", "exclusions", "terms"] as const)
+        .map((kind) => ({ kind, summary: summarise(profile, kind) }))
+        .filter(
+          (chip): chip is { kind: SummaryKind; summary: Summary } =>
+            chip.summary !== null,
+        ),
+    [profile],
+  );
 
   return (
     /* `min-h-0` is not decoration. A flex item defaults to `min-height: auto`,
@@ -804,6 +900,17 @@ export function Workspace() {
             )}
 
             {messages.map((message) => {
+              if (message.kind === "summary") {
+                return (
+                  <Turn key={message.id} side="assistant">
+                    <SummaryCard
+                      summary={message.summary}
+                      activeCitation={activeCitation}
+                      onCite={showCitation}
+                    />
+                  </Turn>
+                );
+              }
               if (message.kind === "question") {
                 return (
                   <Turn key={message.id} side="user">
@@ -871,6 +978,33 @@ export function Workspace() {
           </div>
 
           <div className="border-t border-line p-3">
+            {/* Above the composer rather than in the empty state, because a
+                summary is as likely to be wanted after three questions as
+                before the first — and deliberately outside the three-state
+                block below, so it survives running out of questions. It costs
+                no allowance for the same reason it costs no money: nothing is
+                asked of a provider. */}
+            {summaryChips.length > 0 && stage === null && (
+              <div className="mb-2.5 flex flex-wrap gap-1.5">
+                {summaryChips.map(({ kind, summary }) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() =>
+                      showSummary(
+                        kind,
+                        t.workspace.summary.chips[kind],
+                        summary,
+                      )
+                    }
+                    className="cursor-pointer rounded-full border border-line bg-surface-sunken px-3 py-1 text-xs text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+                  >
+                    {t.workspace.summary.chips[kind]}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Three states, and only one of them is a composer. Showing a
                 disabled input to somebody who is out of questions reads as a
                 broken page; saying so does not. */}
@@ -895,14 +1029,45 @@ export function Workspace() {
                   void ask(question);
                 }}
               >
-                <div className="flex gap-2">
-                  <input
+                {/* `items-end` rather than the default stretch: a growing
+                    textarea would otherwise drag the buttons to its own height
+                    and turn "Sor" into a tall slab. They keep their size and
+                    stay level with the last line typed. */}
+                <div className="flex items-end gap-2">
+                  {/* A textarea, not an input. A one-line input scrolls
+                      sideways, so by the third line of a question the start of
+                      it is off-screen and there is no way to see what you
+                      wrote without arrowing back through it. This grows
+                      downward instead, and stops growing at `max-h-40` — about
+                      six lines — after which it scrolls internally rather than
+                      eating the conversation above it. */}
+                  <textarea
+                    ref={composerRef}
                     value={question}
                     onChange={(event) => setQuestion(event.target.value)}
+                    onKeyDown={(event) => {
+                      // Enter sends, Shift+Enter breaks the line — the
+                      // convention every chat interface uses, and the reason
+                      // the textarea does not cost the visitor a keystroke.
+                      //
+                      // `isComposing` guards the other half: while an input
+                      // method is mid-composition, Enter is choosing a
+                      // candidate rather than finishing a sentence, and
+                      // submitting there sends half a word.
+                      if (
+                        event.key === "Enter" &&
+                        !event.shiftKey &&
+                        !event.nativeEvent.isComposing
+                      ) {
+                        event.preventDefault();
+                        void ask(question);
+                      }
+                    }}
+                    rows={1}
                     placeholder={t.workspace.askPlaceholder}
                     maxLength={1000}
                     disabled={!selected}
-                    className="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2.5 text-sm text-ink outline-none transition-shadow placeholder:text-ink-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent)]"
+                    className="max-h-40 min-w-0 flex-1 resize-none overflow-y-auto rounded-2xl border border-line bg-surface px-4 py-2.5 text-sm leading-6 text-ink outline-none transition-shadow placeholder:text-ink-faint focus:border-accent focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent)_18%,transparent)]"
                   />
                   {stage === null ? (
                     <button
@@ -910,7 +1075,7 @@ export function Workspace() {
                       disabled={
                         !selected || !canAsk || question.trim().length === 0
                       }
-                      className="cta-gradient cta-sheen shrink-0 rounded-full px-5 text-sm font-semibold text-on-accent shadow-[0_6px_18px_-8px_var(--accent-glow)] disabled:opacity-40 disabled:shadow-none"
+                      className="cta-gradient cta-sheen shrink-0 rounded-full px-5 py-2.5 text-sm font-semibold text-on-accent shadow-[0_6px_18px_-8px_var(--accent-glow)] disabled:opacity-40 disabled:shadow-none"
                     >
                       {/* Wrapped so it sits above the sheen rather than under
                           it: `.cta-sheen` lifts element children only. */}
@@ -920,7 +1085,7 @@ export function Workspace() {
                     <button
                       type="button"
                       onClick={() => abortRef.current?.abort()}
-                      className="shrink-0 rounded-full border border-line-strong px-5 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
+                      className="shrink-0 rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-surface-sunken"
                     >
                       {t.workspace.stop}
                     </button>

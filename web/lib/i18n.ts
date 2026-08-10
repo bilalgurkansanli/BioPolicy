@@ -25,7 +25,22 @@ const tr = {
     source: "GitHub",
     home: "Ana sayfa",
     backHome: "Ana sayfaya dön",
-    backToProjects: "Projelere dön",
+    // Two lengths for one link. The full sentence is what it should say — it
+    // is an invitation to somewhere else, not a browser back button — but at
+    // `md` the row has ~200px for it and the phrase needs all of them. The
+    // short form carries the same meaning where the long one would push the
+    // call-to-action off the end.
+    backToProjects: "Diğer Projelerim için Tıklayınız",
+    backToProjectsShort: "Diğer projelerim",
+    // Shown only on the narrow layout, where the link is an unlabelled arrow.
+    leave: {
+      title: "Siteden ayrılıyorsunuz",
+      body:
+        "Diğer projelerimin bulunduğu sayfaya gideceksiniz. BioPolicy bu " +
+        "sekmede kapanacak.",
+      confirm: "Evet, git",
+      cancel: "Hayır, kal",
+    },
   },
   language: {
     label: "Dil",
@@ -47,12 +62,18 @@ const tr = {
     howTitle: "Üç adımda",
     how: [
       {
-        title: "Belge ayrıştırılır",
-        body: "Metin, tablolar ve satır koordinatları çıkarılır; taranmış sayfalar OCR'dan geçer.",
+        title: "Belge ayrıştırılır — gerekirse OCR",
+        body:
+          "Metin, tablolar ve satır koordinatları çıkarılır. Sayfada metin " +
+          "katmanı yoksa belge taranmış sayılır ve OCR ile okunur; hangi yolun " +
+          "kullanıldığı belgenin yanında yazar.",
       },
       {
-        title: "İki arama birlikte koşar",
-        body: "Anlamsal arama “sel hasarı”nı bulur, sözcük araması “Madde 4.2”yi; ikisi birleştirilir.",
+        title: "İki arama birlikte koşar — RAG",
+        body:
+          "Anlamsal arama “sel hasarı”nı bulur, sözcük araması “Madde 4.2”yi; " +
+          "ikisi birleştirilip modele yalnızca belgenin ilgili bölümleri " +
+          "verilir. Bu yönteme RAG deniyor.",
       },
       {
         title: "Cevap belgeye bağlanır",
@@ -142,6 +163,27 @@ const tr = {
         "{count} bölüm sağlayıcı hatası nedeniyle okunamadı. Eksik olan, " +
         "belgede olmayan demek değildir.",
       dropped: "{count} satır, alıntısı belgede doğrulanamadığı için gösterilmiyor.",
+    },
+    summary: {
+      titles: {
+        cover: "Teminat özeti",
+        exclusions: "İstisnalar ve muafiyetler",
+        terms: "Süre, taraflar ve kapsam",
+      },
+      badge: "şemadan çıkarıldı",
+      note:
+        "Bu özet model tarafından yazılmadı; belgeden çıkarılmış künyeden " +
+        "derlendi. Her satır, alındığı maddeye bağlı — tıklayın, belgede görün.",
+      absentTitle: "Bu başlıklarda madde bulunamadı",
+      chips: {
+        cover: "Teminat özeti",
+        exclusions: "İstisnalar",
+        terms: "Süre ve taraflar",
+      },
+      offerTitle: "Bunu tablo hâlinde de verebilirim",
+      offerBody:
+        "Belgeyi bir kez şemaya çıkarırsanız, bu tür özetler anında ve " +
+        "bedelsiz gelir — her satır kendi maddesine bağlı olarak.",
     },
     pages: "sayfa",
     loadingDocuments: "Belgeler yükleniyor…",
@@ -452,7 +494,16 @@ const en: Dictionary = {
     source: "GitHub",
     home: "Home",
     backHome: "Back to home",
-    backToProjects: "Back to projects",
+    backToProjects: "See my other projects",
+    backToProjectsShort: "My projects",
+    leave: {
+      title: "You are leaving this site",
+      body:
+        "This opens the page listing my other projects. BioPolicy will close " +
+        "in this tab.",
+      confirm: "Yes, go",
+      cancel: "No, stay",
+    },
   },
   language: {
     label: "Language",
@@ -469,12 +520,18 @@ const en: Dictionary = {
     howTitle: "In three steps",
     how: [
       {
-        title: "The document is parsed",
-        body: "Text, tables and line coordinates are extracted; scanned pages go through OCR.",
+        title: "The document is parsed — OCR when needed",
+        body:
+          "Text, tables and line coordinates are extracted. A page with no text " +
+          "layer counts as scanned and is read by OCR; which of the two was " +
+          "used is shown beside the document.",
       },
       {
-        title: "Two searches run together",
-        body: "Semantic search finds “flood damage”, keyword search finds “Article 4.2”; the two are fused.",
+        title: "Two searches run together — RAG",
+        body:
+          "Semantic search finds “flood damage”, keyword search finds " +
+          "“Article 4.2”; the two are fused and only the relevant passages of " +
+          "the document reach the model. That method is called RAG.",
       },
       {
         title: "The answer is bound to the document",
@@ -563,6 +620,28 @@ const en: Dictionary = {
         "{count} batch(es) failed at the provider. Missing is not the same as " +
         "absent from the document.",
       dropped: "{count} row(s) are not shown: their quote could not be verified.",
+    },
+    summary: {
+      titles: {
+        cover: "Cover summary",
+        exclusions: "Exclusions and deductibles",
+        terms: "Term, parties and scope",
+      },
+      badge: "from the schema",
+      note:
+        "This summary was not written by a model. It is assembled from the " +
+        "profile extracted from the document — every row is bound to the " +
+        "clause it came from. Click one to see it.",
+      absentTitle: "No clause found under these headings",
+      chips: {
+        cover: "Cover summary",
+        exclusions: "Exclusions",
+        terms: "Term and parties",
+      },
+      offerTitle: "I can give you this as a table",
+      offerBody:
+        "Read the document into the schema once and summaries like this " +
+        "arrive instantly and for nothing — every row bound to its clause.",
     },
     pages: "pages",
     loadingDocuments: "Loading documents…",
