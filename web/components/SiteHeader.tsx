@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import { AccountMenu } from "@/components/AccountMenu";
+import { LeaveConfirm } from "@/components/LeaveConfirm";
 import { useLocale } from "@/components/LocaleProvider";
 import { SlideLink } from "@/components/SlideLink";
 import { LOCALES } from "@/lib/i18n";
@@ -21,6 +23,7 @@ const PROJECTS_URL = "https://projects.bilalgurkansanli.com";
 export function SiteHeader() {
   const { locale, setLocale, t } = useLocale();
   const pathname = usePathname();
+  const [leaving, setLeaving] = useState(false);
 
   const onWorkspace = pathname === "/app";
 
@@ -37,7 +40,20 @@ export function SiteHeader() {
           Below roughly 372px it overflows either way, with or without the link
           to the left. That predates this and is left alone rather than fixed by
           quietly shrinking somebody else's call-to-action. */}
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-4 sm:gap-5 sm:px-6">
+      {/* Asymmetric on purpose, and only above the column width.
+          The row *starts* at the viewport's left edge so the link out of the
+          site sits in the corner, and *ends* where the centred `max-w-7xl`
+          column ends so everything on the right stays exactly where it was.
+          Making the whole row full width moved the right-hand controls out to
+          the screen edge too, which was not what was wanted.
+          Below 1280 the column already spans the viewport, so the calc floors
+          at the ordinary padding and nothing changes. */}
+      <div
+        className="flex h-16 w-full items-center gap-2 px-4 sm:gap-5 sm:px-6"
+        style={{
+          paddingRight: "max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem))",
+        }}
+      >
         {/* The way back out of the project entirely, left of the mark because
             that is where a step backwards belongs and because it is not part of
             this site — putting it in the row on the right would file it beside
@@ -52,12 +68,38 @@ export function SiteHeader() {
             and a departure that leaves the thing you departed from open behind
             you is not one. The label folds away on a phone for the same reason
             the wordmark does; the arrow keeps the meaning on its own. */}
+        {/* Pulled out to the true left edge on a wide screen.
+            `-ml-*` cancels the container's own padding so the link sits against
+            the viewport rather than against the centred column — on a large
+            monitor that column starts hundreds of pixels in, and a link meant
+            to read as "out of here" placed there reads as part of the site's
+            own navigation instead. Below `lg` the padding is left alone: on a
+            phone the row needs every pixel of it. */}
         <a
           href={PROJECTS_URL}
+          onClick={(event) => {
+            // The dialog only exists on the narrow layout, and this is how it
+            // knows: the same media query the label uses, asked in JS. Wide
+            // screens keep the plain navigation — the sentence is right there,
+            // and confirming something a reader has already read is friction.
+            if (window.matchMedia("(max-width: 1023px)").matches) {
+              event.preventDefault();
+              setLeaving(true);
+            }
+          }}
           className="group -ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink sm:px-2.5"
         >
           <BackArrow />
-          <span className="hidden md:inline">{t.nav.backToProjects}</span>
+          {/* The full invitation where there is room for it, the short form
+              where there is less, the arrow alone where there is none.
+              Measured rather than guessed: at 768 the row needs 743px without
+              any label here and 877 with the short one, so a label at `md`
+              overflows — which `html { overflow-x: clip }` then hides, cutting
+              the call-to-action off with no scrollbar to say it had been. */}
+          <span className="hidden xl:inline">{t.nav.backToProjects}</span>
+          <span className="hidden lg:inline xl:hidden">
+            {t.nav.backToProjectsShort}
+          </span>
         </a>
 
         {/* The way out of the workspace, and the only one: the slide runs
@@ -68,10 +110,14 @@ export function SiteHeader() {
             phone — still 32 tall, so the shield simply became a sliver. Nothing
             in the row is elastic enough to absorb a squeeze correctly, so
             nothing in it should be asked to. */}
+        {/* Set apart from the link to its left rather than butting against it.
+            At the far left those two were 30px apart, which read as one control
+            — an arrow, some words, then a mark — instead of as "leave the site"
+            followed by "you are here". The gap is what separates them. */}
         <SlideLink
           href="/"
           direction="back"
-          className="flex shrink-0 items-center gap-2.5"
+          className="ml-6 flex shrink-0 items-center gap-2.5 lg:ml-16"
         >
           {/* Sized from its height: the shield is taller than it is wide, and
               pinning the width instead would leave it short of the wordmark. */}
@@ -91,35 +137,48 @@ export function SiteHeader() {
           </span>
         </SlideLink>
 
+        {/* The measurements, given the middle of the row to themselves.
+            Everything used to sit in one cluster on the right — six controls
+            abutting each other — and a row that dense reads as a toolbar rather
+            than as navigation. Moving the one link that is a *destination* out
+            of that cluster leaves four controls on the right instead of five
+            and gives the eye somewhere to rest between the two ends.
+
+            Centred on the *viewport* from `xl` up, not on the space the two
+            ends leave. `mx-auto` does the latter, and because the two ends are
+            different widths it lands left of the middle by however much they
+            differ — close enough to look intentional and wrong enough to look
+            off.
+
+            Only from `xl`, because pinning to 50% takes it out of the flow and
+            the flow is what was keeping it clear of the right-hand group.
+            Measured at 768: centred it spans 315–453 while that group starts at
+            273, so the two overlap. At 1280 the group starts at 785 and the
+            link ends at 709. Below `xl` it goes back to sharing the row. */}
+        {/* The direction is read from where the click came from, not fixed
+            on the link. The site has one left-to-right axis — the landing
+            page, then the workspace — and the report sits off to the side of
+            it. Arriving from the landing page is a step further in, so the
+            page advances; arriving from the workspace is a step back out, so
+            it retreats. A single hard-coded direction would be right in one
+            of those cases and backwards in the other, which reads as the
+            interface having lost its place. */}
+        <SlideLink
+          href="/eval"
+          direction={pathname === "/app" ? "back" : "forward"}
+          aria-current={pathname === "/eval" ? "page" : undefined}
+          className={`mx-auto hidden shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm transition-colors hover:text-ink sm:inline-flex xl:absolute xl:left-1/2 xl:mx-0 xl:h-16 xl:-translate-x-1/2 xl:py-0 ${
+            pathname === "/eval" ? "text-ink" : "text-ink-muted"
+          }`}
+        >
+          <MetricsMark />
+          {t.evaluation.title}
+        </SlideLink>
+
         {/* The other half of the 320px fix. Four controls sit in here on a
             phone, so a gap costs three times over — 1.5 rather than 2 buys back
             six pixels that the row does not otherwise have. */}
         <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
-          <AccountMenu />
-
-          {/* The measurements, back in the header — quietly, and only where
-              there is room for them. On a phone the row is already full and
-              this is the one item the footer also carries. */}
-          {/* The direction is read from where the click came from, not fixed
-              on the link. The site has one left-to-right axis — the landing
-              page, then the workspace — and the report sits off to the side of
-              it. Arriving from the landing page is a step further in, so the
-              page advances; arriving from the workspace is a step back out, so
-              it retreats. A single hard-coded direction would be right in one
-              of those cases and backwards in the other, which reads as the
-              interface having lost its place. */}
-          <SlideLink
-            href="/eval"
-            direction={pathname === "/app" ? "back" : "forward"}
-            aria-current={pathname === "/eval" ? "page" : undefined}
-            className={`hidden items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm transition-colors hover:text-ink sm:inline-flex ${
-              pathname === "/eval" ? "text-ink" : "text-ink-muted"
-            }`}
-          >
-            <MetricsMark />
-            {t.evaluation.title}
-          </SlideLink>
-
           {/* Folds away under 360px, and only there.
 
               Six controls do not fit a 320px row — measured at 337 needed
@@ -144,6 +203,13 @@ export function SiteHeader() {
           </a>
 
           <LocaleSwitch locale={locale} setLocale={setLocale} label={t.language.label} />
+
+          {/* Last but one, next to the button rather than first in the row.
+              It used to lead the cluster, which put a personal control — an
+              avatar, a menu that opens — at the point the eye lands first and
+              made the whole right-hand side feel like an account area. It
+              belongs beside the thing you do after signing in. */}
+          <AccountMenu />
 
           {/* In the workspace the button has nowhere left to send anyone: an
               invitation to the page you are already on is a label, not a
@@ -206,6 +272,16 @@ export function SiteHeader() {
           )}
         </div>
       </div>
+
+      <LeaveConfirm
+        open={leaving}
+        onClose={() => setLeaving(false)}
+        href={PROJECTS_URL}
+        title={t.nav.leave.title}
+        body={t.nav.leave.body}
+        confirmLabel={t.nav.leave.confirm}
+        cancelLabel={t.nav.leave.cancel}
+      />
     </header>
   );
 }
