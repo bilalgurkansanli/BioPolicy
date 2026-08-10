@@ -49,7 +49,7 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from api.generation import prompts
 from api.generation.citations import normalise, quote_appears_in
@@ -106,11 +106,16 @@ SINGULAR_FIELDS: frozenset[str] = frozenset({"insured", "policy_period", "territ
 # only figure here with an evaluation behind it.
 PROFILE_BATCH_CHUNKS = 8
 
-# Hard ceiling on the sweep, in chunks. A 200-page policy at ~700 tokens a chunk
-# is well past this; such a document is profiled partially and *says so*. The
-# alternative — sweeping everything — makes the cost of one profile unbounded,
-# and this project's rule is that a question has a knowable maximum cost.
-PROFILE_MAX_CHUNKS = 96
+# Hard ceiling on the sweep, in chunks. A document past this is profiled
+# partially and *says so*; sweeping everything would make the cost of one
+# profile unbounded, and this project's rule is that an operation has a knowable
+# maximum cost.
+#
+# Raised from 96 after a real 27-page AXA policy came in at 132 chunks and was
+# read three-quarters through — enough to look complete and not be. 160 covers
+# it with room, and the ceiling is still a ceiling: 20 batches at ~$0.005 is
+# about $0.10 for a profile, charged once per document and then cached.
+PROFILE_MAX_CHUNKS = 160
 
 # Output cap per batch.
 #
@@ -125,7 +130,14 @@ PROFILE_MAX_CHUNKS = 96
 # That failure is loud rather than silent (the batch counts as failed and the
 # interface says coverage is incomplete), which is the only reason it was
 # diagnosable. But the right cap is one the common case does not hit.
-PROFILE_MAX_TOKENS = 4000
+#
+# It lost again anyway. A real AXA policy emitted 8,132 characters and was cut
+# off at 4000, taking `insured`, `policy_period` and `territorial_scope` with
+# it. Raising the number is a race against whichever document has the longest
+# schedule, so the cap moved to 6000 *and* `_salvage_entries` now recovers the
+# complete entries from a truncated reply. The salvage is the actual fix; this
+# number only decides how often it is needed.
+PROFILE_MAX_TOKENS = 6000
 
 # Batches in flight at once. Bounded because every one of them is a billable
 # call against the same rate limit, and an unbounded gather over a long document
@@ -179,6 +191,55 @@ class ProfilePayload(BaseModel):
     """Exactly what one batch must return."""
 
     entries: list[ProfileEntryPayload] = Field(default_factory=list)
+
+
+def _salvage_entries(text: str) -> list[ProfileEntryPayload]:
+    """Recover the complete entries from a reply that was cut off mid-object.
+
+    Scans for balanced `{...}` spans and keeps the ones that parse *and* satisfy
+    the entry schema. The object the truncation landed inside is unbalanced and
+    is simply never closed, so it is skipped — there is no partial entry to
+    misread, and nothing is reconstructed or guessed.
+
+    Deliberately not a JSON repair: no brace is appended, no string is closed.
+    An entry that arrived whole is used, an entry that did not is gone, and the
+    caller still reports the batch as degraded.
+    """
+    entries: list[ProfileEntryPayload] = []
+    # Every `{` seen and not yet closed. A stack rather than a depth counter,
+    # because the entries are *nested inside* the `{"entries": [...]}` wrapper —
+    # and on a truncated reply that wrapper never closes, so anything keyed off
+    # returning to depth zero finds nothing at all. That was the first version,
+    # and the tests caught it.
+    open_at: list[int] = []
+    in_string = False
+    escaped = False
+
+    for index, char in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            open_at.append(index)
+        elif char == "}" and open_at:
+            start = open_at.pop()
+            try:
+                entries.append(ProfileEntryPayload.model_validate_json(text[start : index + 1]))
+            except ValidationError:
+                # The wrapper, or any object that is not an entry. Validation
+                # decides, not brace-counting: this is a best-effort pass over a
+                # broken response and it must never invent an entry.
+                pass
+
+    return entries
 
 
 class ProfileEntry(BaseModel):
@@ -353,8 +414,29 @@ class ProfileExtractor:
         try:
             payload = ProfilePayload.model_validate(extract_json(response.text))
         except (MalformedResponseError, ValueError) as exc:
-            log.warning("profile_batch_unreadable", error=str(exc))
-            return _BatchResult(usage=usage, failed=True, model=response.model)
+            # A truncated response is not an empty one. The model emits entries
+            # in order, so a reply cut off at the token ceiling still contains
+            # every complete entry before the cut — and losing them is expensive
+            # in a specific way: the first batch is where `insured`,
+            # `policy_period` and `territorial_scope` live, so dropping it makes
+            # a document look like it never states its own dates.
+            #
+            # Raising `PROFILE_MAX_TOKENS` was the earlier fix (2000 -> 4000) and
+            # it is a race rather than an answer: a real AXA policy emitted 8,132
+            # characters and was cut off again. Salvaging what arrived ends the
+            # race, because the failure mode stops being all-or-nothing.
+            salvaged = _salvage_entries(response.text)
+            if not salvaged:
+                log.warning("profile_batch_unreadable", error=str(exc))
+                return _BatchResult(usage=usage, failed=True, model=response.model)
+
+            log.warning(
+                "profile_batch_salvaged",
+                entries=len(salvaged),
+                characters=len(response.text),
+                error=str(exc)[:120],
+            )
+            payload = ProfilePayload(entries=salvaged)
 
         kept: list[ProfileEntry] = []
         dropped = 0
@@ -365,11 +447,30 @@ class ProfileExtractor:
             if chunk is None:
                 # Either invented, or naming a chunk trimmed for budget. Both
                 # mean the model cited something it was not shown.
+                #
+                # Logged with the field, because the aggregate count is not
+                # diagnosable: a policy came back with `policy_period` marked
+                # absent from a page that prints its dates twice, and "dropped=1"
+                # was the only trace. Which slot was lost, and why, is the whole
+                # question.
+                log.warning(
+                    "profile_entry_dropped",
+                    field=item.field,
+                    reason="unknown_chunk",
+                    chunk_id=item.chunk_id,
+                )
                 dropped += 1
                 continue
 
             found, exact = quote_appears_in(item.quote, chunk.content)
             if not found:
+                log.warning(
+                    "profile_entry_dropped",
+                    field=item.field,
+                    reason="quote_not_found",
+                    chunk_id=item.chunk_id,
+                    quote=item.quote[:120],
+                )
                 dropped += 1
                 continue
 
