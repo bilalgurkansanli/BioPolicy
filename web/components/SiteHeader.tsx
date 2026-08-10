@@ -28,7 +28,7 @@ export function SiteHeader() {
   const onWorkspace = pathname === "/app";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-paper sm:bg-paper/80 sm:backdrop-blur-md">
+    <header className="sticky top-0 z-30 transform-gpu border-b border-line bg-paper will-change-transform sm:bg-paper/80 sm:backdrop-blur-md">
       {/* Opaque on a phone, translucent from `sm` up.
 
           `backdrop-filter` on a sticky element makes the browser re-sample
@@ -38,7 +38,19 @@ export function SiteHeader() {
 
           It is also the effect a 64px bar shows least of: there is very little
           behind it to see through. So the blur is spent where it is affordable
-          and dropped where it is not. */}
+          and dropped where it is not.
+
+          `transform-gpu` and `will-change-transform` are the second half. A
+          sticky bar that shares a paint layer with the page is repainted with
+          the page, and on a phone it arrives a frame late — which is seen as
+          the bar drifting rather than as a dropped frame. Its own layer is
+          moved by the compositor instead of redrawn.
+
+          One consequence to keep in mind: both of these make this element a
+          containing block for any `position: fixed` descendant. Nothing inside
+          is fixed today — the leave dialog is portalled to `document.body`
+          precisely because the blur already did this — and anything added later
+          must be too. */}
       {/* `gap-2` below `sm`, not `gap-3`. The row had no room to spare on a
           phone, so adding anything to it has to take the space from somewhere,
           and four pixels of gap twice over is the cheapest thing in here to
