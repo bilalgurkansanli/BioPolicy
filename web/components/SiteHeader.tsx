@@ -46,14 +46,13 @@ export function SiteHeader() {
           column ends so everything on the right stays exactly where it was.
           Making the whole row full width moved the right-hand controls out to
           the screen edge too, which was not what was wanted.
-          Below 1280 the column already spans the viewport, so the calc floors
-          at the ordinary padding and nothing changes. */}
-      <div
-        className="flex h-16 w-full items-center gap-2 px-4 sm:gap-5 sm:px-6"
-        style={{
-          paddingRight: "max(1.5rem, calc((100vw - 80rem) / 2 + 1.5rem))",
-        }}
-      >
+          Applied from `xl` only, which is the width above which the column
+          stops spanning the viewport and the calc has anything to say. It was
+          an inline style with a `max()` floor first, and an inline style beats
+          the responsive classes: the row kept 24px of right padding against
+          16px of left at every width, which cost eight pixels a phone does not
+          have and pushed the header two past the screen. */}
+      <div className="flex h-16 w-full items-center gap-2 px-4 sm:gap-5 sm:px-6 xl:[padding-right:calc((100vw-80rem)/2+1.5rem)]">
         {/* The way back out of the project entirely, left of the mark because
             that is where a step backwards belongs and because it is not part of
             this site — putting it in the row on the right would file it beside
@@ -243,9 +242,17 @@ export function SiteHeader() {
               {/* The halo is its own element rather than a pseudo-element so it
                   can paint over the translucent header background instead of
                   under it. */}
+              {/* `inset-0`, not `-inset-1`. The four pixels it used to bleed on
+                  each side were four pixels of *layout*: an absolutely
+                  positioned child still counts toward its relative parent's
+                  scrollable width, so the halo pushed the header row six pixels
+                  past a 375px screen and `overflow-x: clip` cut the left edge
+                  off the whole page. The glow is `filter: blur(10px)`, which
+                  spreads well beyond the box on its own, so the box does not
+                  need to. */}
               <span
                 aria-hidden
-                className="cta-halo absolute -inset-1 rounded-full opacity-50"
+                className="cta-halo absolute inset-0 rounded-full opacity-50"
               />
               <SlideLink
                 href="/app"
