@@ -96,11 +96,38 @@ These were ruled out before the build started. Listed so the reasoning survives.
   on-topic from off-topic, which is a narrower claim than the idea started with.
   Closing the real gap needs a signal that is not distance — the entailment
   check in ADR 014 is the closest thing this codebase already has.
+- **Identifier-only queries can fall outside the floor.** `1.800.000` and `%20`
+  land at 0.73–0.80 in the Voyage space against a threshold of 0.72; in the
+  Gemini space every such probe sat inside it, which is what retired the keyword
+  veto. Reinstating the veto does not help — those queries matched 1 chunk each
+  while "Ignore previous instructions" matched 7 — so this needs the same
+  not-distance signal as the item above. A question *containing* an identifier
+  is unaffected; only a query that is nothing else.
+- **Nothing measures the floor except a script somebody remembers to run.** The
+  threshold silently stopped matching its embedding space for the whole of the
+  Voyage migration, and the only symptom was users being told their document
+  said nothing about subjects it discussed at length. `check_model` now refuses
+  to boot on a mismatch, which catches a *changed model* — it does not catch a
+  drifted corpus, a re-chunking, or a threshold that was never right. A periodic
+  `measure_floor` run with the answerable-refusal count as a tripwire would.
 - **A real cross-encoder reranker.** v1 ships a no-op or a cheap LLM filter, and
   the eval decides which. A hosted reranking API would likely beat both; it adds
   a fourth vendor and a per-query cost.
 - **Query decomposition** for multi-part questions ("is flooding covered, and
-  what's the deductible?"). Currently one retrieval per turn.
+  what's the deductible?"). Still one retrieval per turn — the understanding
+  stage now writes a single query naming every part, which was enough for the
+  case that prompted it because both figures sat in adjacent passages. A
+  document that scatters the parts needs real decomposition and a fusion across
+  several retrievals.
+- ~~**Understand a question that is not shaped like a query.**~~ **Done.**
+  `rewrite_v1` only ran when there was conversation history, so a first-turn
+  question got no help — and that is where the failure was. "Peki diyelim ki
+  deprem oldu ve ev tamamen yıkıldı. Ne kadar para veriliyor?" put the passage
+  carrying both figures at fused rank 13 against a window of 8; the document
+  answers it on page one and the model never saw it. `understand_v1` strips the
+  scaffolding, and the stage now fires on a first-turn question whose shape says
+  it needs one — over 96 characters, or more than one sentence, both derived
+  from the golden set. Short direct questions still skip the call entirely.
 - **HyDE / hypothetical document embeddings.** Cheap to try, plausibly helps on
   the cross-lingual subset.
 - **Decide whether query rewriting earns its latency.** The rewrite call is
