@@ -57,6 +57,46 @@ from api.usage import UsageRepository
 log = get_logger(__name__)
 
 
+def embedding_model(settings: Settings) -> str:
+    """Which model `build_embedder` would use, without building anything.
+
+    Exists because two callers need the *name* and nothing else — the retrieval
+    floor's model check, and `/api/health` reporting what is in force — and
+    building a provider to read one string is not free. `GeminiEmbedder`'s
+    constructor builds a genai client, and that client raises `ValueError` when
+    no key is set.
+
+    That turned the one route whose job is to explain a broken configuration
+    into a 500 on exactly the configuration it exists to explain, and it did so
+    on an unauthenticated endpoint. `test_the_name_matches_what_gets_built`
+    pins the two together.
+    """
+    return settings.voyage_model if settings.voyage_api_key else settings.gemini_embedding_model
+
+
+def build_rewriter(settings: Settings) -> LLMProvider | None:
+    """The model that turns a question into a search query.
+
+    A function beside `build_embedder`, and for the same reason: every copy of
+    this choice is a copy that drifts. `api/scripts/ask.py` held one, and it has
+    now been wrong three separate times — once with the embedder, once by
+    omitting the rewriter entirely, once by keeping the provider this moved
+    away from. Each time the script reported the pipeline's behaviour
+    confidently and incorrectly, which is worse than not reporting it.
+
+    Anthropic first. The fallback provider was tried here and measured unfit:
+    20 requests a day on its free tier, and replies of one to five tokens — a
+    109-character question came back as `dep`. A three-character query embeds
+    nowhere near the document, so the retrieval floor then refuses a question
+    the document answers on page one.
+    """
+    if settings.anthropic_api_key:
+        return AnthropicLLM(settings.anthropic_api_key, settings.anthropic_model)
+    if settings.google_api_key and settings.gemini_fallback_model:
+        return GeminiLLM(settings.google_api_key, settings.gemini_fallback_model)
+    return None
+
+
 def build_embedder(settings: Settings) -> EmbeddingProvider:
     """Voyage when it is configured, Gemini otherwise.
 
@@ -70,7 +110,17 @@ def build_embedder(settings: Settings) -> EmbeddingProvider:
     providers means re-embedding everything (ADR 016, migration 0012).
     """
     if settings.voyage_api_key:
-        return VoyageEmbedder(settings.voyage_api_key, settings.voyage_model)
+        return VoyageEmbedder(
+            settings.voyage_api_key,
+            settings.voyage_model,
+            # Passed rather than left to the constructor's defaults. They were
+            # defaulted here once and it made the pacing unconfigurable: an
+            # account that had lifted its ceiling with the provider still
+            # embedded at 10K tokens a minute, because the ceiling is enforced
+            # on both sides and only one of them had moved.
+            requests_per_minute=settings.voyage_requests_per_minute,
+            tokens_per_minute=settings.voyage_tokens_per_minute,
+        )
 
     log.warning(
         "embedding_fallback_provider",
@@ -133,11 +183,7 @@ class AppState:
                 )
             )
 
-        rewriter = (
-            GeminiLLM(settings.google_api_key, settings.gemini_fallback_model)
-            if settings.google_api_key and settings.gemini_fallback_model
-            else None
-        )
+        rewriter = build_rewriter(settings)
 
         # Typed extraction gets its own provider chain rather than sharing the
         # answerer's, because the enforced schema differs — one returns an

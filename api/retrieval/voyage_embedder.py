@@ -60,11 +60,17 @@ ENDPOINT = "https://api.voyageai.com/v1/embeddings"
 #   You have not yet added your payment method ... reduced rate limits
 #   of 3 RPM and 10K TPM
 #
-# The 27-page policy is ~36K tokens, so it takes about four minutes on that
-# allowance and zero seconds of anyone's attention — ingestion is a background
-# job behind a progress indicator. Adding a payment method lifts the ceiling
-# without spending anything: the first 200M tokens are free, and this document
-# is 36K of them.
+# The 27-page policy is ~36K tokens — measured, not estimated — so 3.6 of the
+# four minutes it takes to ingest are spent waiting on this ceiling and nothing
+# else. Adding a payment method lifts it without spending anything: the first
+# 200M tokens are free either way, and this document is 36K of them.
+#
+# These are defaults, not the policy. `VOYAGE_REQUESTS_PER_MINUTE` and
+# `VOYAGE_TOKENS_PER_MINUTE` override them, and a deployment that has lifted its
+# ceiling with the provider must raise them here too: the limit is enforced on
+# both sides, and the slower one wins. They are set to the reduced tier because
+# that is what an account with no payment method actually gets, and pacing
+# faster than the server allows converts progress into 429s and backoff.
 #
 # Batches are sized by tokens rather than by count for the same reason: 128
 # passages might be 3K tokens or 30K, and only one of those fits.
@@ -105,6 +111,10 @@ class _RateWindow:
         self._requests_limit = requests_per_minute
         self._tokens_limit = tokens_per_minute
         self._sent: deque[tuple[float, int]] = deque()
+
+    @property
+    def limits(self) -> tuple[int, int]:
+        return self._requests_limit, self._tokens_limit
 
     def _prune(self, now: float) -> tuple[int, int]:
         while self._sent and now - self._sent[0][0] >= RATE_WINDOW_SECONDS:
@@ -188,6 +198,17 @@ class VoyageEmbedder:
     @property
     def model(self) -> str:
         return self._model
+
+    @property
+    def rate_limits(self) -> tuple[int, int]:
+        """The ceiling in force, as (requests, tokens) per minute.
+
+        Worth being able to read from outside: the pacing is the single largest
+        term in how long an ingest takes, and which numbers are in force is
+        otherwise invisible — an operator who lifted the limit with the provider
+        has no way to tell whether this process noticed.
+        """
+        return self._window.limits
 
     async def _embed(self, texts: list[str], input_type: str) -> list[list[float]]:
         if not self._api_key:

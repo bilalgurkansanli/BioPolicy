@@ -65,6 +65,25 @@ class Settings(BaseSettings):
     # width — see ADR 016.
     voyage_api_key: str | None = None
     voyage_model: str = "voyage-4-lite"
+    # How fast this deployment is allowed to embed. Voyage meters both, and an
+    # account with no payment method on file is held at 3 requests and 10,000
+    # tokens a minute — which the API says outright when it throttles:
+    #
+    #   You have not yet added your payment method ... reduced rate limits
+    #   of 3 RPM and 10K TPM
+    #
+    # The defaults match that state because it is what a fresh account gets, and
+    # a client that paced itself faster than the server allows would spend its
+    # time in 429s and backoff rather than in progress.
+    #
+    # They are the reason a 27-page policy takes four minutes to ingest: it is
+    # 36,000 tokens, so 3.6 minutes of that wait is this ceiling and nothing
+    # else. Adding a payment method lifts it — the allowance stays free either
+    # way, the first 200M tokens are not billed — but the ceiling is enforced on
+    # both sides, so raising it there without raising it here changes nothing.
+    # Copy whatever the provider's own Rate Limits page states for the account.
+    voyage_requests_per_minute: int = 3
+    voyage_tokens_per_minute: int = 10_000
 
     # --- Anthropic -----------------------------------------------------------
     anthropic_api_key: str | None = None

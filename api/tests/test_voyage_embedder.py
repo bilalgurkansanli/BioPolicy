@@ -13,9 +13,15 @@ import asyncio
 
 import pytest
 
+from api.config import Settings
+from api.deps import build_embedder, embedding_model
+from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.voyage_embedder import (
+    DEFAULT_REQUESTS_PER_MINUTE,
+    DEFAULT_TOKENS_PER_MINUTE,
     MAX_BATCH_TEXTS,
     MAX_BATCH_TOKENS,
+    VoyageEmbedder,
     _batches,
     _RateWindow,
 )
@@ -127,3 +133,78 @@ def test_a_single_passage_over_the_batch_ceiling_is_still_sent() -> None:
 
     assert len(batches) == 1
     assert batches[0] == [huge]
+
+
+# --- the ceiling is configuration, not a constant -----------------------------
+#
+# The pacing was written to be adjustable and then wired up so it wasn't: the
+# constructor took both limits, `build_embedder` passed neither, and the
+# defaults won every time. Nothing failed — a deployment that had lifted its
+# ceiling with the provider simply went on embedding at 10K tokens a minute, and
+# the only symptom was an ingest that stayed four minutes long for no visible
+# reason. These pin the wiring rather than the numbers.
+
+
+def _settings(**overrides: object) -> Settings:
+    return Settings(app_env="development", _env_file=None, **overrides)  # type: ignore[arg-type]
+
+
+def test_the_configured_ceiling_reaches_the_embedder() -> None:
+    embedder = build_embedder(
+        _settings(
+            voyage_api_key="pa-test",
+            voyage_requests_per_minute=2_000,
+            voyage_tokens_per_minute=16_000_000,
+        )
+    )
+
+    assert isinstance(embedder, VoyageEmbedder)
+    assert embedder.rate_limits == (2_000, 16_000_000)
+
+
+def test_an_unconfigured_deployment_gets_the_reduced_tier() -> None:
+    """What an account with no payment method on file is actually held at, so a
+    fresh clone paces itself to the limit it really has."""
+    embedder = build_embedder(_settings(voyage_api_key="pa-test"))
+
+    assert isinstance(embedder, VoyageEmbedder)
+    assert embedder.rate_limits == (DEFAULT_REQUESTS_PER_MINUTE, DEFAULT_TOKENS_PER_MINUTE)
+
+
+def test_without_a_key_the_provider_is_gemini_not_a_misconfigured_voyage() -> None:
+    """The fallback still exists, and picking it must not depend on the limits."""
+    embedder = build_embedder(_settings(voyage_api_key=None, google_api_key="test"))
+
+    assert isinstance(embedder, GeminiEmbedder)
+
+
+# --- naming a provider without building one -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"voyage_api_key": "pa-test"},
+        {"voyage_api_key": None, "google_api_key": "test"},
+    ],
+    ids=["voyage", "gemini-fallback"],
+)
+def test_the_name_matches_what_gets_built(overrides: dict[str, object]) -> None:
+    """Two functions answering the same question have to keep agreeing."""
+    settings = _settings(**overrides)
+
+    assert embedding_model(settings) == build_embedder(settings).model
+
+
+def test_naming_the_model_works_with_nothing_configured() -> None:
+    """`/api/health` asks this on an unconfigured deployment, unauthenticated.
+
+    Building an embedder to read the name raised `ValueError` from the genai
+    client, so the one route whose job is to say what is missing answered 500 on
+    precisely the deployment that needed it.
+    """
+    settings = _settings(voyage_api_key=None, google_api_key=None)
+
+    assert embedding_model(settings) == settings.gemini_embedding_model
+    with pytest.raises(ValueError):
+        build_embedder(settings)  # the reason the helper exists
