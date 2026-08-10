@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * Asks before leaving the site.
@@ -14,6 +15,18 @@ import { useEffect, useRef } from "react";
  *
  * Dismissal is deliberately generous: the backdrop, the No button, and Escape
  * all close it. Only the one affirmative control leaves.
+ *
+ * ## Why it is portalled out of the header
+ *
+ * `position: fixed` is relative to the viewport only while no ancestor has
+ * established a containing block, and `backdrop-filter` establishes one. The
+ * header carries `backdrop-blur-md`, so a fixed child of it is laid out inside
+ * a 64px-tall box: `inset-0` covered the header rather than the screen, and the
+ * dialog appeared pinned under the top edge with its own title cut off.
+ *
+ * Nothing about the markup looks wrong when that happens, which is what makes
+ * it worth writing down. The fix is to render into `document.body`, where there
+ * is no such ancestor.
  */
 export function LeaveConfirm({
   open,
@@ -58,9 +71,17 @@ export function LeaveConfirm({
     };
   }, [open, onClose]);
 
+  // No mount guard, and none needed. Portals need a DOM to target and the
+  // server has none — but `open` starts false and only a click sets it, so the
+  // server and the first hydration pass both stop here and `createPortal` is
+  // never reached without a document.
+  //
+  // The obvious `useState(false)` plus `useEffect(() => setMounted(true))` is
+  // exactly what `react-hooks/set-state-in-effect` exists to reject, and it
+  // would pay a cascading render to solve a problem this component cannot have.
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -109,6 +130,7 @@ export function LeaveConfirm({
           </a>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
