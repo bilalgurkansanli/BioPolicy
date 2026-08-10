@@ -13,13 +13,38 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from api.accounts import Account
 from api.safety.breaker import BudgetBreaker
-from api.safety.limits import BudgetExhaustedError, DailyQuotaExceededError
+from api.safety.limits import (
+    AccountNotUsableError,
+    BudgetExhaustedError,
+    DailyQuotaExceededError,
+)
 from api.safety.quota import QuotaGuard
 from api.tests.fakes import FakePool
 from api.usage import UsageRepository
 
 USER = uuid4()
+
+
+def _account(*, usable: bool) -> Account:
+    return Account(
+        id=USER,
+        email="tester@example.com",
+        provider="google",
+        email_confirmed=True,
+        usable=usable,
+    )
+
+
+# `usable` is the repository's own conclusion from banned / deleted /
+# is_anonymous — that mapping is tested in `test_accounts.py`. Here the three
+# cases are the same flag, kept apart by name so a failure says which state was
+# meant to be refused.
+_USABLE = _account(usable=True)
+_BANNED = _account(usable=False)
+_DELETED = _account(usable=False)
+_ANONYMOUS = _account(usable=False)
 
 
 def _guard(
@@ -46,11 +71,82 @@ def _guard(
 class StubAccounts:
     """Stands in for the allowlist lookup, which is tested on its own."""
 
-    def __init__(self, unlimited: bool) -> None:
+    def __init__(self, unlimited: bool, account: Account | None = _USABLE) -> None:
         self._unlimited = unlimited
+        self._account = account
 
     async def is_unlimited(self, user_id: UUID) -> bool:
         return self._unlimited
+
+    async def get(self, user_id: UUID) -> Account | None:
+        return self._account
+
+
+# --- who is allowed to spend at all -------------------------------------------
+#
+# `Account.usable` existed from the start and only the unlimited-exemption check
+# ever read it, so it denied a privilege while the ordinary paths stayed open.
+# These pin it to the two paths that spend money.
+
+
+def _unusable_guard(account: Account | None) -> QuotaGuard:
+    pool = FakePool(fetchrow=[{"n": 0}, {"n": 0}])
+    return QuotaGuard(
+        cast(Any, pool),
+        UsageRepository(cast(Any, pool)),
+        cast(Any, StubAccounts(False, account)),
+        daily_questions=3,
+        daily_documents=1,
+    )
+
+
+@pytest.mark.parametrize(
+    "account",
+    [_BANNED, _DELETED, _ANONYMOUS, None],
+    ids=["banned", "deleted", "anonymous", "no-such-account"],
+)
+async def test_an_unusable_account_cannot_ask(account: Account | None) -> None:
+    with pytest.raises(AccountNotUsableError):
+        await _unusable_guard(account).ensure_can_ask(USER)
+
+
+@pytest.mark.parametrize(
+    "account",
+    [_BANNED, _DELETED, _ANONYMOUS, None],
+    ids=["banned", "deleted", "anonymous", "no-such-account"],
+)
+async def test_an_unusable_account_cannot_upload(account: Account | None) -> None:
+    """The expensive half. Anonymous ids are free to mint, and every allowance
+    in this system is keyed to one, so an open upload path here is an unbounded
+    number of daily allowances against a single global budget."""
+    with pytest.raises(AccountNotUsableError):
+        await _unusable_guard(account).ensure_can_upload(USER)
+
+
+async def test_being_unusable_is_not_a_quota_and_says_so() -> None:
+    """403, and no `Retry-After`: nothing about this resets at midnight, and
+    telling a banned account to come back tomorrow is advice, not a limit."""
+    with pytest.raises(AccountNotUsableError) as caught:
+        await _unusable_guard(_BANNED).ensure_can_ask(USER)
+
+    assert caught.value.as_http().status_code == 403
+    assert caught.value.retry_after_seconds is None
+
+
+async def test_the_exemption_cannot_rescue_an_unusable_account() -> None:
+    """Order matters: a banned address left on the allowlist must not walk past
+    the check by being unlimited."""
+    pool = FakePool(fetchrow=[{"n": 0}, {"n": 0}])
+    guard = QuotaGuard(
+        cast(Any, pool),
+        UsageRepository(cast(Any, pool)),
+        cast(Any, StubAccounts(True, _BANNED)),
+        daily_questions=3,
+        daily_documents=1,
+    )
+
+    with pytest.raises(AccountNotUsableError):
+        await guard.ensure_can_ask(USER)
 
 
 # -----------------------------------------------------------------------------

@@ -36,6 +36,29 @@ class DailyQuotaExceededError(LimitExceededError):
     code = "daily_quota_exceeded"
 
 
+class AccountNotUsableError(LimitExceededError):
+    """The account exists and its token verifies, but it may not spend.
+
+    Banned, deleted, or anonymous. Not a quota — nothing resets at midnight —
+    so it carries no retry hint and answers 403.
+
+    Anonymous is in this list for a cost reason rather than a trust one. Every
+    daily allowance in this system is keyed to a user id, and an anonymous
+    identity can be minted on demand: one browser loop is an unbounded supply
+    of fresh ids, each with its own questions and its own upload. The provider
+    is meant to be switched off in the dashboard, and this is what makes that a
+    defence in depth rather than the only defence.
+    """
+
+    code = "account_not_usable"
+
+    def as_http(self) -> HTTPException:
+        return HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": self.code, "message": self.message},
+        )
+
+
 class BudgetExhaustedError(LimitExceededError):
     """The global budget is spent. Nobody gets served, not just this user.
 

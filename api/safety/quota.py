@@ -4,12 +4,19 @@ The demo is public and every question costs real money, so one visitor must not
 be able to spend the whole allowance. These are the polite limits; the budget
 breaker is the impolite one.
 
-## One account can be exempt
+## Two questions, in this order
 
-The owner's own address is allowlisted so the demo can be tested without
-burning three questions a day. The exemption is decided in `api/accounts.py`
-against the account row rather than the token, and it is checked in exactly the
-two places below — there is no third path that spends money.
+**May this account spend at all?** Banned, deleted and anonymous accounts may
+not, and until recently nothing asked: `Account.usable` was computed and only
+ever consulted to deny the exemption below, so it withheld a privilege while
+leaving the ordinary paths open. The anonymous case is the costly one — every
+limit here is keyed to a user id, and an anonymous id can be minted in a loop.
+
+**Then, is it within its allowance?** The owner's own address is allowlisted so
+the demo can be tested without burning three questions a day. The exemption is
+decided in `api/accounts.py` against the account row rather than the token, and
+both questions are asked in exactly the two places below — there is no third
+path that spends money.
 
 ## Where the counts come from
 
@@ -33,7 +40,7 @@ import asyncpg
 
 from api.accounts import AccountRepository
 from api.logging_config import get_logger
-from api.safety.limits import DailyQuotaExceededError
+from api.safety.limits import AccountNotUsableError, DailyQuotaExceededError
 from api.usage import UsageRepository
 
 log = get_logger(__name__)
@@ -97,7 +104,40 @@ class QuotaGuard:
             documents_limit=self._daily_documents,
         )
 
+    async def ensure_usable(self, user_id: UUID) -> None:
+        """Refuse an account that is banned, deleted, or anonymous.
+
+        `Account.usable` computed this from the start and nothing consulted it
+        except the unlimited-exemption check, so the flag denied a *privilege*
+        while the ordinary paths stayed open. Two consequences, and the second
+        is the expensive one:
+
+        * A ban took effect only when the access token expired, because the
+          token verifies on its signature and never asks whether the account
+          behind it still exists.
+        * Every limit here is per user id, and an anonymous id costs nothing to
+          create. With the provider enabled, a loop of anonymous sign-ins is an
+          unbounded number of daily allowances against a single global budget.
+
+        A missing row is refused rather than allowed. It means the token names
+        an account `auth.users` does not have, which is not a state a spending
+        path should resolve in the caller's favour.
+        """
+        account = await self._accounts.get(user_id)
+        if account is not None and account.usable:
+            return
+
+        log.warning(
+            "account_not_usable",
+            user_id=str(user_id),
+            reason="missing" if account is None else "banned_deleted_or_anonymous",
+        )
+        raise AccountNotUsableError(
+            "This account cannot use the demo. Sign in with Google to continue."
+        )
+
     async def ensure_can_ask(self, user_id: UUID) -> None:
+        await self.ensure_usable(user_id)
         if await self._accounts.is_unlimited(user_id):
             return
 
@@ -112,6 +152,7 @@ class QuotaGuard:
         )
 
     async def ensure_can_upload(self, user_id: UUID) -> None:
+        await self.ensure_usable(user_id)
         if await self._accounts.is_unlimited(user_id):
             return
 
