@@ -102,9 +102,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang={DEFAULT_LOCALE}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">
+      {/* `min-h-dvh` on the body, and nothing pinning the root's height.
+
+          `html { height: 100% }` with `body { min-height: 100% }` is the old
+          way to make the body fill the screen, and it pins the root to the
+          viewport while its content runs past it — measured here, 844px of root
+          holding 2254px of page. The overflow then propagates to the viewport,
+          which is why it scrolls at all, and a `position: sticky` child ends up
+          resolving against a scrollport that is not the box it lives in. Mobile
+          browsers reconcile that during the first scroll, which is seen as the
+          header sinking a few pixels.
+      
+          `min-h-dvh` asks for the same thing — a body at least a screen tall —
+          without giving the root a height it has to lie about. */}
+      <body className="flex min-h-dvh flex-col font-sans">
         {/* Describes the site rather than the page, so it belongs on all of
             them and is rendered once, here. */}
         <StructuredData />
