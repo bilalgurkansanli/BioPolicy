@@ -15,6 +15,7 @@ from collections.abc import AsyncIterator
 import pytest
 
 from api.generation import prompts
+from api.generation.answerer import ANSWER_MAX_TOKENS
 from api.generation.llm import (
     AllProvidersFailedError,
     FailoverLLM,
@@ -23,12 +24,24 @@ from api.generation.llm import (
     extract_json,
 )
 from api.generation.schemas import ClaimVerdict, VerificationResult
-from api.generation.verifier import Verifier, classify
+from api.generation.verifier import VERIFIER_MAX_TOKENS, Verifier, classify
 from api.retrieval.context import assemble
 from api.tests.fakes import FailingLLM, ScriptedLLM
 from api.tests.test_context import chunk
 
 EXCERPT = "Sel ve su baskını teminatı 750.000 TL limit ve 3.500 TL muafiyet ile karşılanır."
+
+
+def test_the_verifier_can_always_outrun_the_answer_it_checks() -> None:
+    """One verdict per claim, so this output grows with the answer's length.
+
+    Set below the answer's ceiling, the longest answers are exactly the ones
+    whose verification truncates — and a truncated verdict is indistinguishable
+    from a provider outage, which `classify` maps to "serve". The result is an
+    answer presented as verified that nothing verified. Measured at 900 against
+    a 1,582-token answer, that is what happened.
+    """
+    assert VERIFIER_MAX_TOKENS >= ANSWER_MAX_TOKENS
 
 
 def verdicts(*pairs: tuple[str, str]) -> str:

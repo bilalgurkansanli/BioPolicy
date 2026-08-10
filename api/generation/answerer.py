@@ -59,7 +59,23 @@ from api.retrieval.context import AssembledContext
 
 log = get_logger(__name__)
 
-ANSWER_MAX_TOKENS = 1200
+# A ceiling, not a budget: almost every answer stops well short of it and is
+# billed for what it wrote. That asymmetry is why this is not set tight.
+#
+# It was 1200, and a truncated reply is the one outcome that costs the full
+# ceiling and returns nothing at all — the JSON does not parse, the answer is
+# discarded, and the user is shown "try again later" for a question the document
+# answers. Being 20% too small cost 100% of those calls.
+#
+# Measured on the AXA policy, same question, same retrieved context: 1,481 /
+# 1,582 / 2,068 tokens. That spread is the reason for the headroom rather than
+# the mean — temperature is 0 but the length of a list-shaped answer is not
+# stable across calls, so a ceiling set just above the average truncates a third
+# of the time. 3000 is ~45% above the longest observed.
+#
+# An answer approaching this is half as long as the entire 6,000-token context
+# it may draw on, which is a prompt problem rather than a ceiling problem.
+ANSWER_MAX_TOKENS = 3000
 
 # Shown when an answer is withheld, or when there is nothing to answer from.
 #

@@ -66,7 +66,20 @@ class VerificationOutcome:
 
 # The verifier emits short structured verdicts, never prose. Capping output
 # keeps a cheap pass cheap — this runs on every served answer.
-VERIFIER_MAX_TOKENS = 900
+#
+# **Never below `ANSWER_MAX_TOKENS`.** Output here is one verdict per claim, so
+# it grows with the answer it is checking: 14 claims cost 1,173 tokens, about 84
+# each. A verifier ceiling under the answer's guarantees that the longest
+# answers are the ones whose verification does not fit.
+#
+# That is worse than it sounds, because of how the failure is shaped. A
+# truncated verdict does not parse, `verify` returns `result=None`, and
+# `classify(None)` deliberately maps to "serve" so a provider outage cannot turn
+# the product into one that refuses everything. Truncation is not an outage: it
+# is systematic, it is ours, and it fires precisely on the answers carrying the
+# most claims. At 900 the exclusions question was served at "high confidence"
+# with no verification behind it and nothing in the response saying so.
+VERIFIER_MAX_TOKENS = 3000
 
 
 class Verifier:
