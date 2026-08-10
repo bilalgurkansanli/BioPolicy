@@ -28,7 +28,17 @@ export function SiteHeader() {
   const onWorkspace = pathname === "/app";
 
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-paper/80 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-line bg-paper sm:bg-paper/80 sm:backdrop-blur-md">
+      {/* Opaque on a phone, translucent from `sm` up.
+
+          `backdrop-filter` on a sticky element makes the browser re-sample
+          everything behind it on every frame of a scroll. On a desktop that is
+          free; on a phone the compositor falls behind and the bar appears to
+          slide down and snap back — which is exactly what it looked like.
+
+          It is also the effect a 64px bar shows least of: there is very little
+          behind it to see through. So the blur is spent where it is affordable
+          and dropped where it is not. */}
       {/* `gap-2` below `sm`, not `gap-3`. The row had no room to spare on a
           phone, so adding anything to it has to take the space from somewhere,
           and four pixels of gap twice over is the cheapest thing in here to
