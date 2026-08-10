@@ -29,7 +29,14 @@ REWRITE = "rewrite_v1"
 # with `answer_v2` — a hostile document is hostile to a sweep as well, and the
 # omission attack is *worse* here: a reader scanning a profile has no question
 # in mind to notice the missing answer to.
-PROFILE = "profile_v1"
+#
+# v2 forked rather than edited, as ADR 012 requires: a cached profile records the
+# prompt that produced it, and editing v1 in place would leave stored profiles
+# claiming a version whose text no longer exists. The change is one field —
+# `policy_period` was defined in five words and a real policy printing its dates
+# twice on page one came back with the slot marked absent, because the dates sit
+# in a block of reference numbers that reads like a form header.
+PROFILE = "profile_v2"
 
 # The baseline arm of the evaluation, not a production prompt.
 #
