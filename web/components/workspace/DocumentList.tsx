@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale } from "@/components/LocaleProvider";
+import { Badge } from "@/components/workspace/Badge";
 import type { DocumentSummary } from "@/lib/types";
 
 export function DocumentList({
@@ -61,22 +62,3 @@ export function DocumentList({
   );
 }
 
-function Badge({
-  children,
-  tone = "plain",
-}: {
-  children: React.ReactNode;
-  tone?: "plain" | "warn";
-}) {
-  return (
-    <span
-      className={`rounded px-1.5 py-0.5 ${
-        tone === "warn"
-          ? "bg-refuse-soft text-refuse"
-          : "bg-surface-sunken text-ink-muted"
-      }`}
-    >
-      {children}
-    </span>
-  );
-}

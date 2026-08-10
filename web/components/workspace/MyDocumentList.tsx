@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { useLocale } from "@/components/LocaleProvider";
+import { Badge } from "@/components/workspace/Badge";
 import type { DocumentStatus, DocumentSummary } from "@/lib/types";
 
 /**
@@ -126,6 +127,26 @@ export function MyDocumentList({
                       document.detected_lang === "en") && (
                       <span>{t.workspace.lang[document.detected_lang]}</span>
                     )}
+                  {/* How the document was read, shown for the same reason the
+                      sample list shows it: OCR is a transcription, and a
+                      transcription can be wrong where a text layer cannot.
+                      Somebody comparing an answer against the page they
+                      uploaded deserves to know which of the two they are
+                      reading.
+
+                      Only once the document is ready. Before that the field
+                      holds whatever the detector guessed on arrival, and a
+                      badge that changes its mind halfway through ingestion
+                      looks like a bug rather than a refinement. */}
+                  {ready && document.source_type !== null && (
+                    <Badge
+                      tone={document.source_type === "scanned" ? "warn" : "plain"}
+                    >
+                      {document.source_type === "scanned"
+                        ? t.workspace.sourceType.scanned
+                        : t.workspace.sourceType.native}
+                    </Badge>
+                  )}
                 </div>
 
                 {!ready && !failed && status && (
