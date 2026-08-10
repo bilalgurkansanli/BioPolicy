@@ -27,7 +27,7 @@ from uuid import UUID
 
 from api.config import get_settings
 from api.db import create_pool
-from api.deps import build_embedder
+from api.deps import build_embedder, build_rewriter
 from api.generation.answerer import Answerer
 from api.generation.llm import FailoverLLM
 from api.generation.providers import AnthropicLLM, GeminiLLM
@@ -100,7 +100,19 @@ async def run(question: str, doc: str, *, verify: bool, binding: bool, language:
         # coverage table as missing for exactly that reason after the Voyage
         # migration, while the API found it at rank 1.
         embedder = build_embedder(settings)
-        retriever = HybridRetriever(ChunkStore(pool), embedder)
+        # Built by the application's own function rather than reconstructed
+        # here. Reconstructing it is what made this script wrong three times:
+        # first with a different embedder, then with no rewriter at all, then
+        # with the provider the application had already moved away from. Each
+        # time it reported the pipeline's behaviour confidently and wrongly.
+        rewriter = build_rewriter(settings)
+        retriever = HybridRetriever(
+            ChunkStore(pool),
+            embedder,
+            rewriter=rewriter,
+            enable_rewrite=settings.enable_query_rewrite,
+            enable_floor=settings.enable_retrieval_floor,
+        )
 
         started = time.monotonic()
         retrieved = await retriever.retrieve(

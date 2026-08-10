@@ -23,7 +23,22 @@ _DIR = Path(__file__).parent
 ANSWER = "answer_v2"
 VERIFY = "verify_v1"
 ENTAIL = "entail_v1"
-REWRITE = "rewrite_v1"
+
+# Query understanding. `rewrite_v1` did half of this — it resolved a follow-up
+# against the conversation — and it only ran when there *was* a conversation, so
+# a first-turn question got no help at all.
+#
+# What that missed is the ordinary case rather than an edge one: people describe
+# a situation and then ask about it, and the description outweighs the subject
+# once it is embedded. Measured on a real policy, "Peki diyelim ki deprem oldu
+# ve ev tamamen yıkıldı. Ne kadar para veriliyor?" put the passage carrying both
+# figures at fused rank 13 against a context window of 8. The document answers
+# it on page one; the answering model never saw the page.
+#
+# `understand_v1` is the fork rather than an edit, per ADR 012: `rewrite_v1`
+# produced retrieval traces that are recorded in `eval/results`, and a prompt
+# edited under a stored result makes that result unexplainable.
+REWRITE = "understand_v1"
 
 # Typed extraction, not question answering. Shares the anti-injection section
 # with `answer_v2` — a hostile document is hostile to a sweep as well, and the
