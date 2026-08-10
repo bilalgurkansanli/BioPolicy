@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Any
 
 from api.generation import prompts
+from api.retrieval.floor import FLOOR_DISTANCE, FLOOR_MODEL
 from eval.copy import ARM_LABELS, Lang, T
 from eval.dataset import Stats
 from eval.metrics import Report
@@ -158,10 +159,24 @@ def _render_floor(add: Callable[[str], None], bands: list[dict[str, Any]], *, la
     the golden set has no schema for (a question about football has no expected
     answer and no evidence spans). Rendered here anyway, because a threshold
     published without the distribution it was derived from is a magic number.
+
+    The threshold and the model it was measured against are printed with it, and
+    that is not decoration. This section reported the distribution and never the
+    number, so when the store moved from `gemini-embedding-001` to
+    `voyage-4-lite` the constant stayed at a value belonging to a vector space
+    that no longer existed — and every report published in between looked
+    exactly the same. A published threshold that does not name its space cannot
+    be checked by the person reading it.
     """
     add(T.floor_heading.of(lang))
     add("")
     add(T.floor_intro.of(lang))
+    add("")
+    add(
+        T.floor_threshold.of(lang)
+        .replace("{threshold}", f"{FLOOR_DISTANCE}")
+        .replace("{model}", f"`{FLOOR_MODEL}`")
+    )
     add("")
     add(f"| {T.floor_population.of(lang)} | n | min | median | max | {T.floor_refused.of(lang)} |")
     add("|---|---:|---:|---:|---:|---:|")

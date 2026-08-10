@@ -34,8 +34,8 @@ from typing import Any
 import asyncpg
 
 from api.config import get_settings
+from api.deps import build_embedder
 from api.retrieval.floor import FLOOR_DISTANCE, evaluate
-from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.store import ChunkStore
 from eval.dataset import GOLDEN_PATH
 
@@ -73,16 +73,17 @@ LEXICAL: tuple[tuple[str, str], ...] = (
 )
 
 
-# Google's free tier allows 100 embedding requests per minute, and this script
-# makes about 114 of them back to back. The embedder's own retry handles a
-# single 429 but not a sustained one — it exhausted four attempts and aborted
-# the run partway through, which on a measurement script means losing the whole
-# measurement rather than degrading it.
+# This script makes about 114 embedding requests back to back, and used to pace
+# them itself at 0.65s because Google's free tier allowed 100 a minute and a
+# sustained 429 exhausted the embedder's retries and aborted the run partway —
+# which on a measurement script loses the measurement rather than degrading it.
 #
-# Pacing here rather than raising the retry count, because the request rate is
-# something this script controls and the backoff is not. 0.65s leaves headroom
-# under the limit without turning a two-minute run into a ten-minute one.
-REQUEST_INTERVAL_SECONDS = 0.65
+# Now zero, because the pacing moved to where it belongs. `VoyageEmbedder` holds
+# a sliding-minute window over both requests and tokens, configured from the
+# deployment's own ceiling, so a second limiter here would either duplicate it
+# or contradict it. Restore a value only for a provider whose client does not
+# pace itself.
+REQUEST_INTERVAL_SECONDS = 0.0
 
 
 @dataclass(slots=True)
@@ -111,8 +112,8 @@ class Band:
 
 async def run(*, verbose: bool) -> list[dict[str, Any]]:
     settings = get_settings()
-    if not settings.database_url or not settings.google_api_key:
-        raise SystemExit("DATABASE_URL and GOOGLE_API_KEY are required.")
+    if not settings.database_url:
+        raise SystemExit("DATABASE_URL is required.")
 
     pool = await asyncpg.create_pool(
         settings.database_url, statement_cache_size=0, min_size=1, max_size=4
@@ -120,7 +121,14 @@ async def run(*, verbose: bool) -> list[dict[str, Any]]:
     assert pool is not None
     try:
         store = ChunkStore(pool)
-        embedder = GeminiEmbedder(settings.google_api_key, settings.gemini_embedding_model)
+        # The application's own choice. This script named `GeminiEmbedder`
+        # directly and kept doing so after the store moved to Voyage, which does
+        # not error: it compares a query in one vector space against chunks in
+        # another and reports the arbitrary distances that come back. Every
+        # number it printed in that state was meaningless, including the ones
+        # `FLOOR_DISTANCE` was derived from.
+        embedder = build_embedder(settings)
+        print(f"embedding with {embedder.name} / {embedder.model}\n")
 
         rows = await pool.fetch("select id, user_id, filename, is_sample from documents")
         by_name = {r["filename"].removesuffix(".pdf"): (r["id"], r["user_id"]) for r in rows}

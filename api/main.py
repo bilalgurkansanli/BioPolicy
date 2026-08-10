@@ -15,6 +15,7 @@ Two behaviours here are load-bearing rather than boilerplate:
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -28,9 +29,10 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from api import __version__
 from api.config import get_settings
 from api.db import create_pool
-from api.deps import AppState
+from api.deps import AppState, embedding_model
 from api.logging_config import configure_logging, get_logger
 from api.pricing import unpriced_models
+from api.retrieval.floor import check_model
 from api.routers import (
     account,
     chat,
@@ -44,6 +46,11 @@ from api.routers import (
 log = get_logger(__name__)
 
 REQUEST_ID_HEADER = "X-Request-ID"
+
+# A UUID is 36 characters; this leaves room for a tracing format without leaving
+# room for a caller to put a kilobyte on every log line the request produces.
+MAX_REQUEST_ID_CHARS = 64
+_SAFE_REQUEST_ID = re.compile(r"[A-Za-z0-9._:-]+")
 
 
 @asynccontextmanager
@@ -77,6 +84,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "breaker's total, so GLOBAL_BUDGET_USD would cap part of the bill only. "
             "Set MODEL_PRICES and MODEL_PRICES_VERIFIED_ON — see .env.example."
         )
+
+    # The same rule, for the same reason, applied to the other number that is
+    # only meaningful against a specific model. An unpriced model spends money
+    # the breaker cannot see; a floor measured in another vector space refuses
+    # questions nobody can see being refused.
+    floor_complaint = check_model(embedding_model(settings))
+    if floor_complaint and settings.enable_retrieval_floor:
+        if settings.is_deployed:
+            raise RuntimeError(f"APP_ENV={settings.app_env} but {floor_complaint}")
+        log.warning("retrieval_floor_model_mismatch", detail=floor_complaint)
 
     missing = settings.missing_credentials()
     log.info(
@@ -141,11 +158,29 @@ def create_app() -> FastAPI:
             allowed_hosts=["biopolicy.bilalgurkansanli.com", "*.vercel.app"],
         )
 
+    def _request_id(supplied: str | None) -> str:
+        """Honour a caller's correlation id, within limits.
+
+        Accepting the header is deliberate — it lets a trace span the frontend
+        and this service — but the value is unauthenticated input that ends up
+        in every log line for the request and in a response header, so it is
+        bounded and restricted to characters that cannot be mistaken for
+        structure. Anything else gets a fresh id rather than a rejection: a bad
+        correlation id is not worth failing a request over.
+        """
+        if (
+            supplied
+            and len(supplied) <= MAX_REQUEST_ID_CHARS
+            and _SAFE_REQUEST_ID.fullmatch(supplied)
+        ):
+            return supplied
+        return str(uuid.uuid4())
+
     @app.middleware("http")
     async def request_context(
         request: Request, call_next: Callable[[Request], Awaitable[JSONResponse]]
     ) -> JSONResponse:
-        request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
+        request_id = _request_id(request.headers.get(REQUEST_ID_HEADER))
         structlog.contextvars.bind_contextvars(request_id=request_id)
         request.state.request_id = request_id
         try:

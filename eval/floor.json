@@ -2,41 +2,41 @@
   {
     "band": "answerable",
     "n": 49,
-    "min": 0.2021,
-    "median": 0.3028,
-    "max": 0.4194,
+    "min": 0.3603,
+    "median": 0.489,
+    "max": 0.6967,
     "fired": 0
   },
   {
     "band": "unanswerable",
     "n": 21,
-    "min": 0.271,
-    "median": 0.3368,
-    "max": 0.4402,
-    "fired": 0
+    "min": 0.5242,
+    "median": 0.5891,
+    "max": 0.7221,
+    "fired": 2
   },
   {
     "band": "other_topic",
     "n": 18,
-    "min": 0.3206,
-    "median": 0.4386,
-    "max": 0.5093,
-    "fired": 7
+    "min": 0.4095,
+    "median": 0.7184,
+    "max": 0.8303,
+    "fired": 9
   },
   {
     "band": "unrelated",
     "n": 18,
-    "min": 0.4681,
-    "median": 0.5057,
-    "max": 0.5718,
+    "min": 0.7339,
+    "median": 0.8559,
+    "max": 0.9586,
     "fired": 18
   },
   {
     "band": "lexical",
     "n": 8,
-    "min": 0.3059,
-    "median": 0.3807,
-    "max": 0.4038,
-    "fired": 0
+    "min": 0.5832,
+    "median": 0.7012,
+    "max": 0.801,
+    "fired": 3
   }
 ]

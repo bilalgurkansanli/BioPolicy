@@ -437,6 +437,20 @@ class T:
             "`uv run python -m eval.measure_floor`."
         ),
     )
+    floor_threshold = Text(
+        en=(
+            "The threshold is **{threshold}**, measured in the space of {model}. Both are "
+            "stated because neither means anything without the other: cosine distance is not "
+            "comparable across embedding models, so a threshold quoted on its own cannot be "
+            "checked, and a threshold left behind when the model changes cannot be noticed."
+        ),
+        tr=(
+            "Eşik **{threshold}**, {model} uzayında ölçüldü. İkisi birlikte yazılıyor, çünkü "
+            "biri olmadan diğeri bir şey ifade etmiyor: kosinüs mesafesi gömme modelleri "
+            "arasında karşılaştırılabilir değil — tek başına verilen bir eşik denetlenemez, "
+            "model değişirken yerinde kalan bir eşik ise fark edilemez."
+        ),
+    )
     floor_finding = Text(
         en=(
             "**What the floor does not do is the point.** The answerable and "
