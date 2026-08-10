@@ -178,7 +178,18 @@ export function SiteHeader() {
             phone, so a gap costs three times over — 1.5 rather than 2 buys back
             six pixels that the row does not otherwise have. */}
         <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
-          {/* Folds away under 360px, and only there.
+          {/* Folds away on a phone, not just under 360px.
+
+              Six controls do not fit a 360px row, which is the floor for every
+              phone still being sold. Measured there: the right-hand group wants
+              272px and cannot go below it, which leaves the header 17px over.
+              Something has to go, and this is it — a repository link is for
+              somebody about to read code, which is not what a phone is for, and
+              the footer and the README both still carry it. Dropping it frees
+              about 30px and the row fits with room to spare.
+
+              The old rule was `max-[359px]:hidden`, which spared exactly the
+              widths nobody has.
 
               Six controls do not fit a 320px row — measured at 337 needed
               against 320 available, after the gap and the language switch had
@@ -195,7 +206,7 @@ export function SiteHeader() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label={t.nav.source}
-            className="inline-flex items-center gap-1.5 rounded-full px-2 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink max-[359px]:hidden sm:px-2.5"
+            className="hidden items-center gap-1.5 rounded-full px-2 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink sm:inline-flex sm:px-2.5"
           >
             <GitHubMark />
             <span className="hidden sm:inline">{t.nav.source}</span>
@@ -257,7 +268,7 @@ export function SiteHeader() {
               <SlideLink
                 href="/app"
                 direction="forward"
-                className="cta-gradient cta-sheen group relative inline-flex h-9 items-center gap-1.5 rounded-full pl-4 pr-3.5 text-sm font-semibold text-on-accent shadow-[0_6px_18px_-8px_var(--accent-glow)] hover:-translate-y-px hover:shadow-[0_12px_26px_-10px_var(--accent-glow)]"
+                className="cta-gradient cta-sheen group relative inline-flex h-9 items-center gap-1 rounded-full pl-3 pr-2.5 text-sm font-semibold text-on-accent sm:gap-1.5 sm:pl-4 sm:pr-3.5 shadow-[0_6px_18px_-8px_var(--accent-glow)] hover:-translate-y-px hover:shadow-[0_12px_26px_-10px_var(--accent-glow)]"
               >
                 <span>{t.nav.workspace}</span>
                 <svg
@@ -342,7 +353,7 @@ function LocaleSwitch({
           // aligned. At 320px the header ran 18px past its own width, and this
           // control was the widest thing in it that could give ground without
           // losing a feature — two letters do not need 36px to be legible.
-          className={`relative z-10 w-8 rounded-full py-1 text-center text-xs font-semibold uppercase tracking-wide transition-colors duration-200 sm:w-9 ${
+          className={`relative z-10 w-7 rounded-full py-1 text-center text-xs font-semibold uppercase tracking-wide transition-colors duration-200 sm:w-9 ${
             locale === code ? "text-accent" : "text-ink-faint hover:text-ink"
           }`}
         >
