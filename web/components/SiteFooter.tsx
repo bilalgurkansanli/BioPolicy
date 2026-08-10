@@ -14,7 +14,12 @@ export function SiteFooter() {
     <footer className="border-t border-line bg-paper">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p className="max-w-xl">{t.footer.disclaimer}</p>
-        <div className="flex items-center gap-4">
+        {/* Wraps. Five items — three links, the retention promise and the
+            licence — do not fit a phone's width on one line, and without
+            `flex-wrap` they do not go anywhere: they shrink past their own text
+            and print over each other. `gap-y` is what keeps the wrapped rows
+            apart once they are allowed to exist. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           {/* The measurements are reachable but quiet: they are the project's
               evidence, not its invitation, and a second link beside the header's
               call-to-action would compete with the one thing it asks for. */}
@@ -51,7 +56,7 @@ export function SiteFooter() {
           >
             {t.footer.terms}
           </Link>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1">
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line px-2.5 py-1">
             <span
               aria-hidden
               className="size-1.5 rounded-full bg-good"
