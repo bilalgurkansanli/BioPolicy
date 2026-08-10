@@ -670,8 +670,15 @@ export function Workspace() {
           lets the row shrink below its content; `1fr` alone will not. */}
       <div className="grid min-h-0 flex-1 auto-rows-[minmax(0,1fr)] gap-3 lg:grid-cols-[260px_minmax(0,1fr)_minmax(0,1fr)]">
         {/* Document picker */}
+        {/* `min-w-0` is load-bearing, not tidiness. A grid item defaults to
+            `min-width: auto`, which refuses to shrink below the widest thing
+            inside it — here the tab labels and a 50-character filename — so the
+            column pushed the grid past the viewport and `overflow-x: clip` cut
+            the left edge off with no scrollbar to say it had. Signed out there
+            is no tab row and no long filename, which is why it only appeared
+            for somebody who had actually uploaded something. */}
         <aside
-          className={`flex min-h-0 flex-col ${
+          className={`flex min-h-0 min-w-0 flex-col ${
             mobilePane === "documents" ? "" : "hidden"
           } lg:flex`}
         >
@@ -692,7 +699,7 @@ export function Workspace() {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setSidebarTab(tab)}
-                    className={`flex-1 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                    className={`min-w-0 flex-1 truncate rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                       active
                         ? "bg-accent-soft text-accent"
                         : "text-ink-muted hover:text-ink"
