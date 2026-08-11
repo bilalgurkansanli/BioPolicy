@@ -21,6 +21,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
+from api.constants import EMBEDDING_DIM
 from api.generation import prompts
 from api.retrieval.floor import FLOOR_DISTANCE, FLOOR_MODEL
 from eval.copy import ARM_LABELS, Lang, T
@@ -241,7 +242,9 @@ def render_report(
     add(f"| {T.row_generated.of(lang)} | {generated_at.strftime('%Y-%m-%d %H:%M UTC')} |")
     add(f"| {T.row_commit.of(lang)} | `{commit}` |")
     add(f"| {T.row_answering_model.of(lang)} | `{model}` |")
-    add(f"| {T.row_embedding_model.of(lang)} | `{embedding_model}` ({T.dimensions.of(lang)}) |")
+    add(
+        f"| {T.row_embedding_model.of(lang)} | `{embedding_model}` ({T.dimensions.format(lang, dims=EMBEDDING_DIM)}) |"
+    )
     # Read from the module rather than written here. A report that hard-codes
     # its own prompt version keeps printing the old one the day the prompt
     # changes, which is the single most misleading thing this table could do.

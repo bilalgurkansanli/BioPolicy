@@ -42,6 +42,7 @@ from uuid import UUID
 from api.config import get_settings
 from api.constants import CONTEXT_CHUNK_COUNT
 from api.db import create_pool
+from api.deps import build_embedder, embedding_model
 from api.generation import prompts
 from api.generation.answerer import Answerer
 from api.generation.entailment import EntailmentChecker
@@ -55,7 +56,6 @@ from api.generation.schemas import (
 )
 from api.generation.verifier import Verifier
 from api.pricing import UnpricedModelError, estimate_cost
-from api.retrieval.gemini_embedder import GeminiEmbedder
 from api.retrieval.hybrid import HybridRetriever
 from api.retrieval.store import ChunkStore
 from eval import history
@@ -475,7 +475,7 @@ async def run(*, limit: int | None, arm: str, question_set: str) -> int:
 
         retriever = HybridRetriever(
             ChunkStore(pool),
-            GeminiEmbedder(settings.google_api_key or "", settings.gemini_embedding_model),
+            build_embedder(settings),
         )
 
         arms: dict[str, Report] = {}
@@ -526,7 +526,7 @@ async def run(*, limit: int | None, arm: str, question_set: str) -> int:
             lang: render_report(
                 arms,
                 model=settings.anthropic_model,
-                embedding_model=settings.gemini_embedding_model,
+                embedding_model=embedding_model(settings),
                 commit=commit,
                 generated_at=generated_at,
                 dataset=summary,

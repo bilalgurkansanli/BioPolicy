@@ -244,7 +244,10 @@ class T:
     row_commit = Text(en="Commit", tr="Commit")
     row_answering_model = Text(en="Answering model", tr="Cevaplayan model")
     row_embedding_model = Text(en="Embedding model", tr="Gömme modeli")
-    dimensions = Text(en="1536 dimensions", tr="1536 boyut")
+    # Takes the width rather than stating one. It read "1536 dimensions" for a
+    # run made at 1024, beside a model name that was also wrong — the masthead
+    # was describing a configuration nobody had used since the Voyage migration.
+    dimensions = Text(en="{dims} dimensions", tr="{dims} boyut")
     row_prompts = Text(en="Prompts", tr="İstemler")
     row_questions = Text(en="Questions", tr="Soru")
     row_negatives = Text(en="Adversarial negatives", tr="Cevabı belgede olmayan sorular")
