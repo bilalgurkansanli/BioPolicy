@@ -46,14 +46,14 @@ export function StructuredData() {
           price: "0",
           priceCurrency: "USD",
           description:
-            "Ücretsiz demo, hesap başına günlük soru ve belge sınırıyla.",
+            "Free demo, with a daily allowance of questions and uploads per account.",
         },
         featureList: [
-          "Sigorta poliçeleri ve sözleşmeler üzerinde soru-cevap",
-          "Her cevabın dayandığı maddeyi belgede işaretleme",
-          "Belgede olmayan bilgi için cevap vermeyi reddetme",
-          "Taranmış belgeler için OCR",
-          "Türkçe ve İngilizce",
+          "Question answering over insurance policies and contracts",
+          "Every answer marked on the clause it came from",
+          "Refusing to answer what the document does not contain",
+          "OCR for scanned documents",
+          "Turkish and English",
         ],
       },
       {

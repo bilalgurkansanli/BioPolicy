@@ -8,15 +8,15 @@ import type { Metadata } from "next";
  * stored preference, and a crawler has no preference to read (ADR 011).
  */
 export const metadata: Metadata = {
-  title: "Çalışma ekranı",
+  title: "Workspace",
   description:
-    "Bir poliçe seçin, soru sorun. Cevap, dayandığı maddeyle birlikte belgenin üzerinde işaretli gelir; belge cevabı içermiyorsa sistem uydurmaz, reddeder.",
+    "Pick a document and ask it a question. The answer arrives with the clause it came from, marked on the page — and when the document does not say, neither does the system.",
   alternates: { canonical: "/app" },
   openGraph: {
     url: "/app",
-    title: "Çalışma ekranı — BioPolicy",
+    title: "Workspace — BioPolicy",
     description:
-      "Bir poliçe seçin, soru sorun. Cevap, dayandığı maddeyle birlikte belgenin üzerinde işaretli gelir.",
+      "Pick a document and ask it a question. The answer arrives with the clause it came from, marked on the page.",
   },
 };
 

@@ -2,8 +2,8 @@
 
 ## Why the pairs live together
 
-The site defaults to Turkish and the report is its evidence, so a report only a
-subset of its readers can read is evidence held back. But this is generated
+The report is the site's evidence, and its readers arrive in two languages, so
+a report only a subset of them can read is evidence held back. But this is generated
 prose that argues with itself — "the prompt did the work; the mechanisms did
 not" is a finding, not a label — and a translation kept in a second file drifts
 the first time a finding is sharpened and only one copy is edited.

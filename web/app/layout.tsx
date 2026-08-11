@@ -23,7 +23,7 @@ const geistMono = Geist_Mono({
 
 // Metadata is static and cannot follow a client-side preference, so it uses the
 // default locale. The visible interface still switches; only the tab title and
-// the crawler's copy stay Turkish.
+// the crawler's copy stay in the default language.
 const meta = dictionaries[DEFAULT_LOCALE].meta;
 
 export const metadata: Metadata = {
@@ -71,9 +71,11 @@ export const metadata: Metadata = {
     siteName: "BioPolicy",
     // The interface switches language on a stored preference rather than a
     // URL, so there is one document per page and it is served in the default
-    // locale. Declaring alternates here would be advertising URLs that do not
-    // exist — see ADR 011.
-    locale: "tr_TR",
+    // locale. `alternateLocale` says the same content exists in Turkish without
+    // claiming a second URL for it — which is the honest shape here, and why
+    // there is no hreflang (ADR 011).
+    locale: "en_US",
+    alternateLocale: ["tr_TR"],
     url: "/",
     title: meta.title,
     description: meta.description,

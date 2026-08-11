@@ -12,7 +12,19 @@
 export const LOCALES = ["tr", "en"] as const;
 export type Locale = (typeof LOCALES)[number];
 
-export const DEFAULT_LOCALE: Locale = "tr";
+/**
+ * What a visitor gets before anything is known about them.
+ *
+ * English, because it is the language the fewest people are locked out of.
+ * Turkish is not a fallback here, it is a match: a browser that asks for
+ * Turkish gets Turkish (see `lib/locale-store.ts`), and everybody else —
+ * including a German or French browser, which used to land on Turkish — gets
+ * a language they are more likely to read.
+ *
+ * This is also what the crawlers and the link previews see, since none of
+ * them have a preference to read.
+ */
+export const DEFAULT_LOCALE: Locale = "en";
 
 const tr = {
   meta: {

@@ -29,6 +29,10 @@ function negotiate(): Locale {
     // Storage can be unavailable (private mode, blocked cookies). Falling
     // through to the browser's languages is better than failing to render.
   }
+  // The browser's own list, in the order the visitor put it in. This is the
+  // signal that decides whether somebody sees Turkish: a device set to Turkish
+  // is the closest thing to "reads Turkish" that a page can know without
+  // asking, and it costs no request and no location.
   for (const tag of navigator.languages ?? []) {
     const base = tag.slice(0, 2);
     if (isLocale(base)) return base;

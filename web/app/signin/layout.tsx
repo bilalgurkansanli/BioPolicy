@@ -7,9 +7,9 @@ import type { Metadata } from "next";
  * side.
  */
 export const metadata: Metadata = {
-  title: "Giriş",
+  title: "Sign in",
   description:
-    "Google hesabınızla giriş yapın. Örnek belgeler giriş yapmadan da okunabilir.",
+    "Sign in with your Google account. The sample documents are readable without one.",
   robots: { index: false, follow: true },
   // Set even though this page asks not to be indexed. Without it the page
   // inherits the root's `/` and names the home page as its canonical, which is

@@ -6,15 +6,15 @@ import type { Metadata } from "next";
  * answer the question in the snippet.
  */
 export const metadata: Metadata = {
-  title: "Değerlendirme",
+  title: "Evaluation",
   description:
-    "70 soruluk değerlendirme kümesinin sonuçları, üreten komutun yazdığı haliyle: doğru ret oranı, yanlış ret oranı, alıntı geçerliliği, maliyet — hoşa gitmeyenler dahil.",
+    "Results over a 70-question set, exactly as the harness wrote them: refusal accuracy, false-refusal rate, citation validity and cost — including the numbers that do not flatter the system.",
   alternates: { canonical: "/eval" },
   openGraph: {
     url: "/eval",
-    title: "Değerlendirme — BioPolicy",
+    title: "Evaluation — BioPolicy",
     description:
-      "70 soruluk kümede ölçülen sonuçlar, elle yazılmadan, hoşa gitmeyenler dahil.",
+      "Measured over a 70-question set, none of it hand-written, including the unflattering results.",
   },
 };
 
