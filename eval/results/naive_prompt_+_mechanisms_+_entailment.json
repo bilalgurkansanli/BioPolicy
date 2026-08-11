@@ -12,8 +12,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 12578,
-    "cost_usd": 0.012832,
+    "latency_ms": 9750,
+    "cost_usd": 0.012578,
     "error": null
   },
   {
@@ -29,8 +29,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 10781,
-    "cost_usd": 0.009716,
+    "latency_ms": 8812,
+    "cost_usd": 0.011163,
     "error": null
   },
   {
@@ -46,8 +46,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 12062,
-    "cost_usd": 0.010937,
+    "latency_ms": 9000,
+    "cost_usd": 0.010921,
     "error": null
   },
   {
@@ -63,8 +63,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 13734,
-    "cost_usd": 0.011801,
+    "latency_ms": 9172,
+    "cost_usd": 0.011712,
     "error": null
   },
   {
@@ -80,8 +80,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 8375,
-    "cost_usd": 0.011725,
+    "latency_ms": 9547,
+    "cost_usd": 0.011936,
     "error": null
   },
   {
@@ -92,13 +92,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 1,
+    "first_hit_rank": 2,
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 9203,
-    "cost_usd": 0.010611,
+    "latency_ms": 7594,
+    "cost_usd": 0.01027,
     "error": null
   },
   {
@@ -106,16 +106,16 @@
     "category": "factual",
     "lang": "tr",
     "expected_answer_found": true,
-    "answer_found": false,
-    "decision_correct": false,
+    "answer_found": true,
+    "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 1,
-    "citations_offered": 0,
-    "citations_kept": 0,
-    "suppressed": true,
-    "groundedness": null,
-    "latency_ms": 4750,
-    "cost_usd": 0.004156,
+    "first_hit_rank": 2,
+    "citations_offered": 1,
+    "citations_kept": 1,
+    "suppressed": false,
+    "groundedness": 0.8333333333333334,
+    "latency_ms": 9281,
+    "cost_usd": 0.011449,
     "error": null
   },
   {
@@ -130,9 +130,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.8333333333333334,
-    "latency_ms": 8922,
-    "cost_usd": 0.009432,
+    "groundedness": 1.0,
+    "latency_ms": 11578,
+    "cost_usd": 0.009223,
     "error": null
   },
   {
@@ -148,8 +148,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 0.6666666666666666,
-    "latency_ms": 9812,
-    "cost_usd": 0.012081,
+    "latency_ms": 9063,
+    "cost_usd": 0.011496,
     "error": null
   },
   {
@@ -164,9 +164,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.8333333333333334,
-    "latency_ms": 9969,
-    "cost_usd": 0.012338,
+    "groundedness": 1.0,
+    "latency_ms": 9781,
+    "cost_usd": 0.01208,
     "error": null
   },
   {
@@ -174,16 +174,16 @@
     "category": "multi_clause",
     "lang": "tr",
     "expected_answer_found": true,
-    "answer_found": true,
-    "decision_correct": true,
+    "answer_found": false,
+    "decision_correct": false,
     "retrieval_hit": true,
-    "first_hit_rank": 3,
-    "citations_offered": 1,
-    "citations_kept": 1,
-    "suppressed": false,
-    "groundedness": 0.6666666666666666,
-    "latency_ms": 9313,
-    "cost_usd": 0.012149,
+    "first_hit_rank": 1,
+    "citations_offered": 0,
+    "citations_kept": 0,
+    "suppressed": true,
+    "groundedness": null,
+    "latency_ms": 7141,
+    "cost_usd": 0.008565,
     "error": null
   },
   {
@@ -199,8 +199,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 7234,
-    "cost_usd": 0.010827,
+    "latency_ms": 7610,
+    "cost_usd": 0.010084,
     "error": null
   },
   {
@@ -211,13 +211,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 2,
+    "first_hit_rank": 1,
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 21016,
-    "cost_usd": 0.01106,
+    "latency_ms": 11734,
+    "cost_usd": 0.011517,
     "error": null
   },
   {
@@ -233,8 +233,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 9344,
-    "cost_usd": 0.008864,
+    "latency_ms": 9203,
+    "cost_usd": 0.008504,
     "error": null
   },
   {
@@ -250,8 +250,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 26610,
-    "cost_usd": 0.012067,
+    "latency_ms": 9172,
+    "cost_usd": 0.011826,
     "error": null
   },
   {
@@ -266,9 +266,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.8333333333333334,
-    "latency_ms": 9625,
-    "cost_usd": 0.011596,
+    "groundedness": 1.0,
+    "latency_ms": 8218,
+    "cost_usd": 0.010985,
     "error": null
   },
   {
@@ -284,8 +284,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 19046,
-    "cost_usd": 0.008686,
+    "latency_ms": 8062,
+    "cost_usd": 0.008994,
     "error": null
   },
   {
@@ -296,13 +296,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 2,
-    "citations_offered": 3,
-    "citations_kept": 3,
+    "first_hit_rank": 3,
+    "citations_offered": 2,
+    "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 11562,
-    "cost_usd": 0.012274,
+    "latency_ms": 9766,
+    "cost_usd": 0.011189,
     "error": null
   },
   {
@@ -318,8 +318,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 9313,
-    "cost_usd": 0.011266,
+    "latency_ms": 10750,
+    "cost_usd": 0.010346,
     "error": null
   },
   {
@@ -335,8 +335,8 @@
     "citations_kept": 3,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 11375,
-    "cost_usd": 0.013284,
+    "latency_ms": 11203,
+    "cost_usd": 0.01315,
     "error": null
   },
   {
@@ -352,8 +352,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 22875,
-    "cost_usd": 0.008919,
+    "latency_ms": 7031,
+    "cost_usd": 0.009375,
     "error": null
   },
   {
@@ -368,9 +368,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.6666666666666666,
-    "latency_ms": 7656,
-    "cost_usd": 0.009518,
+    "groundedness": 0.8333333333333334,
+    "latency_ms": 9141,
+    "cost_usd": 0.008797,
     "error": null
   },
   {
@@ -386,8 +386,8 @@
     "citations_kept": 0,
     "suppressed": true,
     "groundedness": null,
-    "latency_ms": 10657,
-    "cost_usd": 0.008844,
+    "latency_ms": 9422,
+    "cost_usd": 0.008491,
     "error": null
   },
   {
@@ -402,9 +402,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 1.0,
-    "latency_ms": 8047,
-    "cost_usd": 0.01114,
+    "groundedness": 0.8333333333333334,
+    "latency_ms": 8266,
+    "cost_usd": 0.01123,
     "error": null
   },
   {
@@ -419,9 +419,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.8333333333333334,
-    "latency_ms": 30719,
-    "cost_usd": 0.009361,
+    "groundedness": 1.0,
+    "latency_ms": 8688,
+    "cost_usd": 0.008726,
     "error": null
   },
   {
@@ -437,8 +437,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 10484,
-    "cost_usd": 0.011474,
+    "latency_ms": 10187,
+    "cost_usd": 0.013247,
     "error": null
   },
   {
@@ -453,9 +453,9 @@
     "citations_offered": 2,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.75,
-    "latency_ms": 11078,
-    "cost_usd": 0.012836,
+    "groundedness": 0.8333333333333334,
+    "latency_ms": 11094,
+    "cost_usd": 0.012156,
     "error": null
   },
   {
@@ -471,8 +471,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 4438,
-    "cost_usd": 0.003464,
+    "latency_ms": 4703,
+    "cost_usd": 0.003269,
     "error": null
   },
   {
@@ -488,8 +488,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 4922,
-    "cost_usd": 0.0043,
+    "latency_ms": 5844,
+    "cost_usd": 0.004363,
     "error": null
   },
   {
@@ -497,16 +497,16 @@
     "category": "negative",
     "lang": "tr",
     "expected_answer_found": false,
-    "answer_found": false,
-    "decision_correct": true,
+    "answer_found": true,
+    "decision_correct": false,
     "retrieval_hit": true,
     "first_hit_rank": null,
-    "citations_offered": 0,
-    "citations_kept": 0,
+    "citations_offered": 2,
+    "citations_kept": 1,
     "suppressed": false,
-    "groundedness": null,
-    "latency_ms": 5188,
-    "cost_usd": 0.004372,
+    "groundedness": 1.0,
+    "latency_ms": 9985,
+    "cost_usd": 0.012152,
     "error": null
   },
   {
@@ -522,8 +522,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 9468,
-    "cost_usd": 0.004007,
+    "latency_ms": 4968,
+    "cost_usd": 0.003779,
     "error": null
   },
   {
@@ -539,8 +539,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 4297,
-    "cost_usd": 0.00318,
+    "latency_ms": 4938,
+    "cost_usd": 0.00329,
     "error": null
   },
   {
@@ -556,8 +556,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 4484,
-    "cost_usd": 0.004105,
+    "latency_ms": 4296,
+    "cost_usd": 0.003663,
     "error": null
   },
   {
@@ -573,8 +573,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 5359,
-    "cost_usd": 0.003381,
+    "latency_ms": 3235,
+    "cost_usd": 0.003355,
     "error": null
   },
   {
@@ -587,11 +587,11 @@
     "retrieval_hit": true,
     "first_hit_rank": null,
     "citations_offered": 2,
-    "citations_kept": 1,
+    "citations_kept": 2,
     "suppressed": false,
-    "groundedness": 0.8333333333333334,
-    "latency_ms": 17563,
-    "cost_usd": 0.011182,
+    "groundedness": 1.0,
+    "latency_ms": 10687,
+    "cost_usd": 0.012309,
     "error": null
   },
   {
@@ -602,13 +602,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 3,
+    "first_hit_rank": 1,
     "citations_offered": 2,
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 9516,
-    "cost_usd": 0.010377,
+    "latency_ms": 10390,
+    "cost_usd": 0.008887,
     "error": null
   },
   {
@@ -624,8 +624,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 8687,
-    "cost_usd": 0.008597,
+    "latency_ms": 8766,
+    "cost_usd": 0.009159,
     "error": null
   },
   {
@@ -636,13 +636,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 4,
+    "first_hit_rank": 3,
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 1.0,
-    "latency_ms": 5328,
-    "cost_usd": 0.007742,
+    "groundedness": 0.8333333333333334,
+    "latency_ms": 8797,
+    "cost_usd": 0.008515,
     "error": null
   },
   {
@@ -658,8 +658,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 6093,
-    "cost_usd": 0.007553,
+    "latency_ms": 5141,
+    "cost_usd": 0.006807,
     "error": null
   },
   {
@@ -675,8 +675,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 31172,
-    "cost_usd": 0.008622,
+    "latency_ms": 7140,
+    "cost_usd": 0.008439,
     "error": null
   },
   {
@@ -692,30 +692,13 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 0.6666666666666666,
-    "latency_ms": 15547,
-    "cost_usd": 0.008903,
+    "latency_ms": 8672,
+    "cost_usd": 0.008774,
     "error": null
   },
   {
     "id": "com-007",
     "category": "multi_clause",
-    "lang": "en",
-    "expected_answer_found": true,
-    "answer_found": false,
-    "decision_correct": false,
-    "retrieval_hit": false,
-    "first_hit_rank": null,
-    "citations_offered": 0,
-    "citations_kept": 0,
-    "suppressed": false,
-    "groundedness": null,
-    "latency_ms": 23625,
-    "cost_usd": 0.0,
-    "error": "AllProvidersFailedError: anthropic: anthropic 529: Error code: 529 - {'type': 'error', 'error': {'type': 'overloaded_error', 'message': 'Overloaded'}, 'request_id': 'req_011Cdjvy7uoPwsMsNm613HXV'}; gemini: gemini: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.\\nInvalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.BadRequest', 'fieldViolations': [{'field': 'generation_config.response_schema', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.'}, {'field': 'generation_config.response_schema.properties[2].value.items', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.'}]}]}}"
-  },
-  {
-    "id": "com-008",
-    "category": "factual",
     "lang": "en",
     "expected_answer_found": true,
     "answer_found": true,
@@ -725,9 +708,26 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.6666666666666666,
-    "latency_ms": 9078,
-    "cost_usd": 0.009518,
+    "groundedness": 1.0,
+    "latency_ms": 5906,
+    "cost_usd": 0.008133,
+    "error": null
+  },
+  {
+    "id": "com-008",
+    "category": "factual",
+    "lang": "en",
+    "expected_answer_found": true,
+    "answer_found": true,
+    "decision_correct": true,
+    "retrieval_hit": true,
+    "first_hit_rank": 2,
+    "citations_offered": 1,
+    "citations_kept": 1,
+    "suppressed": false,
+    "groundedness": 0.875,
+    "latency_ms": 8437,
+    "cost_usd": 0.009096,
     "error": null
   },
   {
@@ -743,29 +743,12 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 15016,
-    "cost_usd": 0.008517,
+    "latency_ms": 7032,
+    "cost_usd": 0.008766,
     "error": null
   },
   {
     "id": "com-010",
-    "category": "factual",
-    "lang": "en",
-    "expected_answer_found": true,
-    "answer_found": false,
-    "decision_correct": false,
-    "retrieval_hit": false,
-    "first_hit_rank": null,
-    "citations_offered": 0,
-    "citations_kept": 0,
-    "suppressed": false,
-    "groundedness": null,
-    "latency_ms": 22937,
-    "cost_usd": 0.0,
-    "error": "AllProvidersFailedError: anthropic: anthropic 529: Error code: 529 - {'type': 'error', 'error': {'type': 'overloaded_error', 'message': 'Overloaded'}, 'request_id': 'req_011Cdjvyufssah5KdNyJZbia'}; gemini: gemini: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.\\nInvalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.BadRequest', 'fieldViolations': [{'field': 'generation_config.response_schema', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.'}, {'field': 'generation_config.response_schema.properties[2].value.items', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.'}]}]}}"
-  },
-  {
-    "id": "com-011",
     "category": "factual",
     "lang": "en",
     "expected_answer_found": true,
@@ -776,9 +759,26 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
+    "groundedness": 0.875,
+    "latency_ms": 8453,
+    "cost_usd": 0.009319,
+    "error": null
+  },
+  {
+    "id": "com-011",
+    "category": "factual",
+    "lang": "en",
+    "expected_answer_found": true,
+    "answer_found": true,
+    "decision_correct": true,
+    "retrieval_hit": true,
+    "first_hit_rank": 2,
+    "citations_offered": 1,
+    "citations_kept": 1,
+    "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 7829,
-    "cost_usd": 0.008509,
+    "latency_ms": 6578,
+    "cost_usd": 0.007864,
     "error": null
   },
   {
@@ -793,9 +793,9 @@
     "citations_offered": 2,
     "citations_kept": 2,
     "suppressed": false,
-    "groundedness": 0.75,
-    "latency_ms": 8531,
-    "cost_usd": 0.009094,
+    "groundedness": 0.625,
+    "latency_ms": 7875,
+    "cost_usd": 0.009586,
     "error": null
   },
   {
@@ -811,8 +811,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 10265,
-    "cost_usd": 0.010891,
+    "latency_ms": 9234,
+    "cost_usd": 0.010347,
     "error": null
   },
   {
@@ -828,8 +828,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 8609,
-    "cost_usd": 0.008627,
+    "latency_ms": 8297,
+    "cost_usd": 0.008001,
     "error": null
   },
   {
@@ -845,8 +845,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3532,
-    "cost_usd": 0.002874,
+    "latency_ms": 3000,
+    "cost_usd": 0.002492,
     "error": null
   },
   {
@@ -862,8 +862,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3797,
-    "cost_usd": 0.003056,
+    "latency_ms": 3922,
+    "cost_usd": 0.003054,
     "error": null
   },
   {
@@ -879,8 +879,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3063,
-    "cost_usd": 0.002621,
+    "latency_ms": 2688,
+    "cost_usd": 0.002374,
     "error": null
   },
   {
@@ -896,8 +896,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3359,
-    "cost_usd": 0.002775,
+    "latency_ms": 2937,
+    "cost_usd": 0.002502,
     "error": null
   },
   {
@@ -913,8 +913,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3453,
-    "cost_usd": 0.003006,
+    "latency_ms": 3500,
+    "cost_usd": 0.002949,
     "error": null
   },
   {
@@ -930,9 +930,9 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 5016,
-    "cost_usd": 0.003702,
-    "error": null
+    "latency_ms": 4593,
+    "cost_usd": 0.0,
+    "error": "AllProvidersFailedError: anthropic: anthropic 529: Error code: 529 - {'type': 'error', 'error': {'type': 'overloaded_error', 'message': 'Overloaded'}, 'request_id': 'req_011Cdv1917JSKmNNYHUUzdb9'}; gemini: gemini: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.\\nInvalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.BadRequest', 'fieldViolations': [{'field': 'generation_config.response_schema', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.'}, {'field': 'generation_config.response_schema.properties[2].value.items', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.'}]}]}}"
   },
   {
     "id": "sag-001",
@@ -947,8 +947,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 0.875,
-    "latency_ms": 13406,
-    "cost_usd": 0.009345,
+    "latency_ms": 9141,
+    "cost_usd": 0.010617,
     "error": null
   },
   {
@@ -964,8 +964,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 7188,
-    "cost_usd": 0.007989,
+    "latency_ms": 7641,
+    "cost_usd": 0.008749,
     "error": null
   },
   {
@@ -981,8 +981,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 8235,
-    "cost_usd": 0.008842,
+    "latency_ms": 8938,
+    "cost_usd": 0.010468,
     "error": null
   },
   {
@@ -997,9 +997,9 @@
     "citations_offered": 2,
     "citations_kept": 2,
     "suppressed": false,
-    "groundedness": 1.0,
-    "latency_ms": 18750,
-    "cost_usd": 0.009777,
+    "groundedness": 0.9,
+    "latency_ms": 10219,
+    "cost_usd": 0.01082,
     "error": null
   },
   {
@@ -1015,8 +1015,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 17171,
-    "cost_usd": 0.009353,
+    "latency_ms": 8500,
+    "cost_usd": 0.009912,
     "error": null
   },
   {
@@ -1027,13 +1027,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 2,
+    "first_hit_rank": 1,
     "citations_offered": 2,
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 9156,
-    "cost_usd": 0.009991,
+    "latency_ms": 8547,
+    "cost_usd": 0.010485,
     "error": null
   },
   {
@@ -1049,8 +1049,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 7360,
-    "cost_usd": 0.008022,
+    "latency_ms": 6812,
+    "cost_usd": 0.008887,
     "error": null
   },
   {
@@ -1066,8 +1066,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 0.75,
-    "latency_ms": 6500,
-    "cost_usd": 0.007955,
+    "latency_ms": 6813,
+    "cost_usd": 0.008709,
     "error": null
   },
   {
@@ -1082,9 +1082,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.75,
-    "latency_ms": 14296,
-    "cost_usd": 0.007984,
+    "groundedness": 1.0,
+    "latency_ms": 7766,
+    "cost_usd": 0.008807,
     "error": null
   },
   {
@@ -1100,8 +1100,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3953,
-    "cost_usd": 0.003027,
+    "latency_ms": 4750,
+    "cost_usd": 0.00354,
     "error": null
   },
   {
@@ -1113,12 +1113,12 @@
     "decision_correct": false,
     "retrieval_hit": true,
     "first_hit_rank": null,
-    "citations_offered": 2,
-    "citations_kept": 2,
+    "citations_offered": 3,
+    "citations_kept": 3,
     "suppressed": false,
-    "groundedness": 0.875,
-    "latency_ms": 33360,
-    "cost_usd": 0.00991,
+    "groundedness": 0.75,
+    "latency_ms": 9281,
+    "cost_usd": 0.010383,
     "error": null
   },
   {
@@ -1134,8 +1134,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3922,
-    "cost_usd": 0.003102,
+    "latency_ms": 4000,
+    "cost_usd": 0.00321,
     "error": null
   },
   {
@@ -1151,8 +1151,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 4562,
-    "cost_usd": 0.003155,
+    "latency_ms": 4641,
+    "cost_usd": 0.003158,
     "error": null
   },
   {
@@ -1167,9 +1167,9 @@
     "citations_offered": 2,
     "citations_kept": 2,
     "suppressed": false,
-    "groundedness": 1.0,
-    "latency_ms": 10000,
-    "cost_usd": 0.010365,
+    "groundedness": 0.9,
+    "latency_ms": 10984,
+    "cost_usd": 0.010903,
     "error": null
   },
   {
@@ -1185,8 +1185,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3110,
-    "cost_usd": 0.002517,
+    "latency_ms": 3265,
+    "cost_usd": 0.00273,
     "error": null
   }
 ]

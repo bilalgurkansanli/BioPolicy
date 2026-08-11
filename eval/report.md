@@ -6,13 +6,11 @@
 
 Placed before the results rather than after them, because a caveat at the bottom of a report is a caveat nobody reads.
 
-- **2 question(s) failed with a provider error and are counted as refusals.** A question the provider never answered looks identical, in every metric here, to one the system declined — so a bad afternoon at the API arrives as a false-refusal rate. The arms carrying the entailment check make three serial provider calls per question instead of two, and they are the arms with errors: `naive_entailed` (2). Read every false-refusal figure below with that subtracted.
+- **1 question(s) failed with a provider error and are counted as refusals.** A question the provider never answered looks identical, in every metric here, to one the system declined — so a bad afternoon at the API arrives as a false-refusal rate. The arms carrying the entailment check make three serial provider calls per question instead of two, and they are the arms with errors: `naive_entailed` (1). Read every false-refusal figure below with that subtracted.
 
 - **The entailment check did not do what it was built to do.** It exists because an earlier run of this report diagnosed the previous mechanisms as blind to unwarranted inference, and it is the only pass that is shown the question. On this corpus it moved refusal accuracy by +0%, moved the false-refusal rate by +0%, and added 28% to the cost of every question. Subtract the provider errors above and it changed no decisions — the same finding as the two mechanisms before it, reached the same way. It does catch something on the adversarial set (`report_hard.md`), and nothing here; shipping it always would be paying on every question for a check that fires on documents this corpus does not contain.
 
-- **The prompt did the work; the mechanisms did not.** Holding the prompt naive and switching the mechanisms on moved balanced accuracy by +0% — the same questions were answered and the same ones missed. Holding the mechanisms off and switching the prompt to the strict grounding version moved it +5%. Citation binding and self-verification add roughly 45% to the cost of every question and, on this corpus, changed no decisions.
-
-  The reason is visible in the failures they missed. The naive prompt's errors are *correct citations supporting an unwarranted inference*: asked whether a stolen car is covered, it quotes the theft clause accurately and then concludes the car is included. Binding checks that the quote is real — it is. Verification checks the claim against the excerpt — the excerpt does say theft is covered. Neither mechanism is built to catch a valid quote used to support a conclusion the document never draws, and this run is the first evidence of that blind spot. Closing it needs a check on the *inferential* step, not on the quote.
+- **The verifier scores multi-clause answers lowest — the category the product exists to handle.** Mean groundedness by category runs from 1.00 (table) down to 0.87 (multi_clause), while decision accuracy on multi_clause is 89%: every one of those answers was *correct*. The cause is in the verification prompt, which flags "two separate excerpts merged into a single claim that neither supports alone" — and a correct multi-clause answer is exactly that. The rule that catches a fabricated synthesis also catches a legitimate one. Two answers landed on 0.50, at the suppression boundary; raising the threshold to 0.6 would withhold correct answers about coverage exclusions, which is the kind of answer a user most needs.
 
 - **Citation validity of 100% is partly structural.** The answering model is constrained by a provider-enforced JSON schema and the context is small, so malformed or invented chunk ids are close to impossible by construction. The interesting half of binding — catching a *quote* that does not appear in a chunk it names — was never exercised here.
 
@@ -20,10 +18,10 @@ Placed before the results rather than after them, because a caveat at the bottom
 
 | | |
 |---|---|
-| Generated | 2026-08-09 18:54 UTC |
-| Commit | `7b38611` |
+| Generated | 2026-08-11 00:26 UTC |
+| Commit | `8dff8d9` |
 | Answering model | `claude-haiku-4-5-20251001` |
-| Embedding model | `gemini-embedding-001` (1536 dimensions) |
+| Embedding model | `voyage-4-lite` (1024 dimensions) |
 | Prompts | `answer_v2`, `verify_v1` |
 | Questions | 70 |
 | Adversarial negatives | 21 (30%) |
@@ -36,12 +34,12 @@ The naive prompt is not a strawman. It asks for accuracy, requests citations and
 
 | Arm | Refusal accuracy | False-refusal | Balanced | Citation validity | Suppressed | $/question |
 |---|---:|---:|---:|---:|---:|---:|
-| naive prompt, no mechanisms | 86% | 0% | 93% | 100% | 0 | $0.0035 |
-| naive prompt + mechanisms | 86% | 0% | 93% | 99% | 0 | $0.0062 |
+| naive prompt, no mechanisms | 76% | 0% | 88% | 100% | 0 | $0.0035 |
+| naive prompt + mechanisms | 71% | 4% | 84% | 97% | 2 | $0.0063 |
 | strict prompt, no mechanisms | 100% | 4% | 98% | 100% | 0 | $0.0049 |
 | strict prompt + mechanisms **(shipped)** | 100% | 4% | 98% | 100% | 0 | $0.0072 |
 
-**Baseline to shipped:** balanced accuracy 93% → 98%, refusal accuracy 86% → 100%.
+**Baseline to shipped:** balanced accuracy 88% → 98%, refusal accuracy 76% → 100%.
 
 **Read refusal accuracy and false-refusal rate together.** The first is trivially gamed by refusing everything, the second by never refusing. Balanced accuracy is the mean of the two and lands at 50% for either degenerate strategy — it is the column to compare arms on.
 
@@ -54,7 +52,7 @@ Measured over the answerable questions only — a negative has no correct chunk 
 | | |
 |---|---:|
 | Recall@8 | 98% |
-| MRR | 0.821 |
+| MRR | 0.833 |
 | Answerable questions | 49 |
 
 ### By category
@@ -83,13 +81,15 @@ Measured over the answerable questions only — a negative has no correct chunk 
 
 Before any model is called, the nearest retrieved passage is checked against a cosine-distance threshold. A question nothing is close to is refused for free. Reproduce with `uv run python -m eval.measure_floor`.
 
+The threshold is **0.72**, measured in the space of `voyage-4-lite`. Both are stated because neither means anything without the other: cosine distance is not comparable across embedding models, so a threshold quoted on its own cannot be checked, and a threshold left behind when the model changes cannot be noticed.
+
 | Population | n | min | median | max | Refused by the floor |
 |---|---:|---:|---:|---:|---:|
-| answerable | 49 | 0.2021 | 0.3028 | 0.4194 | 0 / 49 |
-| on-topic, unanswerable | 21 | 0.2710 | 0.3368 | 0.4402 | 0 / 21 |
-| other insurance topic | 18 | 0.3206 | 0.4386 | 0.5093 | 7 / 18 |
-| unrelated entirely | 18 | 0.4681 | 0.5057 | 0.5718 | 18 / 18 |
-| identifier queries | 8 | 0.3059 | 0.3807 | 0.4038 | 0 / 8 |
+| answerable | 49 | 0.3603 | 0.4890 | 0.6967 | 0 / 49 |
+| on-topic, unanswerable | 21 | 0.5242 | 0.5891 | 0.7221 | 2 / 21 |
+| other insurance topic | 18 | 0.4095 | 0.7184 | 0.8303 | 9 / 18 |
+| unrelated entirely | 18 | 0.7339 | 0.8559 | 0.9586 | 18 / 18 |
+| identifier queries | 8 | 0.5832 | 0.7012 | 0.8010 | 3 / 8 |
 
 **What the floor does not do is the point.** The answerable and on-topic-unanswerable populations overlap almost completely — the nearest unanswerable question is closer than the median answerable one — so no threshold separates them and the floor does not try. It separates on-topic from off-topic, where the gap is real, and leaves the harder judgement to the prompt.
 
@@ -97,8 +97,8 @@ Before any model is called, the nearest retrieved passage is checked against a c
 
 | | |
 |---|---:|
-| Citations offered | 62 |
-| Survived binding | 62 |
+| Citations offered | 61 |
+| Survived binding | 61 |
 | Citation validity | 100% |
 | Answers suppressed (caught hallucinations) | 0 |
 | Mean groundedness (served answers) | 0.96 |
@@ -107,10 +107,10 @@ Mean groundedness by category, over served answers:
 
 | Category | Mean groundedness | Decision accuracy |
 |---|---:|---:|
-| multi_clause | 0.94 | 89% |
-| factual | 0.96 | 95% |
-| table | 0.97 | 100% |
+| multi_clause | 0.87 | 89% |
+| factual | 0.97 | 95% |
 | cross_lingual | 0.98 | 100% |
+| table | 1.00 | 100% |
 
 Groundedness distribution over served answers:
 
@@ -127,9 +127,9 @@ The mean covers **served** answers only. Including suppressed ones would mix “
 | | |
 |---|---:|
 | Cost per question | $0.0072 |
-| p50 latency | 6.2s |
-| p95 latency | 15.7s |
-| Total for this run | $2.73 |
+| p50 latency | 5.8s |
+| p95 latency | 8.1s |
+| Total for this run | $2.77 |
 
 p50 and p95 rather than a mean: one cold start moves a mean and says nothing about the typical experience.
 
