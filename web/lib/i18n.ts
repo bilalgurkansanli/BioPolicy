@@ -28,9 +28,9 @@ export const DEFAULT_LOCALE: Locale = "en";
 
 const tr = {
   meta: {
-    title: "BioPolicy — poliçenizde gerçekten ne yazıyor",
+    title: "BioPolicy — belgenizde gerçekten ne yazıyor",
     description:
-      "Sigorta poliçeleri ve hukuki sözleşmeler için, her cevabı belgedeki maddeye bağlayan; belge cevabı içermiyorsa cevap vermeyi reddeden bir soru-cevap sistemi.",
+      "Sigorta poliçesi, sözleşme ya da herhangi bir PDF: her cevabı belgedeki maddeye bağlayan, belge cevabı içermiyorsa cevap vermeyi reddeden bir soru-cevap sistemi.",
     // What each route is called. Two consumers, deliberately sharing one
     // source: the browser tab, which `LocaleProvider` rewrites because page
     // metadata is resolved at build time and cannot follow a client-side
@@ -78,12 +78,12 @@ const tr = {
     eyebrow: "Açık kaynak · sayıları yayımlanmış · TR/EN",
     // Two sentences, authored as two lines rather than left to `text-balance`.
     // The balancer optimises for even line widths, not for meaning, and on this
-    // string it breaks mid-sentence — the English reads "Ask your policy. Get /
+    // string it breaks mid-sentence — the English reads "Ask your document. Get /
     // the clause, not a guess", which is the dangling word the balancer exists
     // to prevent. A line per sentence is the couplet the tagline is written as.
-    thesis: ["Poliçenize sorun.", "Tahmin değil, maddenin kendisini alın."],
-    lede: "Her cevap, dayandığı maddeyle birlikte belgenin üzerinde işaretli gelir. “Bu bilgi bu belgede yok” da bir cevaptır.",
-    ctaPrimary: "Örnek bir poliçeyle deneyin",
+    thesis: ["Belgenize sorun.", "Tahmin değil, maddenin kendisini alın."],
+    lede: "Poliçe, sözleşme, herhangi bir PDF. Her cevap dayandığı maddeyle birlikte belgede işaretli gelir; “bu bilgi bu belgede yok” da bir cevaptır.",
+    ctaPrimary: "Örnek bir belgeyle deneyin",
     ctaSecondary: "Nasıl çalışıyor",
     ctaNote: "Örnekler hesapsız okunur · Soru sormak için Google ile giriş · Günde 3 soru",
     howTitle: "Üç adımda",
@@ -316,7 +316,7 @@ const tr = {
     reset: "Seçimimi değiştir",
   },
   signin: {
-    title: "Poliçenizi sorun",
+    title: "Belgenize sorun",
     lede: "Devam etmek için Google hesabınızla girin. Örnek belgeleri girmeden de inceleyebilirsiniz.",
     why: "Her soru gerçek bir model çağrısı ve gerçek bir fatura. Giriş, günlük hakkın kime ait olduğunu belirliyor — başka bir sebebi yok.",
     browse: "Girmeden incele",
@@ -513,9 +513,9 @@ type Dictionary = typeof tr;
 
 const en: Dictionary = {
   meta: {
-    title: "BioPolicy — what your policy actually says",
+    title: "BioPolicy — what your document actually says",
     description:
-      "Question answering over insurance policies and legal contracts that binds every answer to a clause in the document, and refuses when the document does not say.",
+      "A policy, a contract or any PDF: question answering that binds every answer to a clause in the document, and refuses when the document does not say.",
     pages: {
       app: "Workspace",
       eval: "Evaluation",
@@ -549,9 +549,9 @@ const en: Dictionary = {
   },
   landing: {
     eyebrow: "Open source · every number published · TR/EN",
-    thesis: ["Ask your policy.", "Get the clause, not a guess."],
-    lede: "Every answer arrives with its clause, highlighted in the document. “That isn't in this document” is an answer too.",
-    ctaPrimary: "Try it on a sample policy",
+    thesis: ["Ask your document.", "Get the clause, not a guess."],
+    lede: "A policy, a contract, any PDF. Every answer arrives with its clause, highlighted in the document — and “that isn't in this document” is an answer too.",
+    ctaPrimary: "Try it on a sample document",
     ctaSecondary: "How it works",
     ctaNote: "Samples readable without an account · Google sign-in to ask · 3 questions a day",
     howTitle: "In three steps",
@@ -783,7 +783,7 @@ const en: Dictionary = {
     reset: "Change my choice",
   },
   signin: {
-    title: "Ask your policy",
+    title: "Ask your document",
     lede: "Sign in with Google to continue. The sample documents are readable without an account.",
     why: "Every question is a real model call against a real bill. Signing in is what the daily allowance is counted against — that is the whole reason for it.",
     browse: "Look around first",
