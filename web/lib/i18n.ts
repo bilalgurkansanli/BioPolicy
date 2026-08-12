@@ -31,6 +31,20 @@ const tr = {
     title: "BioPolicy — poliçenizde gerçekten ne yazıyor",
     description:
       "Sigorta poliçeleri ve hukuki sözleşmeler için, her cevabı belgedeki maddeye bağlayan; belge cevabı içermiyorsa cevap vermeyi reddeden bir soru-cevap sistemi.",
+    // What each route is called. Two consumers, deliberately sharing one
+    // source: the browser tab, which `LocaleProvider` rewrites because page
+    // metadata is resolved at build time and cannot follow a client-side
+    // preference (ADR 011), and the heading on the legal pages, which reads
+    // these rather than carrying its own copy. A tab that disagrees with the
+    // `<h1>` under it is the drift this avoids.
+    pages: {
+      app: "Çalışma alanı",
+      eval: "Değerlendirme",
+      signin: "Giriş",
+      privacy: "Gizlilik Bildirimi",
+      terms: "Kullanım Koşulları",
+      cookies: "Çerezler",
+    },
   },
   nav: {
     workspace: "Deneyin",
@@ -438,11 +452,12 @@ const tr = {
     caveat:
       "Bu sayılar, bu proje için yazılmış üç sentetik belge üzerinde ölçüldü. Gerçek bir poliçe derleminde ne olacağını göstermezler; raporun tamamı, neyi göstermediklerini de anlatıyor.",
     fullReport: "Raporun tamamı",
-    fullReportNote:
-      "Yöntem, kategori kırılımları, mekanizmaların açık ve kapalı ölçümü, bu koşunun çekinceleri.",
-    adversarial: "Sistemi zorlamak için yazılmış belgeler",
+    fullReportNote: "Bölüm bölüm. Neyi ölçmediğini söyleyen kısımla başlıyor.",
+    adversarialQuestions: "soru",
+    adversarialFile: "Bu koşunun tamamı: report_hard.tr.md",
+    adversarial: "Zor belgeler",
     adversarialNote:
-      "Kendisiyle çelişen ve sisteme talimat vermeye çalışan belgeler. Ayrı derlem, ayrı sayılar.",
+      "Kendisiyle çelişen bir poliçe ve iki sütun düzeninde yazılmış bir kasko. Ayrı derlem, ayrı sayılar.",
     cards: {
       refusalAccuracy: "Doğru ret",
       refusalAccuracyNote: "Belgede cevabı olmayan sorularda uydurmadı.",
@@ -501,6 +516,14 @@ const en: Dictionary = {
     title: "BioPolicy — what your policy actually says",
     description:
       "Question answering over insurance policies and legal contracts that binds every answer to a clause in the document, and refuses when the document does not say.",
+    pages: {
+      app: "Workspace",
+      eval: "Evaluation",
+      signin: "Sign in",
+      privacy: "Privacy Notice",
+      terms: "Terms of Use",
+      cookies: "Cookies",
+    },
   },
   nav: {
     workspace: "Try it",
@@ -896,11 +919,12 @@ const en: Dictionary = {
     caveat:
       "These were measured on three synthetic documents written for this project. They do not tell you what happens on a real corpus of policies — and the full report is explicit about what else they do not show.",
     fullReport: "The full report",
-    fullReportNote:
-      "Method, per-category breakdowns, each mechanism measured on and off, and this run's caveats.",
-    adversarial: "Documents written to break it",
+    fullReportNote: "Section by section. It opens with what it does not measure.",
+    adversarialQuestions: "questions",
+    adversarialFile: "The whole run: report_hard.md",
+    adversarial: "Hard documents",
     adversarialNote:
-      "Documents that contradict themselves, and documents that try to give the system orders. A different corpus, different numbers.",
+      "A policy that contradicts itself, and one typeset in two columns. A different corpus, so different numbers.",
     cards: {
       refusalAccuracy: "Correct refusals",
       refusalAccuracyNote: "Questions the document cannot answer, refused.",
