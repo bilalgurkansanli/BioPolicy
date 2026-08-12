@@ -14,4 +14,4 @@ contact_links:
       that did not go the way I hoped.
   - name: Why something was built this way
     url: https://github.com/bilalgurkansanli/BioPolicy/tree/main/docs/adr
-    about: Fifteen decision records, each with the alternative it was chosen over.
+    about: Sixteen decision records, each with the alternative it was chosen over.

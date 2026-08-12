@@ -91,7 +91,6 @@ jobs:
           # only need to be well-formed enough for Next to finish a build.
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-          NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8000
 
   docker:
     name: API image builds

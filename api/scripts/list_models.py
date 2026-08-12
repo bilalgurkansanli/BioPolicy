@@ -133,8 +133,8 @@ async def verify_embedding_dimensions(api_key: str, model: str) -> bool:
     if width != EMBEDDING_DIM:
         fail(f"asked for {EMBEDDING_DIM} dimensions, received {width}")
         print(
-            f"        {DIM}The vector(1536) column and the HNSW index both assume "
-            f"{EMBEDDING_DIM}. Do not ingest anything until this matches.{RESET}"
+            f"        {DIM}The vector({EMBEDDING_DIM}) column and the HNSW index both "
+            f"assume {EMBEDDING_DIM}. Do not ingest anything until this matches.{RESET}"
         )
         return False
 
