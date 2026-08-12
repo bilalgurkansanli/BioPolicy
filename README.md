@@ -4,10 +4,10 @@
 
 # BioPolicy
 
-**Ask your policy. Get the clause, not a guess.**
+**Ask your document. Get the clause, not a guess.**
 
-Multilingual, citation-grounded question answering over insurance policies and
-legal contracts — built to be measured, not just demoed.
+Multilingual, citation-grounded question answering over any PDF — a policy, a
+contract, anything you have to rely on. Built to be measured, not just demoed.
 
 [![CI](https://github.com/bilalgurkansanli/BioPolicy/actions/workflows/ci.yml/badge.svg)](https://github.com/bilalgurkansanli/BioPolicy/actions/workflows/ci.yml)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE)
@@ -34,7 +34,7 @@ legal contracts — built to be measured, not just demoed.
 > result that does not flatter the system is the only kind worth publishing.
 
 <picture>
-  <img src="./docs/screenshots/workspace.png" alt="The workspace: sample documents on the left, the answer in the middle, the policy PDF on the right" width="100%">
+  <img src="./docs/screenshots/workspace.png" alt="The workspace: sample documents on the left, the answer in the middle, the document itself on the right" width="100%">
 </picture>
 
 ## The problem
@@ -175,7 +175,7 @@ flowchart LR
     U --> P["Parse · detect scanned · OCR"]
     P --> S["Scan for instruction-shaped text"]
     S --> C["Chunk ~700 tokens<br/>on clause boundaries"]
-    C --> E["Embed → pgvector (1536d)"]
+    C --> E["Embed → pgvector (1024d)"]
   end
 
   subgraph ask["Answering — every question"]
@@ -198,8 +198,9 @@ context is the cheap-looking optimisation that makes chat RAG confidently wrong.
 
 **Stack.** Next.js (App Router) + TypeScript + Tailwind on Vercel ·
 Python 3.12 + FastAPI in a container function · Supabase for Postgres, pgvector,
-Auth and Storage · Claude Haiku for generation · Gemini for embeddings and vision
-OCR.
+Auth and Storage · Claude Haiku for generation · Voyage for embeddings, with
+Gemini as the fallback ([ADR 016](./docs/adr/016-voyage-embeddings.md)) · Gemini
+for vision OCR.
 
 Three platform constraints shaped the design more than any preference did:
 
@@ -209,10 +210,10 @@ Three platform constraints shaped the design more than any preference did:
 2. **Serverless functions are stateless and time-bounded.** Parsing, OCR and
    embedding a scanned document takes minutes, so ingestion is an asynchronous
    job with observable status transitions — never an inline request.
-3. **pgvector's HNSW index tops out at 2000 dimensions.** The embedding model
-   emits 3072 by default, so we explicitly request 1536 — the model is
-   Matryoshka-trained, making truncation a designed-for operation rather than
-   lossy mangling. See [`api/constants.py`](./api/constants.py).
+3. **pgvector's HNSW index tops out at 2000 dimensions.** `voyage-4-lite` offers
+   256, 512, 1024 and 2048, so 2048 is unusable and **1024** is the widest vector
+   that can be indexed at all. Above the ceiling nothing errors — every query
+   quietly degrades to a sequential scan. See [`api/constants.py`](./api/constants.py).
 
 Full walkthrough: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
@@ -279,6 +280,12 @@ language are independent here — see
 BioPolicy summarises what a document says. It is **not legal or insurance
 advice**, it does not tell you whether to file a claim or sign anything, and it
 can be wrong. The citation is there so you can check it in one click.
+
+It is also not measured on everything it accepts. Any PDF can be uploaded and
+asked about, and the pipeline treats them all the same — but the samples, the
+seventy-question set and every number below are insurance policies and
+contracts. Those are the documents this was built against, and they are the
+only ones it can show you results for.
 
 Uploaded documents are irreversibly deleted — file and vectors — after 24 hours,
 and you can delete one yourself at any time. That promise is enforced by a
@@ -357,7 +364,7 @@ obvious PDF library isn't the one used here.
 > eklediği koşu dahil. Sistemi övmeyen bir sonuç, yayımlamaya değen tek sonuçtur.
 
 <picture>
-  <img src="./docs/screenshots/workspace.tr.png" alt="Çalışma ekranı: solda örnek belgeler, ortada cevap, sağda poliçenin kendisi" width="100%">
+  <img src="./docs/screenshots/workspace.tr.png" alt="Çalışma ekranı: solda örnek belgeler, ortada cevap, sağda belgenin kendisi" width="100%">
 </picture>
 
 ## Problem
@@ -502,7 +509,7 @@ flowchart LR
     U --> P["Ayrıştır · taranmış mı tespit et · OCR"]
     P --> S["Talimat biçimli metni tara"]
     S --> C["~700 tokenlik parçalara böl<br/>madde sınırlarına saygılı"]
-    C --> E["Vektöre çevir → pgvector (1536b)"]
+    C --> E["Vektöre çevir → pgvector (1024b)"]
   end
 
   subgraph ask["Cevaplama — her soruda"]
@@ -526,8 +533,8 @@ optimizasyondur.
 
 **Teknoloji.** Vercel üzerinde Next.js (App Router) + TypeScript + Tailwind ·
 konteyner fonksiyonda Python 3.12 + FastAPI · Postgres, pgvector, Auth ve
-depolama için Supabase · üretim için Claude Haiku · gömme ve görsel OCR için
-Gemini.
+depolama için Supabase · üretim için Claude Haiku · gömme için Voyage, yedeği
+Gemini ([ADR 016](./docs/adr/016-voyage-embeddings.md)) · görsel OCR için Gemini.
 
 Tasarımı, herhangi bir tercihten çok üç platform kısıtı şekillendirdi:
 
@@ -537,10 +544,10 @@ Tasarımı, herhangi bir tercihten çok üç platform kısıtı şekillendirdi:
 2. **Sunucusuz fonksiyonlar durumsuz ve süre sınırlıdır.** Taranmış bir belgeyi
    ayrıştırmak, OCR'lamak ve gömmek dakikalar sürüyor; bu yüzden alım, durum
    geçişleri izlenebilen asenkron bir iş — asla satır içi bir istek değil.
-3. **pgvector'ün HNSW indeksi 2000 boyutta tıkanır.** Gömme modeli varsayılan
-   olarak 3072 üretiyor, biz açıkça 1536 istiyoruz — model Matryoshka eğitimli,
-   yani kırpma tasarlanmış bir işlem, kayıplı bir bozma değil. Bkz.
-   [`api/constants.py`](./api/constants.py).
+3. **pgvector'ün HNSW indeksi 2000 boyutta tıkanır.** `voyage-4-lite` 256, 512,
+   1024 ve 2048 sunuyor; yani 2048 kullanılamaz ve indekslenebilecek en geniş
+   vektör **1024**. Tavanın üstünde hiçbir şey hata vermiyor — her sorgu sessizce
+   sıralı taramaya düşüyor. Bkz. [`api/constants.py`](./api/constants.py).
 
 Ayrıntılı anlatım: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
@@ -605,6 +612,11 @@ BioPolicy bir belgenin ne dediğini özetler. **Hukuki ya da sigorta tavsiyesi
 değildir**, hasar ihbarında bulunup bulunmayacağınızı ya da bir şeyi imzalayıp
 imzalamayacağınızı söylemez ve yanılabilir. Kaynak, tek tıkla kontrol
 edebilesiniz diye orada.
+
+Kabul ettiği her belge üzerinde ölçülmüş de değil. Herhangi bir PDF yüklenip
+sorulabilir ve boru hattı hepsine aynı davranır — ama örnekler, yetmiş soruluk
+küme ve aşağıdaki her sayı sigorta poliçeleri ve sözleşmelerdir. Bu sistem o
+belgelere karşı yazıldı ve sonuç gösterebildiği tek belge türü de o.
 
 Yüklenen belgeler 24 saat sonra geri dönüşsüz siliniyor — dosya ve vektörler — ve
 istediğiniz an kendiniz de silebiliyorsunuz. Bu söz, iddiayla değil, zamanlanmış
