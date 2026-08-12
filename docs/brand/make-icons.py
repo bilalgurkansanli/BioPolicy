@@ -11,6 +11,13 @@ scanline fill an exact silhouette. The span is pulled in by two pixels so the
 row of half-blended edge pixels does not survive as a pale fringe on a dark
 background.
 
+The source is stored as **lossless** WebP, not lossy and not PNG. Lossy is
+unusable here for a reason specific to this script: the silhouette is found by
+thresholding on `b - r > 45 and b > 110`, so a compressor that moves an edge
+pixel by a few levels moves the crop with it. Lossless halves the file — 4.3 MB
+to 2.1 MB, which every clone of this repository pays for — and leaves every
+pixel identical, which the icons below are checked against.
+
 The favicon is not merely unpadded, it overflows the top of its square. A
 browser tab gives every icon the same square box, and the shield is a fifth
 taller than it is wide, so fitting it whole leaves a tenth of the box empty down
@@ -26,7 +33,7 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
-SRC = ROOT / "docs" / "brand" / "logo-source.png"
+SRC = ROOT / "docs" / "brand" / "logo-source.webp"
 WEB = ROOT / "web"
 
 INSET = 2

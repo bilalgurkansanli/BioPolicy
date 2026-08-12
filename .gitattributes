@@ -6,6 +6,7 @@
 # Never touch these.
 *.pdf binary
 *.png binary
+*.webp binary
 *.jpg binary
 *.ico binary
 *.woff binary
