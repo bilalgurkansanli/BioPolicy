@@ -7,7 +7,7 @@ import { SessionProvider } from "@/components/SessionProvider";
 import { StructuredData } from "@/components/StructuredData";
 import { PageTransition } from "@/components/PageTransition";
 import { DEFAULT_LOCALE, dictionaries } from "@/lib/i18n";
-import { AUTHOR, REPO_URL, SITE_URL } from "@/lib/site";
+import { AUTHOR, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
 
 import "./globals.css";
 
@@ -21,9 +21,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Metadata is static and cannot follow a client-side preference, so it uses the
-// default locale. The visible interface still switches; only the tab title and
-// the crawler's copy stay in the default language.
+// Metadata is resolved at build time and cannot follow a client-side
+// preference, so what is served here is the default locale. That is the right
+// answer for the readers who cannot state one — crawlers and link previews —
+// and it stays the honest shape described in ADR 011: one URL, one document.
+//
+// The browser tab is the exception, and only because it has a reader who *has*
+// stated a preference. `LocaleProvider` rewrites `document.title` after
+// hydration from `meta.pages`, the same way it corrects `<html lang>`. Nothing
+// a crawler reads changes; the description, the Open Graph card and the
+// canonical URL below are all still served in the default locale.
 const meta = dictionaries[DEFAULT_LOCALE].meta;
 
 export const metadata: Metadata = {
@@ -34,7 +41,13 @@ export const metadata: Metadata = {
   title: {
     default: meta.title,
     // Every other page supplies its own name and inherits the rest.
-    template: `%s — BioPolicy`,
+    //
+    // The site comes first because a tab is narrow and truncates from the end:
+    // at six or seven visible characters, "Çalışma alanı — …" says which page
+    // of an unnamed site you are on, and "BioPolicy — …" says which of the
+    // fifteen tabs open is this one. The second is the question a tab strip is
+    // actually asked.
+    template: `${SITE_NAME} — %s`,
   },
   description: meta.description,
   applicationName: "BioPolicy",

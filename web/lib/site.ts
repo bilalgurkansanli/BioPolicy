@@ -25,6 +25,17 @@ function resolve(): string {
 
 export const SITE_URL = resolve();
 
+/**
+ * What every tab title begins with.
+ *
+ * Shared rather than written twice: the root layout builds its title template
+ * from this, and `LocaleProvider` rebuilds the same string on the client when
+ * the reader's language is not the one the page was prerendered in. Two copies
+ * of a separator and a name is how a tab ends up reading "BioPolicy - Workspace"
+ * in one language and "BioPolicy — Çalışma alanı" in the other.
+ */
+export const SITE_NAME = "BioPolicy";
+
 /** The repository, quoted in structured data as the thing this page is about. */
 export const REPO_URL = "https://github.com/bilalgurkansanli/BioPolicy";
 
