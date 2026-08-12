@@ -18,12 +18,14 @@ Things that must not be guessed, with the date they were checked.
 | Haiku 4.5 accepts `temperature` | yes — unlike the newest Opus/Sonnet models | 2026-08-04 |
 | Gemini fallback LLM model ID | `gemini-3.6-flash` | 2026-08-04 |
 | Gemini vision OCR model ID | `gemini-3.6-flash` | 2026-08-04 |
-| `gemini-embedding-001` pricing | **$0.15** per million input tokens (no output tokens) | 2026-08-09 |
 | `gemini-3.6-flash` pricing | **$1.50 / $7.50** per million input / output tokens | 2026-08-09 |
-| Embedding model | `gemini-embedding-001` | 2026-08-04 |
-| Embedding dimensions requested | **1536 confirmed by a live call** (of 3072 native) | 2026-08-04 |
+| Embedding model **in force** | `voyage-4-lite` ([ADR 016](./adr/016-voyage-embeddings.md)) | 2026-08-12 |
+| Embedding fallback model | `gemini-embedding-001` — used only when `VOYAGE_API_KEY` is unset | 2026-08-12 |
+| Embedding dimensions requested | **1024, confirmed by a live call** — `output_dimension: 1024`, and `validate_dimensions` refuses any other width | 2026-08-12 |
+| `voyage-4-lite` pricing | **$0.02** per million tokens, after a one-off 200M free allowance | 2026-08-10 |
+| `gemini-embedding-001` pricing | **$0.15** per million input tokens (no output tokens) — the fallback's rate | 2026-08-09 |
 | `turkish` FTS config present in Postgres | **yes** — `fts_tr` built with `'turkish'::regconfig`, not the `simple` fallback | 2026-08-04 |
-| HNSW index on `vector(1536)` | built successfully — C3 holds end to end | 2026-08-04 |
+| HNSW index on `vector(1024)` | `chunks_embedding_idx` present and valid after migration 0012 — C3 holds end to end | 2026-08-12 |
 
 ### A listed model is not necessarily a callable model
 
@@ -49,10 +51,19 @@ This is not just a listing. It:
    ([ADR 004](./adr/004-model-ids-are-verified-not-recalled.md)).
 2. Pings the Anthropic model with one tiny request.
 3. **Tests constraint C3 for real** — makes an actual embedding call and
-   measures the returned vector. The entire storage design assumes
-   `gemini-embedding-001` honours `output_dimensionality: 1536`. Until this
-   passes, that is a documented assumption, not a fact. **Do not run migrations
-   or ingest anything until it does.**
+   measures the returned vector against `EMBEDDING_DIM` (1024). Until this
+   passes, the storage design rests on a documented assumption rather than a
+   fact. **Do not run migrations or ingest anything until it does.**
+
+   **It probes the fallback, not the embedder in force.** The script calls
+   `gemini-embedding-001` directly; since ADR 016 the provider actually used is
+   `voyage-4-lite` whenever `VOYAGE_API_KEY` is set. So a green run proves the
+   column width is achievable, not that the configured embedder honours it. What
+   proves that is the first ingest: `VoyageEmbedder` asks for
+   `output_dimension: 1024` and `validate_dimensions` raises on anything else,
+   before a single row is written. Confirm which provider a running process
+   chose with `/api/health` — `retrieval.embedding_model` is the answer, and it
+   is read from the same `build_embedder` the pipeline uses.
 
 A full run costs a fraction of a cent. Record the chosen model IDs and today's
 date in the table above.
@@ -89,6 +100,51 @@ The consequences of leaving them unset are now graded by environment:
 Re-check the figures whenever a model id changes, and update both the table
 above and the date. A stale price is a silent under-count, which is the same
 failure in a slower form.
+
+### Voyage rate limits are a deployment variable, and they set ingest time
+
+Voyage meters **both** requests and tokens per minute, and an account with no
+payment method on file is held at **3 RPM / 10K TPM** — which it says outright
+when it throttles. `config.py` defaults to exactly that, because it is what a
+fresh account gets and pacing faster than the server allows converts progress
+into 429s and backoff.
+
+This is the largest single term in how long an ingest takes. A 27-page policy is
+~36K tokens, so on the reduced tier 3.6 of its four minutes are this ceiling and
+nothing else.
+
+**Lifting it with the provider does nothing on its own.** The limit is enforced
+on both sides and the slower one wins, so raising the account's ceiling means
+also raising it in the deployment:
+
+```bash
+VOYAGE_REQUESTS_PER_MINUTE=2000
+VOYAGE_TOKENS_PER_MINUTE=16000000
+```
+
+Copy whatever the provider's own Rate Limits page states for the account. What a
+running process actually believes is readable without guessing — `/api/health`
+reports `retrieval.embed_requests_per_minute` and `embed_tokens_per_minute`, and
+those two fields exist because both were once wrong in a live process for an
+afternoon with no way to see it from outside.
+
+### Embedding spend does not reach the circuit breaker
+
+Stated here rather than in the backlog, because the section on the breaker below
+would otherwise read as a promise the accounting does not keep.
+
+`api/ingest/pipeline.py` embeds a whole document without writing a `usage_events`
+row, so `GLOBAL_BUDGET_USD` is watching a total that every ingest is absent from.
+Voyage is not in `Settings.priced_models` either, so `/api/health` will not flag
+it as `unpriced` — it is invisible in both directions.
+
+Under Gemini the obstacle was real: the endpoint reported
+`billable_character_count` against a per-token rate card, and the ratio was a
+number this project would not invent. Voyage removed that obstacle —
+`usage.total_tokens` is the provider's own figure in the provider's own unit —
+and the ledger has not caught up yet. Until it does, **the provider console spend
+limits are the only guard on embedding cost.** Never remove them on the grounds
+that a budget ceiling exists in the application.
 
 ### Verifying the Turkish text-search configuration
 
@@ -253,9 +309,23 @@ Both projects need their own set. The API project takes everything in
     NEXT_PUBLIC_SUPABASE_URL
     NEXT_PUBLIC_SUPABASE_ANON_KEY
     API_ORIGIN            → the api project's own *.vercel.app hostname
+    NEXT_PUBLIC_SITE_URL  → https://biopolicy.bilalgurkansanli.com
 
 `API_ORIGIN` is read at build time by `web/next.config.ts`, so changing it needs
 a redeploy of the web project rather than a restart.
+
+**`NEXT_PUBLIC_SITE_URL` is the one with a silent failure mode.** It is the
+origin every absolute URL a crawler reads is built from: the canonical link on
+each page, every entry in `sitemap.xml`, the `Host` line in `robots.txt`, and
+the Open Graph image. Unset, `web/lib/site.ts` falls back to Vercel's
+`VERCEL_PROJECT_PRODUCTION_URL`, and that names a domain Vercel picks. When it
+picks the `*.vercel.app` one nothing errors — the site simply publishes a
+sitemap and a set of canonicals pointing at a second hostname serving identical
+pages, which is the standard way to split one domain's ranking across two
+addresses. Set it explicitly and the guess never happens.
+
+It is read at build time like `API_ORIGIN`, and by the same mechanism: changing
+it in a running deployment does nothing until a rebuild.
 
 ### After the first deploy
 
@@ -267,6 +337,20 @@ a redeploy of the web project rather than a restart.
 3. Run `python -m api.scripts.seed_samples` against the deployed environment so
    the demo has its three documents.
 4. Check `/api/health` reports every provider as `configured`.
+5. **Confirm the crawler sees the right hostname**, which is one command and
+   catches the `NEXT_PUBLIC_SITE_URL` failure above:
+
+   ```bash
+   curl -s https://biopolicy.bilalgurkansanli.com/robots.txt
+   ```
+
+   Both `Host:` and `Sitemap:` must name the custom domain. If either says
+   `*.vercel.app`, the variable did not reach the build — fix it and redeploy
+   before anything gets indexed.
+6. Add the property in Google Search Console, paste its token into
+   `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` on the web project and redeploy — the
+   `<meta name="google-site-verification">` tag is emitted only when that
+   variable is set — then submit `/sitemap.xml` from the same screen.
 
 ### The topology
 

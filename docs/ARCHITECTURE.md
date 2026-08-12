@@ -23,7 +23,8 @@ flowchart TB
 
     subgraph providers["Model providers"]
         CLAUDE["Claude Haiku 4.5<br/>answering + verification"]
-        GEMINI["Gemini<br/>embeddings + vision OCR"]
+        VOYAGE["voyage-4-lite<br/>embeddings"]
+        GEMINI["Gemini<br/>vision OCR<br/>+ answering / embedding fallback"]
     end
 
     UI -->|"same-origin /api/*"| WEB
@@ -34,6 +35,7 @@ flowchart TB
     API --> PG
     API --> STORE
     API --> CLAUDE
+    API --> VOYAGE
     API --> GEMINI
     PG -->|"pg_cron every 15 min"| API
 ```
@@ -94,14 +96,29 @@ The client polls or subscribes and renders real stage names, not a spinner.
 
 ### C3 — pgvector's HNSW index stops at 2000 dimensions
 
-`gemini-embedding-001` emits 3072 by default. Stored at full width, the column
-cannot be HNSW-indexed and every query degrades to a sequential scan — a silent
-performance cliff, not an error.
+Above that width the column cannot be HNSW-indexed and every query degrades to a
+sequential scan — a silent performance cliff, not an error.
 
-We request `output_dimensionality: 1536`. The model is Matryoshka-trained, so a
-prefix is a designed-for truncation rather than lossy mangling. The value lives
-in exactly one place, `api/constants.py::EMBEDDING_DIM`, and a unit test asserts
-it stays under the ceiling.
+Embeddings come from `voyage-4-lite`, which offers 256, 512, 1024 and 2048. 2048
+is over the ceiling, so **1024** is the widest vector this system can index at
+all. It is also a width `gemini-embedding-001` can produce, which is deliberate:
+the fallback embedder still matches the column, so a deployment that switches
+providers fails at insert time rather than writing vectors of the wrong shape.
+
+The value lives in exactly one place, `api/constants.py::EMBEDDING_DIM`, and a
+unit test asserts it stays under the ceiling. Migration 0012's column type is
+derived from that constant by hand, and the two must agree.
+
+> It was 1536 until 2026-08-10 — a truncation of `gemini-embedding-001`'s native
+> 3072, chosen as the largest round number under the ceiling. What moved it was
+> not the ceiling but a quota shape: Google's free tier counts *passages*, 1,000
+> a day, and one 27-page policy is 132 of them. Migration 0012 deletes every
+> stored vector, widens the column and rebuilds the index, because there is no
+> conversion between two embedding spaces — querying old rows with new query
+> vectors does not error, it returns confident nonsense.
+> [ADR 016](./adr/016-voyage-embeddings.md) records the move, and the hour spent
+> debugging a table extractor when a second copy of the provider choice was
+> doing exactly that.
 
 ---
 
@@ -112,7 +129,7 @@ _Built in Phase 2._
 ```mermaid
 flowchart LR
     Q["User question"] --> RW["Standalone rewrite<br/>from last N turns"]
-    RW --> EMB["Embed<br/>task=RETRIEVAL_QUERY"]
+    RW --> EMB["Embed 1024d<br/>input_type=query"]
     RW --> FTS["websearch_to_tsquery<br/>tr + en"]
 
     EMB --> VEC["Vector top-30<br/>cosine"]

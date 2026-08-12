@@ -51,10 +51,26 @@ product. All four pages stay statically prerendered.
 
 **Cost, and it is real:** the interface language is not in the URL, so it cannot
 be linked to or crawled. `<html lang>` is corrected on the client after
-hydration rather than served correct, and page metadata — the tab title and the
-description a crawler reads — is Turkish for everyone. For a portfolio demo whose
-content is identical in both languages, that is an acceptable trade; for a
-product with translated *content*, it would not be.
+hydration rather than served correct, and page metadata — the description, the
+Open Graph card, the canonical URL — is served in the default locale to
+everybody. For a portfolio demo whose content is identical in both languages,
+that is an acceptable trade; for a product with translated *content*, it would
+not be.
+
+**The tab title is the one exception, added later.** It is the only piece of
+metadata whose reader has stated a preference, so `LocaleProvider` rewrites
+`document.title` after hydration from `meta.pages`, the same way and for the
+same reason it corrects `<html lang>`. Nothing a crawler reads changes.
+
+Doing it needs more than one assignment, and the reason is worth recording
+because it is invisible until measured. React owns the `<title>` node, and which
+of us writes last depends on how the page was reached: on a client-side
+navigation Next writes its metadata title and our effect corrects it five
+milliseconds later, but on a **first load** the order inverts — our write lands
+during hydration effects and React's commit of the build-time metadata follows
+it. Setting the title once therefore works on every link click and fails on the
+one load that matters. `LocaleProvider` watches the node with a
+`MutationObserver` and reasserts instead of guessing at a delay.
 
 **Revisit if:** the interface ever fronts locale-specific content — a Turkish
 landing page with different copy, region-specific policy documents, or anything

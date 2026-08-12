@@ -188,13 +188,19 @@ adding ~55% to the cost.** These are the open threads from that.
 - **Record embedding calls in `usage_events`.** They are the one provider call
   the ledger never sees: `api/ingest/pipeline.py` embeds a whole document
   without writing a usage row, so the spend counter and the budget breaker both
-  under-report by the cost of every ingest. The obstacle is real rather than
-  laziness — the endpoint reports `billable_character_count` while the rate card
-  is per *token*, and converting between them would be the fabricated number
-  `api/pricing.py` refuses on principle. Either find Google's stated ratio, or
-  price embeddings per character with its own verified rate. The counters on
-  `GeminiEmbedder` (`passages`, `requests`, `billable_characters`) are logged in
-  the meantime, so the quota is at least visible.
+  under-report by the cost of every ingest. `voyage-4-lite` is also absent from
+  `Settings.priced_models`, so `/api/health` will not even report it as
+  `unpriced` — invisible in both directions.
+
+  **The obstacle that justified this is gone.** Under Gemini it was real rather
+  than laziness: the endpoint reported `billable_character_count` while the rate
+  card is per *token*, and converting between them would have been the fabricated
+  number `api/pricing.py` refuses on principle. Voyage returns
+  `usage.total_tokens` — the provider's own figure, in the unit its rate card
+  uses — and `VoyageEmbedder.total_tokens` already accumulates it. What remains
+  is a verified rate in `MODEL_PRICES` and a usage row at the end of the ingest.
+  This moved from "blocked on a number nobody has" to "not done yet", which is a
+  different entry in this file and should be read as one.
 - **Structured cost attribution per conversation**, not just per user. Would make
   the "cost per query" figure in the eval report a live metric rather than a
   measured one.
