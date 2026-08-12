@@ -61,7 +61,7 @@ export function StructuredData() {
         "@id": `${SITE_URL}/#author`,
         name: AUTHOR.name,
         url: AUTHOR.url,
-        sameAs: [AUTHOR.url],
+        sameAs: [...AUTHOR.sameAs],
       },
     ],
   };

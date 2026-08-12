@@ -7,7 +7,13 @@ import { SessionProvider } from "@/components/SessionProvider";
 import { StructuredData } from "@/components/StructuredData";
 import { PageTransition } from "@/components/PageTransition";
 import { DEFAULT_LOCALE, dictionaries } from "@/lib/i18n";
-import { AUTHOR, REPO_URL, SITE_NAME, SITE_URL } from "@/lib/site";
+import {
+  AUTHOR,
+  GOOGLE_SITE_VERIFICATION,
+  REPO_URL,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/site";
 
 import "./globals.css";
 
@@ -98,6 +104,13 @@ export const metadata: Metadata = {
     title: meta.title,
     description: meta.description,
   },
+  // Spread rather than set: an empty token would still emit the meta tag, and a
+  // `google-site-verification` with no content is a broken claim rather than an
+  // absent one. Set NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION on the deployment that
+  // owns the domain and it appears; leave it unset anywhere else and it does not.
+  ...(GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: GOOGLE_SITE_VERIFICATION } }
+    : {}),
   other: {
     // Not a meta tag Google reads, but the one a reviewer looks for.
     repository: REPO_URL,
