@@ -1,4 +1,4 @@
-import type { Locale } from "./i18n";
+import { dictionaries, type Locale } from "./i18n";
 
 /**
  * The privacy notice, the terms, and the cookie notice.
@@ -52,10 +52,21 @@ export const LEGAL_UPDATED = "2026-08-09";
 
 const CONTACT = "bilalsanli129@gmail.com";
 
+/**
+ * The page names, read from the interface dictionary rather than repeated here.
+ *
+ * These titles have a second reader: `LocaleProvider` writes the browser tab
+ * from the same keys, because page metadata is resolved at build time and
+ * cannot follow a client-side preference (ADR 011). Kept in one place so a tab
+ * reading "Cookies" can never sit above an `<h1>` reading "Çerezler".
+ */
+const TR_PAGES = dictionaries.tr.meta.pages;
+const EN_PAGES = dictionaries.en.meta.pages;
+
 const TR: Record<LegalDocument["slug"], LegalDocument> = {
   privacy: {
     slug: "privacy",
-    title: "Gizlilik Bildirimi",
+    title: TR_PAGES.privacy,
     lede: "Hangi veriler işleniyor, neden, ne kadar süreyle ve kimlerle paylaşılıyor.",
     updated: LEGAL_UPDATED,
     sections: [
@@ -128,7 +139,7 @@ const TR: Record<LegalDocument["slug"], LegalDocument> = {
   },
   terms: {
     slug: "terms",
-    title: "Kullanım Koşulları",
+    title: TR_PAGES.terms,
     lede: "Ne sunuluyor, ne sunulmuyor ve hangi sınırlar var.",
     updated: LEGAL_UPDATED,
     sections: [
@@ -176,7 +187,7 @@ const TR: Record<LegalDocument["slug"], LegalDocument> = {
   },
   cookies: {
     slug: "cookies",
-    title: "Çerezler",
+    title: TR_PAGES.cookies,
     lede: "İki şey kullanılıyor: biri girişi açık tutuyor, diğeri isteğe bağlı.",
     updated: LEGAL_UPDATED,
     sections: [
@@ -211,7 +222,7 @@ const TR: Record<LegalDocument["slug"], LegalDocument> = {
 const EN: Record<LegalDocument["slug"], LegalDocument> = {
   privacy: {
     slug: "privacy",
-    title: "Privacy Notice",
+    title: EN_PAGES.privacy,
     lede: "What is processed, why, for how long, and who it reaches.",
     updated: LEGAL_UPDATED,
     sections: [
@@ -284,7 +295,7 @@ const EN: Record<LegalDocument["slug"], LegalDocument> = {
   },
   terms: {
     slug: "terms",
-    title: "Terms of Use",
+    title: EN_PAGES.terms,
     lede: "What is offered, what is not, and the limits that apply.",
     updated: LEGAL_UPDATED,
     sections: [
@@ -332,7 +343,7 @@ const EN: Record<LegalDocument["slug"], LegalDocument> = {
   },
   cookies: {
     slug: "cookies",
-    title: "Cookies",
+    title: EN_PAGES.cookies,
     lede: "Two things are used: one keeps you signed in, the other is optional.",
     updated: LEGAL_UPDATED,
     sections: [

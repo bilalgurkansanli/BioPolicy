@@ -1,18 +1,15 @@
 import type { Metadata } from "next";
 
 import { LegalPage } from "@/components/LegalPage";
+import { DEFAULT_LOCALE, dictionaries } from "@/lib/i18n";
+import { pageMetadata } from "@/lib/page-metadata";
 
-export const metadata: Metadata = {
-  // The root layout appends " — BioPolicy"; repeating it here produced
-  // "Cookies — BioPolicy — BioPolicy" in the tab.
-  title: "Cookies",
+export const metadata: Metadata = pageMetadata({
+  name: dictionaries[DEFAULT_LOCALE].meta.pages.cookies,
+  path: "/cookies",
   description:
     "One storage key keeps you signed in; measurement is optional and never loads unless accepted.",
-  // See the note in `privacy/page.tsx`: omitting these inherits the root's `/`
-  // and declares this page a duplicate of the home page.
-  alternates: { canonical: "/cookies" },
-  openGraph: { url: "/cookies" },
-};
+});
 
 export default function Page() {
   return <LegalPage slug="cookies" />;
