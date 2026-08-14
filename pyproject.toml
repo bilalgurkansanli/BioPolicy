@@ -11,10 +11,10 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.52.1",
     "pydantic>=2.9",
-    "pydantic-settings>=2.6",
+    "pydantic-settings>=2.15.0",
     "python-multipart>=0.0.12",
     "httpx>=0.27",
-    "sse-starlette>=2.1",
+    "sse-starlette>=3.4.8",
     # --- supabase / postgres ---
     "supabase>=2.10",
     "asyncpg>=0.30",
@@ -26,8 +26,8 @@ dependencies = [
     # --- chunking (llama-index node parsers ONLY; see docs/adr/003) ---
     "llama-index-core>=0.12",
     # --- model providers ---
-    "anthropic>=0.40",
-    "google-genai>=0.3",
+    "anthropic>=0.121.0",
+    "google-genai>=2.17.0",
     # --- misc ---
     "tenacity>=9.0",
     "structlog>=24.4",
@@ -35,7 +35,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "ruff>=0.8",
+    "ruff>=0.16.2",
     "mypy>=1.13",
     "pytest>=8.3",
     "pytest-asyncio>=0.24",
