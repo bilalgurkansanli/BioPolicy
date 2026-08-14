@@ -19,6 +19,8 @@ The cost is one indexed lookup per privileged decision. That is the right price.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -44,10 +46,17 @@ class Account:
 
 
 class AccountRepository:
-    def __init__(self, pool: asyncpg.Pool, *, unlimited_emails: frozenset[str]) -> None:
+    def __init__(
+        self,
+        pool: asyncpg.Pool,
+        *,
+        unlimited_emails: frozenset[str],
+        subject_pepper: str | None = None,
+    ) -> None:
         self._pool = pool
         # Lower-cased once, here, so no call site has to remember to.
         self._unlimited = frozenset(email.strip().lower() for email in unlimited_emails if email)
+        self._pepper = (subject_pepper or "").encode("utf-8") or None
 
     async def get(self, user_id: UUID) -> Account | None:
         row = await self._pool.fetchrow(
@@ -77,6 +86,60 @@ class AccountRepository:
             email_confirmed=bool(row["email_confirmed"]),
             usable=not (row["banned"] or row["deleted"] or row["is_anonymous"]),
         )
+
+    async def subject(self, user_id: UUID) -> str | None:
+        """The pseudonymous key this account's daily allowance is counted under.
+
+        ## Why the allowance cannot be counted per account
+
+        Deleting an account and signing in again produces a *new* `auth.users`
+        row with a new id. `usage_events.user_id` becomes null and `documents`
+        cascades away, so both counters read zero and the daily limit is fresh —
+        an unlimited allowance for anybody willing to click twice. Deleting the
+        account is a right this project intends to keep offering, so the limit
+        has to survive it instead.
+
+        ## What is stable across that, and what is not
+
+        Google's `sub`. It identifies the Google account rather than the row
+        Supabase made for it, it is stable for the life of that account, and it
+        is not reused. It arrives in `auth.identities.provider_id`, which is the
+        provider's own value rather than anything this application derived.
+
+        The email address would also be stable-ish, and is the wrong choice: it
+        is personal data, addresses change, and storing one keyed to "has spent
+        their allowance" is a record about a person rather than a counter.
+
+        Returned as an HMAC rather than the `sub` itself. The counter's whole
+        job is to recognise a repeat, which a keyed digest does exactly as well
+        while being useless to anyone reading the table — including to us,
+        without the pepper.
+
+        `None` has one meaning and it is not "no limit": either the deployment
+        has no pepper configured, or this account has no Google identity. Both
+        send the caller back to the per-account count, which is the behaviour
+        that existed before this method and still binds; it simply does not
+        survive a deletion. `/api/health` reports a missing pepper, and a
+        deployed environment refuses to boot without one.
+        """
+        if self._pepper is None:
+            return None
+
+        row = await self._pool.fetchrow(
+            """
+            select provider_id from auth.identities
+             where user_id = $1 and provider = $2
+             limit 1
+            """,
+            user_id,
+            REQUIRED_PROVIDER,
+        )
+        if row is None or not row["provider_id"]:
+            return None
+
+        return hmac.new(
+            self._pepper, str(row["provider_id"]).encode("utf-8"), hashlib.sha256
+        ).hexdigest()
 
     async def is_unlimited(self, user_id: UUID) -> bool:
         """Whether this account is exempt from the daily limits.

@@ -115,3 +115,62 @@ async def test_the_lookup_is_by_id_and_reads_the_ban_from_the_database_clock() -
     query = pool.queries[0]
     assert "where id = $1" in query
     assert "banned_until > now()" in query
+
+
+# -----------------------------------------------------------------------------
+# the pseudonymous subject the daily allowance is counted under
+# -----------------------------------------------------------------------------
+#
+# Counting per `auth.users.id` meant the allowance died with the account, and an
+# account is something its owner can delete and replace in two clicks. These pin
+# the key that survives it — and pin that the key is not the identifier itself.
+
+GOOGLE_SUB = "116194998877665544332"
+
+
+def _subject_repo(
+    provider_id: str | None = GOOGLE_SUB, *, pepper: str | None = "pepper"
+) -> AccountRepository:
+    row: dict[str, object] | None = (
+        {"provider_id": provider_id} if provider_id is not None else None
+    )
+    pool = FakePool(fetchrow=[row])
+    return AccountRepository(cast(Any, pool), unlimited_emails=frozenset(), subject_pepper=pepper)
+
+
+async def test_the_subject_is_stable_for_the_same_identity() -> None:
+    """The whole point: the same Google account, a brand new user row."""
+    first = await _subject_repo().subject(USER)
+    second = await _subject_repo().subject(uuid4())
+
+    assert first is not None
+    assert first == second
+
+
+async def test_the_subject_does_not_contain_the_identifier() -> None:
+    """A digest, not a record. Reading the table tells you nothing about who."""
+    subject = await _subject_repo().subject(USER)
+
+    assert subject is not None
+    assert GOOGLE_SUB not in subject
+    assert len(subject) == 64  # hex sha256
+
+
+async def test_a_different_pepper_gives_a_different_subject() -> None:
+    """It is keyed, so the digest cannot be recomputed from the sub alone.
+
+    Which is also the warning: rotating the pepper grants every existing
+    identity a fresh allowance, so it is not the secret to rotate on a whim.
+    """
+    assert await _subject_repo(pepper="one").subject(USER) != await _subject_repo(
+        pepper="two"
+    ).subject(USER)
+
+
+async def test_without_a_pepper_there_is_no_subject() -> None:
+    """Development, where the guard falls back to counting per account."""
+    assert await _subject_repo(pepper=None).subject(USER) is None
+
+
+async def test_an_account_with_no_google_identity_has_no_subject() -> None:
+    assert await _subject_repo(provider_id=None).subject(USER) is None

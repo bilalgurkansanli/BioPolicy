@@ -36,6 +36,9 @@ _REQUIRED_IN_DEPLOYED_ENVS: tuple[str, ...] = (
     "anthropic_api_key",
     "google_api_key",
     "purge_job_secret",
+    # Without it the daily allowance is per account row, and an account row is
+    # something anybody can replace by deleting theirs and signing in again.
+    "quota_subject_pepper",
 )
 
 
@@ -203,6 +206,20 @@ class Settings(BaseSettings):
     # --- retention -----------------------------------------------------------
     retention_hours: int = 24
     purge_job_secret: str | None = None
+
+    # The key the daily allowance is pseudonymised with. It turns Google's `sub`
+    # into `identity_quota.subject`, which is what lets the limit survive an
+    # account being deleted and recreated (migration 0013).
+    #
+    # Its own variable rather than a reuse of PURGE_JOB_SECRET: that one is
+    # shared with a database job and rotated on its own schedule, and rotating
+    # this one silently grants every existing identity a fresh allowance. They
+    # are not the same secret and must not share a rotation.
+    #
+    # Unset in development, the guard falls back to counting per account — the
+    # behaviour that has the hole — and `/api/health` says so. In a deployed
+    # environment it is mandatory, like every other credential.
+    quota_subject_pepper: str | None = None
 
     # --- anti-hallucination toggles -----------------------------------------
     # The eval harness flips these to produce the with/without ablation table.

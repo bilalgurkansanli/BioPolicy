@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Coroutine, Sequence
 from typing import Any, cast
 from uuid import UUID
 
@@ -27,8 +27,8 @@ from api.answer_cache import CachedAnswer, is_cacheable
 from api.auth import AuthenticatedUser, CurrentUser
 from api.deps import AppState, Config, State
 from api.generation import prompts
-from api.generation.answerer import AnswerOutcome, off_topic_refusal
-from api.generation.llm import Turn
+from api.generation.answerer import off_topic_refusal
+from api.generation.llm import Turn, UsageRecord
 from api.generation.schemas import GroundedAnswer
 from api.logging_config import get_logger
 from api.safety.limits import LimitExceededError
@@ -187,6 +187,54 @@ async def _serve_cached(
     yield _event("done", payload)
 
 
+# Work that must outlive the request that started it.
+#
+# asyncio keeps only a weak reference to a running task, so a task nobody holds
+# can be garbage collected mid-flight. `api/routers/documents.py` keeps the same
+# set for the ingestion fast path and says so; this one exists for a sharper
+# reason — the task below is the one that writes the ledger.
+_inflight: set[asyncio.Task[Any]] = set()
+
+
+def _spawn(coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+    task = asyncio.create_task(coro)
+    _inflight.add(task)
+    task.add_done_callback(_inflight.discard)
+    return task
+
+
+async def _settle(state: AppState, user: AuthenticatedUser, spent: Sequence[UsageRecord]) -> float:
+    """Write what was spent to the ledger and show it to the breaker.
+
+    ## Why this is not inline in the stream
+
+    It used to be, and a client that went away took it with it. `sse-starlette`
+    runs the generator inside an `anyio` task group, and an anyio cancel scope
+    is *level*-triggered: once the scope is cancelled every subsequent `await`
+    inside it raises immediately. So a `try/finally` around the accounting does
+    not save it, and neither does `asyncio.shield` — the scope re-delivers the
+    cancellation. The only thing that survives is work that is not in the scope
+    at all, which is why the caller runs this from a task of its own.
+
+    A user pressing "Durdur", or closing the tab, would otherwise leave a
+    provider call paid for and unrecorded: invisible to the budget breaker, and
+    missing from the per-question cost this project publishes as a measurement.
+
+    Never raises. It runs after the money is gone, and turning a delivered
+    answer into an error because the bookkeeping failed helps nobody — the log
+    line is what keeps that from being silent.
+    """
+    if not spent:
+        return 0.0
+    try:
+        cost = await state.usage.record(user_id=user.id, records=list(spent))
+    except Exception as exc:
+        log.error("usage_not_recorded", error=str(exc), records=len(spent))
+        return 0.0
+    state.breaker.note_spend(cost)
+    return cost
+
+
 @router.post("/chat", summary="Ask a grounded question (SSE)")
 async def chat(
     user: CurrentUser, request: ChatRequest, state: State, settings: Config
@@ -240,6 +288,11 @@ async def chat(
                 )
             )
             if hit is not None:
+                # Nothing was asked of a model, so the slot reserved before the
+                # stream opened is handed back. A cached answer has always cost
+                # nothing and has never appeared in the ledger; charging a
+                # question for one would make the allowance a count of clicks.
+                await state.quota.refund_question(user.id)
                 async for event in _serve_cached(hit, request, user, state, row):
                     yield event
                 return
@@ -287,8 +340,26 @@ async def chat(
             # arrives with that evidence attached is inspectable.
             if retrieved.floor is not None and retrieved.floor.below:
                 log.info("refused_below_floor", **retrieved.floor.as_dict)
+                # Cheaper than answering, but not free — and the difference is
+                # what makes this path worth charging for.
+                #
+                # Reaching here has already embedded the query, and on the
+                # default configuration it has also run the rewriter, which
+                # `build_rewriter` resolves to Anthropic. "Refused before any
+                # model was called" was the reasoning for refunding here and it
+                # does not hold: a model was called, and its cost was reported
+                # to the user as 0.0 and written to no ledger at all.
+                #
+                # Unbounded, too. A refunded question that still spends is a
+                # free spending path, and off-topic questions are the cheapest
+                # possible thing to send in a loop. So the spend is recorded,
+                # the breaker sees it, and the slot is handed back only when
+                # retrieval genuinely cost nothing.
+                cost = await _settle(state, user, retrieved.usage)
+                if not retrieved.usage:
+                    await state.quota.refund_question(user.id)
                 outcome = off_topic_refusal(request.language)
-                yield _event("done", _answer_payload(outcome.answer, None, 0.0))
+                yield _event("done", _answer_payload(outcome.answer, None, cost))
                 return
 
             yield _event("answering")
@@ -301,89 +372,117 @@ async def chat(
             # invented label that ADR 010 argues against.
             stages: asyncio.Queue[dict[str, str] | None] = asyncio.Queue()
 
-            async def run() -> AnswerOutcome:
-                try:
-                    return await state.answerer.answer(
-                        question=request.question,
-                        context=retrieved.context,
-                        language=request.language,
-                        on_stage=lambda name: stages.put(_event(name)),
-                    )
-                finally:
-                    # Unblocks the drain below on every path, including failure.
-                    await stages.put(None)
+            async def run() -> dict[str, object]:
+                """Answer — then save it, bill it and remember it.
 
-            answering = asyncio.create_task(run())
+                Everything after generation lives in this task rather than in
+                the stream below, because everything after generation is a
+                consequence of money that has already left. The stream dies the
+                instant the client does; this task does not (see `_settle`), so
+                a question somebody stopped watching is still recorded, still
+                written to their history, and still warms the cache.
+
+                It returns the finished `done` payload rather than the outcome,
+                so there is exactly one place that builds it.
+                """
+                spent: list[UsageRecord] = list(retrieved.usage)
+                try:
+                    try:
+                        outcome = await state.answerer.answer(
+                            question=request.question,
+                            context=retrieved.context,
+                            language=request.language,
+                            on_stage=lambda name: stages.put(_event(name)),
+                        )
+                    finally:
+                        # Unblocks the drain below on every path, including
+                        # failure.
+                        await stages.put(None)
+                except Exception:
+                    # Generation failed, but retrieval was paid for before it
+                    # was reached. Losing that is how a ledger starts drifting
+                    # downwards on exactly the days something is wrong.
+                    await _settle(state, user, spent)
+                    raise
+
+                spent.extend(outcome.usage)
+                answer = outcome.answer
+
+                # Saved before the `done` event, so a conversation the user can
+                # see on screen is one they will also find in their history. A
+                # failure here must not lose the answer, though — it is caught
+                # and logged rather than turning a paid-for reply into an error.
+                conversation_id: UUID | None = None
+                try:
+                    conversation_id = await state.conversations.ensure(
+                        conversation_id=request.conversation_id,
+                        user_id=user.id,
+                        document_id=UUID(str(row["id"])),
+                        question=request.question,
+                    )
+                    await state.conversations.append_turn(
+                        conversation_id=conversation_id,
+                        user_id=user.id,
+                        question=request.question,
+                        answer=answer.answer,
+                        # Serialised here rather than in the repository, so the
+                        # cached path can hand over the same shape it stored.
+                        citations=[c.model_dump(mode="json") for c in answer.citations],
+                        groundedness=answer.groundedness,
+                        refused=answer.refused,
+                        suppressed=answer.suppressed,
+                        prompt_version=outcome.prompt_version,
+                        model=outcome.model,
+                    )
+                # The answer is already paid for and correct; losing the copy in
+                # someone's history is the lesser failure.
+                except Exception as exc:
+                    log.error("conversation_not_saved", exc_info=exc)
+
+                # The ledger is written even when the answer was suppressed: a
+                # withheld answer still cost money, and the breaker has to see
+                # it. `record` prices as it writes, so Google's unpriced calls
+                # are stored with their tokens and a zero — the figure shown to
+                # the user is therefore Anthropic-only, and the interface says
+                # so.
+                cost = await _settle(state, user, spent)
+                payload = _answer_payload(answer, conversation_id, cost)
+
+                # Stored with the passages, so a hit can replay the whole
+                # stream. `conversation_id` and `cost_usd` are overwritten on
+                # the way out — they belong to the request, not to the answer.
+                if is_cacheable(payload):
+                    await state.answer_cache.put(
+                        document_id=UUID(str(row["id"])),
+                        question=request.question,
+                        language=request.language,
+                        prompt_version=outcome.prompt_version,
+                        model=settings.anthropic_model,
+                        payload={
+                            **payload,
+                            "considered": considered,
+                            "prompt_version": outcome.prompt_version,
+                            "model": outcome.model,
+                        },
+                    )
+                return payload
+
+            # Spawned rather than awaited into the stream: from here on the work
+            # belongs to the money, not to the connection.
+            answering = _spawn(run())
             while (stage := await stages.get()) is not None:
                 yield stage
 
-            outcome = await answering
-            answer = outcome.answer
-
-            # Saved before the `done` event, so a conversation the user can see
-            # on screen is one they will also find in their history. A failure
-            # here must not lose the answer, though — it is caught and logged
-            # rather than turning a paid-for reply into an error.
-            conversation_id: UUID | None = None
-            try:
-                conversation_id = await state.conversations.ensure(
-                    conversation_id=request.conversation_id,
-                    user_id=user.id,
-                    document_id=UUID(str(row["id"])),
-                    question=request.question,
-                )
-                await state.conversations.append_turn(
-                    conversation_id=conversation_id,
-                    user_id=user.id,
-                    question=request.question,
-                    answer=answer.answer,
-                    # Serialised here rather than in the repository, so the
-                    # cached path can hand over the same shape it stored.
-                    citations=[citation.model_dump(mode="json") for citation in answer.citations],
-                    groundedness=answer.groundedness,
-                    refused=answer.refused,
-                    suppressed=answer.suppressed,
-                    prompt_version=outcome.prompt_version,
-                    model=outcome.model,
-                )
-            # The answer is already paid for and correct; losing the copy in
-            # someone's history is the lesser failure.
-            except Exception as exc:
-                log.error("conversation_not_saved", exc_info=exc)
-
-            # The ledger is written even when the answer was suppressed: a
-            # withheld answer still cost money, and the breaker has to see it.
-            # `record` prices as it writes, so Google's unpriced calls are
-            # stored with their tokens and a zero — the figure shown to the user
-            # is therefore Anthropic-only, and the interface says so.
-            cost = await state.usage.record(
-                user_id=user.id, records=[*retrieved.usage, *outcome.usage]
-            )
-            state.breaker.note_spend(cost)
-
-            payload = _answer_payload(answer, conversation_id, cost)
-
-            # Stored with the passages, so a hit can replay the whole stream.
-            # `conversation_id` and `cost_usd` are overwritten on the way out —
-            # they belong to the request, not to the answer.
-            if is_cacheable(payload):
-                await state.answer_cache.put(
-                    document_id=UUID(str(row["id"])),
-                    question=request.question,
-                    language=request.language,
-                    prompt_version=outcome.prompt_version,
-                    model=settings.anthropic_model,
-                    payload={
-                        **payload,
-                        "considered": considered,
-                        "prompt_version": outcome.prompt_version,
-                        "model": outcome.model,
-                    },
-                )
+            payload = await answering
 
             yield _event("done", payload)
         except Exception as exc:  # the stream must end with an event, not a hang
             log.error("chat_failed", exc_info=exc)
+            # The message below has said "nothing was charged" from the start,
+            # and the daily allowance is the one charge it was not true of once
+            # the slot began being reserved up front. Given back here so the
+            # sentence stays a fact.
+            await state.quota.refund_question(user.id)
             yield _event(
                 "error",
                 {

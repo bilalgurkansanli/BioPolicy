@@ -422,6 +422,16 @@ scheduled job. A mismatch means the purge silently 401s, which means documents
 outlive their 24 hours. **Check that a purge ran after rotating**, in the audit
 table.
 
+`QUOTA_SUBJECT_PEPPER` is the one on this page that should **not** be rotated on
+a schedule. It keys the digest in `identity_quota`, so changing it re-hashes
+every identity to a subject nothing has seen before and hands all of them a
+fresh daily allowance on the spot. There is no migration path — the old rows are
+unmatchable by construction, which is the property that makes them safe to keep.
+
+Rotate it only if the value itself is believed exposed, accept that the day's
+limits reset, and do it at a quiet hour. Nothing breaks and nothing errors; the
+cost is one day of allowances, paid immediately.
+
 The scheduled jobs read their configuration from the `app_settings` table, not
 from the cron command text, so rotating is an `UPDATE` rather than a migration:
 

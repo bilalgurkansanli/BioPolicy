@@ -77,8 +77,12 @@ async def test_a_file_that_could_not_be_deleted_keeps_its_row() -> None:
 
     assert report.purged == 0
     assert report.failed == 1
-    assert "delete from" not in pool.statements
     assert "insert into" not in pool.statements
+    # Named specifically rather than asserting no `delete from` at all: the
+    # sweep also expires stale `identity_quota` rows, which is a different
+    # table and none of this test's business. The claim here is that the
+    # *document* row outlived the file that could not be deleted.
+    assert not any("delete from documents" in query for query in pool.queries)
 
 
 async def test_the_number_of_chunks_removed_is_recorded() -> None:

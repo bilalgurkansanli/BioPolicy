@@ -48,7 +48,7 @@ export type LegalDocument = {
  * on every deploy tells a reader nothing, and one that moves without the text
  * changing is worse than none.
  */
-export const LEGAL_UPDATED = "2026-08-09";
+export const LEGAL_UPDATED = "2026-08-14";
 
 const CONTACT = "bilalsanli129@gmail.com";
 
@@ -120,6 +120,7 @@ const TR: Record<LegalDocument["slug"], LegalDocument> = {
           "Sohbetleriniz: siz silene kadar. Bir belge silindiğinde o belgeye ait sohbet de gider.",
           "Kullanım kayıtları: harcamanın izlenebilir kalması için tutulur ve kişisel içerik barındırmaz — hangi soruyu sorduğunuzu değil, kaç jeton harcandığını içerir.",
           "Hesabınızı sildiğinizde belgeleriniz, sohbetleriniz ve hesabınız birlikte silinir.",
+          "Tek bir istisna var ve burada açıkça yazıyoruz: günlük hakkınızın sayacı hesabınızdan sonra da 7 gün kalır. Sakladığımız şey, Google hesabınızın kimliğinden üretilmiş geri çevrilemez bir özet ile o gün kaç soru sorulduğu ve kaç belge yüklendiğidir — adınız, adresiniz veya sorularınız değil. Sebebi şudur: sayaç hesaba bağlı olsaydı, hesabı silip yeniden girmek günlük sınırı sıfırlardı ve sınır hiçbir şey ifade etmezdi. Bu işlemenin hukuki dayanağı, demoyu ayakta tutmaktaki meşru menfaattir.",
         ],
       },
       {
@@ -276,6 +277,7 @@ const EN: Record<LegalDocument["slug"], LegalDocument> = {
           "Conversations: until you delete them. Deleting a document takes its conversations with it.",
           "Usage records: kept so spending stays auditable. They hold no personal content — how many tokens were spent, not what you asked.",
           "Deleting your account removes your documents, your conversations and the account together.",
+          "There is one exception, stated here rather than buried: the counter behind your daily allowance outlives the account by 7 days. What it holds is an irreversible digest derived from your Google account's identifier, plus how many questions were asked and documents uploaded that day — not your name, not your address, not your questions. The reason is plain: a counter tied to the account would reset every time somebody deleted theirs and signed in again, which would make the daily limit mean nothing. The lawful basis for this processing is the legitimate interest in keeping the demo running.",
         ],
       },
       {

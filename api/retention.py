@@ -47,6 +47,12 @@ log = get_logger(__name__)
 # expiries. Bounded so one sweep cannot run for minutes on a serverless clock.
 PURGE_BATCH_SIZE = 100
 
+# How long an `identity_quota` row is kept after its day is over. The limit only
+# ever reads today, so anything beyond this is retention without a purpose — and
+# this is the one table that deliberately outlives a deleted account. A week is
+# what makes an account being cycled daily visible while it is happening.
+QUOTA_RETENTION_DAYS = 7
+
 # How old an unreferenced object must be before it counts as abandoned.
 #
 # Upload is: create the row, hand out a signed URL, browser uploads, confirm. The
@@ -104,10 +110,34 @@ class RetentionService:
                 report.failed += 1
 
         report.orphans_deleted = await self.reconcile_orphans()
+        await self.purge_stale_quota()
 
         if report.purged or report.failed or report.orphans_deleted:
             log.info("retention_sweep", **report.as_dict)
         return report
+
+    async def purge_stale_quota(self) -> int:
+        """Drop identity allowance rows past their window (migration 0013).
+
+        A row for a day that is over cannot affect any limit — the guard only
+        ever reads today's — so keeping it is retention without a purpose, and
+        this table is the one thing in the system that deliberately outlives a
+        deleted account. The week it is kept for is what makes an account being
+        cycled daily visible while it is still happening; past that it is a
+        digest and two integers about nobody.
+
+        Counted but not reported: it is bookkeeping about bookkeeping, and the
+        sweep's own numbers are about documents.
+        """
+        deleted = await self._pool.execute(
+            "delete from identity_quota "
+            " where day < (now() at time zone 'utc')::date - ($1 || ' days')::interval",
+            str(QUOTA_RETENTION_DAYS),
+        )
+        removed = int(deleted.split()[-1]) if deleted else 0
+        if removed:
+            log.info("identity_quota_purged", rows=removed, keep_days=QUOTA_RETENTION_DAYS)
+        return removed
 
     async def reconcile_orphans(self, *, limit: int = PURGE_BATCH_SIZE) -> int:
         """Delete bucket objects that no document row refers to.

@@ -165,7 +165,21 @@ class AppState:
         documents = DocumentRepository(pool)
         storage = DocumentStorage(settings)
         usage = UsageRepository(pool)
-        accounts = AccountRepository(pool, unlimited_emails=frozenset(settings.unlimited_emails))
+        accounts = AccountRepository(
+            pool,
+            unlimited_emails=frozenset(settings.unlimited_emails),
+            subject_pepper=settings.quota_subject_pepper,
+        )
+        # Built here rather than inline below, because the ingestion pipeline
+        # needs it too: the document half of the daily limit is counted when a
+        # document becomes readable, which is something only the pipeline knows.
+        quota = QuotaGuard(
+            pool,
+            usage,
+            accounts,
+            daily_questions=settings.user_daily_message_limit,
+            daily_documents=settings.user_daily_document_limit,
+        )
 
         answering: list[LLMProvider] = [
             AnthropicLLM(
@@ -255,13 +269,7 @@ class AppState:
             accounts=accounts,
             identity=IdentityService(settings),
             conversations=ConversationRepository(pool),
-            quota=QuotaGuard(
-                pool,
-                usage,
-                accounts,
-                daily_questions=settings.user_daily_message_limit,
-                daily_documents=settings.user_daily_document_limit,
-            ),
+            quota=quota,
             breaker=BudgetBreaker(usage, limit_usd=settings.global_budget_usd),
             retention=RetentionService(pool, storage),
             worker=IngestionWorker(
@@ -274,6 +282,9 @@ class AppState:
                     chunker=Chunker(),
                 ),
                 storage=storage,
+                # The upload slot is reserved at `POST /documents` and given
+                # back here if ingestion never produces a readable document.
+                on_failed=quota.refund_document,
             ),
         )
 

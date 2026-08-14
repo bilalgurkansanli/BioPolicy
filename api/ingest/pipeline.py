@@ -28,6 +28,7 @@ paid for half a document (ADR 005).
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -53,11 +54,27 @@ log = get_logger(__name__)
 
 
 class IngestionError(Exception):
-    """Carries a message that is safe to show a user."""
+    """Carries a message that is safe to show a user.
 
-    def __init__(self, user_message: str, *, cause: str = "") -> None:
+    `blame_input` says whose fault the failure was, and it decides whether the
+    uploader gets their daily slot back.
+
+    The default is `False` — ours — because that is the case the refund exists
+    for: the first real policy anyone uploaded died on an embedding quota we
+    were exceeding, and the row it left behind spent their one document for the
+    day. Nothing was rendered, so nothing was owed.
+
+    The reverse is a hole. A file that is not a PDF fails the same way, gets the
+    same refund, and can be re-sent forever — 25MB of storage and a worker slot
+    per attempt, at no cost to the sender. Set this where the bytes themselves
+    are the problem: the sender chose them, and choosing badly is not something
+    the service should absorb without limit.
+    """
+
+    def __init__(self, user_message: str, *, cause: str = "", blame_input: bool = False) -> None:
         super().__init__(cause or user_message)
         self.user_message = user_message
+        self.blame_input = blame_input
 
 
 @dataclass(slots=True)
@@ -101,12 +118,14 @@ class IngestionPipeline:
                 "This file could not be opened as a PDF. It may be corrupted, "
                 "password-protected, or not actually a PDF.",
                 cause=str(exc),
+                blame_input=True,
             ) from exc
 
         if detection.page_count > settings.max_page_count:
             raise IngestionError(
                 f"This document has {detection.page_count} pages. The limit is "
-                f"{settings.max_page_count}."
+                f"{settings.max_page_count}.",
+                blame_input=True,
             )
 
         ocr_pages = detection.pages_needing_ocr
@@ -117,7 +136,12 @@ class IngestionPipeline:
                     f"This scanned document needs text recognition on "
                     f"{len(ocr_pages)} pages, and the limit is "
                     f"{settings.max_ocr_page_count}. Scanned documents are far more "
-                    f"expensive to process than ones with a text layer."
+                    f"expensive to process than ones with a text layer.",
+                    # A published limit the file does not meet, decided before
+                    # any page was rendered. Like the two above, this is a
+                    # refusal rather than a failure, and refusals are not
+                    # refundable — otherwise they are free to repeat.
+                    blame_input=True,
                 )
             await self._documents.set_status(document.id, STATUS_OCR)
 
@@ -239,12 +263,24 @@ class IngestionPipeline:
         )
         return result
 
-    async def run_safely(self, document: DocumentRecord, data: bytes) -> IngestionResult | None:
+    async def run_safely(
+        self,
+        document: DocumentRecord,
+        data: bytes,
+        *,
+        on_failure: Callable[[bool], Awaitable[None]] | None = None,
+    ) -> IngestionResult | None:
         """Run, converting any failure into a `failed` status.
 
         The background task calls this. It never raises, because an exception
         escaping a fire-and-forget task is swallowed by the event loop and the
         document sits in `parsing` forever.
+
+        `on_failure` is awaited with `blame_input` — whether the bytes the
+        uploader sent were the problem. The caller uses it to decide the refund,
+        because "nothing was rendered" and "nothing is owed" are only the same
+        sentence when the failure was ours. A crash is always ours: an
+        unexpected exception is a bug here, whatever provoked it.
         """
         try:
             return await self.run(document, data)
@@ -254,8 +290,11 @@ class IngestionPipeline:
                 document_id=str(document.id),
                 user_message=exc.user_message,
                 cause=str(exc),
+                blame_input=exc.blame_input,
             )
             await self._documents.mark_failed(document.id, exc.user_message)
+            if on_failure is not None:
+                await on_failure(exc.blame_input)
             return None
         except Exception as exc:
             log.error(
@@ -267,6 +306,8 @@ class IngestionPipeline:
                 document.id,
                 "Something went wrong while processing this document. Please try again.",
             )
+            if on_failure is not None:
+                await on_failure(False)
             return None
 
 

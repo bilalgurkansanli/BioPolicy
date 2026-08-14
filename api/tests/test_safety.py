@@ -71,15 +71,30 @@ def _guard(
 class StubAccounts:
     """Stands in for the allowlist lookup, which is tested on its own."""
 
-    def __init__(self, unlimited: bool, account: Account | None = _USABLE) -> None:
+    def __init__(
+        self,
+        unlimited: bool,
+        account: Account | None = _USABLE,
+        subject: str | None = None,
+    ) -> None:
         self._unlimited = unlimited
         self._account = account
+        self._subject = subject
 
     async def is_unlimited(self, user_id: UUID) -> bool:
         return self._unlimited
 
     async def get(self, user_id: UUID) -> Account | None:
         return self._account
+
+    async def subject(self, user_id: UUID) -> str | None:
+        """`None` by default, which is a deployment with no pepper configured.
+
+        That is the pre-migration-0013 behaviour — count per account, and only
+        per account — so every test below that does not pass a subject still
+        measures the rule it was written for.
+        """
+        return self._subject
 
 
 # --- who is allowed to spend at all -------------------------------------------
@@ -259,6 +274,157 @@ async def test_the_allowance_never_reports_a_negative_remainder() -> None:
     allowance = await _guard(asked=9, questions=3).allowance(USER)
 
     assert allowance.questions_left == 0
+
+
+# -----------------------------------------------------------------------------
+# the allowance survives deleting the account
+# -----------------------------------------------------------------------------
+#
+# The hole these close, in the order it happened: delete the account, sign in
+# again with the same Google account, and Supabase mints a new user id.
+# `usage_events.user_id` is already null (migration 0004 sets it null rather
+# than cascading, so the spend stays on the breaker's books) and `documents`
+# has cascaded away, so both per-account counts read zero and the daily limit
+# is fresh. Repeat for an unlimited allowance.
+#
+# `identity_quota` (migration 0013) is counted per Google identity instead, and
+# the guard takes the larger of the two.
+
+SUBJECT = "b7cc2f00deadbeef"
+
+
+def _identity_guard(
+    *,
+    subject: str | None = SUBJECT,
+    reserved: bool = True,
+    ledger: int = 0,
+    questions: int = 3,
+    documents: int = 1,
+) -> tuple[QuotaGuard, FakePool]:
+    """A guard whose two counts can be set independently.
+
+    Row order mirrors the guard: the per-account count is read first, then the
+    reserve statement decides. `reserved=False` is the reserve returning no row,
+    which is how the statement says the identity is already at its limit.
+    """
+    rows: list[dict[str, object] | None] = [{"n": ledger}]
+    if subject is not None:
+        rows.append({"questions": 1} if reserved else None)
+    pool = FakePool(fetchrow=rows)
+    return (
+        QuotaGuard(
+            cast(Any, pool),
+            UsageRepository(cast(Any, pool)),
+            cast(Any, StubAccounts(False, subject=subject)),
+            daily_questions=questions,
+            daily_documents=documents,
+        ),
+        pool,
+    )
+
+
+async def test_a_fresh_account_still_carries_the_identitys_questions() -> None:
+    """The ledger says zero because the old account is gone. The limit holds.
+
+    This is the whole vulnerability in one test: a brand new user id, nothing
+    of theirs in `usage_events`, and the question is still refused.
+    """
+    guard, _ = _identity_guard(reserved=False, ledger=0, questions=3)
+
+    with pytest.raises(DailyQuotaExceededError):
+        await guard.ensure_can_ask(USER)
+
+
+async def test_a_fresh_account_still_carries_the_identitys_uploads() -> None:
+    guard, _ = _identity_guard(reserved=False, ledger=0, documents=1)
+
+    with pytest.raises(DailyQuotaExceededError):
+        await guard.ensure_can_upload(USER)
+
+
+async def test_the_slot_is_taken_in_the_same_statement_that_checks_it() -> None:
+    """Counting and then incrementing leaves a window two requests fit through.
+
+    The reserve is one statement — `on conflict ... where counter < limit` —
+    so Postgres' own row lock decides which of two simultaneous questions gets
+    the last slot. This pins the shape rather than the race, which a unit test
+    cannot stage.
+    """
+    guard, pool = _identity_guard(ledger=0)
+
+    await guard.ensure_can_ask(USER)
+
+    reserve = pool.queries[-1]
+    assert "insert into identity_quota" in reserve
+    assert "where identity_quota.questions < $2" in reserve
+    assert "returning questions" in reserve
+
+
+async def test_either_count_alone_can_stop_a_spender() -> None:
+    """Neither may rescue somebody the other has already stopped."""
+    ledger_full, _ = _identity_guard(ledger=3, reserved=True, questions=3)
+    identity_full, _ = _identity_guard(ledger=0, reserved=False, questions=3)
+
+    for guard in (ledger_full, identity_full):
+        with pytest.raises(DailyQuotaExceededError):
+            await guard.ensure_can_ask(USER)
+
+
+async def test_without_a_subject_the_per_account_count_still_binds() -> None:
+    """A deployment with no pepper is the old behaviour, not an open door.
+
+    It loses the protection against deletion and keeps everything else, which
+    is why `/api/health` reports a missing pepper and a deployed environment
+    refuses to boot without one.
+    """
+    guard, _ = _identity_guard(subject=None, ledger=3, questions=3)
+
+    with pytest.raises(DailyQuotaExceededError):
+        await guard.ensure_can_ask(USER)
+
+
+async def test_an_unreachable_counter_does_not_refuse_every_question() -> None:
+    """It runs before the work, so failing closed would close the demo.
+
+    The per-account count still binds; what is lost is only the protection
+    against a deleted account, which is the smaller of the two failures.
+    """
+
+    class FailingPool(FakePool):
+        async def fetchrow(self, query: str, *args: object) -> dict[str, object] | None:
+            if "identity_quota" in query:
+                raise RuntimeError("no")
+            return await super().fetchrow(query, *args)
+
+    pool = FailingPool(fetchrow=[{"n": 0}])
+    guard = QuotaGuard(
+        cast(Any, pool),
+        UsageRepository(cast(Any, pool)),
+        cast(Any, StubAccounts(False, subject=SUBJECT)),
+        daily_questions=3,
+        daily_documents=1,
+    )
+
+    await guard.ensure_can_ask(USER)  # does not raise
+
+
+async def test_a_failed_refund_never_fails_the_request() -> None:
+    """The answer is already served. Losing the refund beats losing that."""
+
+    class FailingPool(FakePool):
+        async def execute(self, query: str, *args: object) -> None:
+            raise RuntimeError("no")
+
+    pool = FailingPool()
+    guard = QuotaGuard(
+        cast(Any, pool),
+        UsageRepository(cast(Any, pool)),
+        cast(Any, StubAccounts(False, subject=SUBJECT)),
+        daily_questions=3,
+        daily_documents=1,
+    )
+
+    await guard.refund_question(USER)  # does not raise
 
 
 # -----------------------------------------------------------------------------

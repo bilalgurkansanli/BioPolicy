@@ -9,6 +9,7 @@ citation or a blank cost rather than as an error anyone would notice.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, cast
 from uuid import uuid4
@@ -18,14 +19,17 @@ from fastapi.testclient import TestClient
 
 from api.answer_cache import CachedAnswer
 from api.auth import AuthenticatedUser, required_user
+from api.config import get_settings
 from api.deps import get_state
 from api.generation.answerer import AnswerOutcome
+from api.generation.llm import UsageRecord
 from api.generation.schemas import BoundCitation, GroundedAnswer
 from api.main import create_app
 from api.retrieval.context import AssembledContext
 from api.retrieval.floor import FloorVerdict
 from api.retrieval.hybrid import RetrievalResult
 from api.retrieval.types import RetrievedChunk
+from api.routers.chat import ChatRequest, chat
 
 USER = uuid4()
 DOCUMENT = uuid4()
@@ -102,7 +106,13 @@ class _Breaker:
 
 
 class _Quota:
+    def __init__(self) -> None:
+        self.refunded: list[object] = []
+
     async def ensure_can_ask(self, user_id: object) -> None: ...
+
+    async def refund_question(self, user_id: object) -> None:
+        self.refunded.append(user_id)
 
 
 class _Pool:
@@ -395,3 +405,196 @@ def test_the_shape_survives_a_round_trip_through_json() -> None:
     client, _, _ = _client(below_floor=False)
     for _name, payload in _events(client):
         assert json.loads(json.dumps(payload, ensure_ascii=False)) == cast(Any, payload)
+
+
+# --- the ledger must not depend on the client staying connected ---------------
+#
+# `sse-starlette` runs the generator inside an `anyio` task group, and an anyio
+# cancel scope is level-triggered: once it is cancelled, every subsequent
+# `await` inside it raises immediately. A client that stops reading therefore
+# used to take `usage.record` and `breaker.note_spend` with it — the provider
+# call was already made, the answer was produced, and neither the ledger nor the
+# budget breaker ever heard about it.
+#
+# The interface has a "Durdur" button that does exactly this, and so does
+# closing the tab. These two tests drive the route's generator directly, because
+# `TestClient` reads a response to completion and can never express "the reader
+# went away in the middle".
+
+
+class _RecordingUsage:
+    def __init__(self) -> None:
+        self.records: list[Any] = []
+
+    async def record(self, *, user_id: object, records: Any) -> float:
+        self.records.extend(records)
+        return 0.0072
+
+
+class _PaidAnswerer(_Answerer):
+    """Slow enough to be interrupted, and expensive enough to be worth counting."""
+
+    async def answer(self, **kwargs: object) -> AnswerOutcome:
+        await asyncio.sleep(0.15)
+        outcome = await super().answer(**kwargs)
+        outcome.usage = [
+            UsageRecord(operation="answer", model="m", input_tokens=5000, output_tokens=800)
+        ]
+        return outcome
+
+
+def _pieces() -> tuple[Any, _RecordingUsage, _Quota, list[float]]:
+    usage, quota, spend = _RecordingUsage(), _Quota(), []
+
+    class _SpendingBreaker(_Breaker):
+        def note_spend(self, cost: float) -> None:
+            spend.append(cost)
+
+    class _State:
+        pool = _Pool()
+        breaker = _SpendingBreaker()
+
+    state = _State()
+    state.quota = quota  # type: ignore[attr-defined]
+    state.usage = usage  # type: ignore[attr-defined]
+    state.conversations = _Conversations()  # type: ignore[attr-defined]
+    state.answer_cache = _Cache()  # type: ignore[attr-defined]
+    state.retriever = _Retriever(below_floor=False)  # type: ignore[attr-defined]
+    state.answerer = _PaidAnswerer()  # type: ignore[attr-defined]
+    return state, usage, quota, spend
+
+
+async def _drive_until_answering(state: Any) -> Any:
+    response = await chat(
+        user=AuthenticatedUser(id=USER, email="t@example.com", is_anonymous=False),
+        request=ChatRequest(document_id=DOCUMENT, question="Deprem limiti nedir?", language="tr"),
+        state=state,
+        settings=get_settings(),
+    )
+    generator = cast(Any, response.body_iterator)
+    while True:
+        event = await generator.__anext__()
+        if "answering" in str(event):
+            return generator
+
+
+async def test_a_stopped_stream_still_records_what_it_spent() -> None:
+    """The load-bearing one.
+
+    Abort *during* generation — after the provider call is in flight, before
+    `done`. The answer is paid for either way, so it has to reach the ledger and
+    the breaker whether or not anybody is still listening.
+    """
+    state, usage, quota, spend = _pieces()
+    generator = await _drive_until_answering(state)
+
+    # Asking for the next event is what starts generation; cancelling that
+    # pending request is what a disconnect does to it.
+    pending = asyncio.ensure_future(generator.__anext__())
+    await asyncio.sleep(0.05)
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    await generator.aclose()
+
+    # Pins *when*, not just whether. Nothing is recorded at the moment the
+    # reader leaves — generation is still in flight — so a test that only
+    # checked the end state would also pass if the accounting had run inline
+    # before the abort, which is the arrangement this is guarding against.
+    assert usage.records == []
+
+    # Let the orphaned work land. It is a task of its own now, so it does.
+    await asyncio.sleep(0.4)
+
+    assert [r.operation for r in usage.records] == ["answer"]
+    assert spend == [0.0072]
+    # Nothing is handed back: the question was answered, and paid for.
+    assert quota.refunded == []
+
+
+async def test_a_stopped_stream_still_saves_the_turn_it_paid_for() -> None:
+    """A question somebody stopped watching is still in their history.
+
+    The turn is written by the same task that does the billing, so the two
+    cannot drift apart: an answer that appears in the ledger but not in the
+    conversation would be one the user was charged for and cannot find.
+    """
+    state, _, _, _ = _pieces()
+    generator = await _drive_until_answering(state)
+
+    pending = asyncio.ensure_future(generator.__anext__())
+    await asyncio.sleep(0.05)
+    pending.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending
+    await generator.aclose()
+    await asyncio.sleep(0.4)
+
+    assert len(state.conversations.turns) == 1
+
+
+# --- the floor is cheaper than answering, not free ----------------------------
+
+
+class _PaidRetriever(_Retriever):
+    """Retrieval that cost something, which is the ordinary case.
+
+    Reaching the floor means the query was embedded, and on the default
+    configuration also rewritten — `build_rewriter` resolves to Anthropic. The
+    original `_Retriever` reports no usage at all, so every assertion about the
+    floor was made against a retrieval that spent nothing.
+    """
+
+    async def retrieve(self, **kwargs: object) -> RetrievalResult:
+        result = await super().retrieve(**kwargs)
+        result.usage = [
+            UsageRecord(operation="rewrite", model="m", input_tokens=120, output_tokens=20),
+            UsageRecord(operation="embed", model="e", input_tokens=40, output_tokens=0),
+        ]
+        return result
+
+
+async def test_a_floor_refusal_records_what_retrieval_spent() -> None:
+    """Refusing early is the cheap path, and it is not the free one.
+
+    This used to report `cost_usd: 0.0`, write nothing to the ledger and hand
+    the question back — which made an off-topic question an unbounded way to
+    spend somebody else's budget without appearing anywhere.
+    """
+    state, usage, quota, spend = _pieces()
+    state.retriever = _PaidRetriever(below_floor=True)
+
+    response = await chat(
+        user=AuthenticatedUser(id=USER, email="t@example.com", is_anonymous=False),
+        request=ChatRequest(document_id=DOCUMENT, question="Kedim koltuğu çizdi", language="tr"),
+        state=state,
+        settings=get_settings(),
+    )
+    events = [event async for event in cast(Any, response.body_iterator)]
+
+    assert sorted(r.operation for r in usage.records) == ["embed", "rewrite"]
+    assert spend == [0.0072]
+    # The slot stays spent, because the spending did.
+    assert quota.refunded == []
+    assert json.loads(events[-1]["data"])["cost_usd"] > 0
+
+
+async def test_a_floor_refusal_that_cost_nothing_still_refunds() -> None:
+    """The original reasoning, kept where it actually holds.
+
+    With no rewriter configured and a cached embedding there is genuinely
+    nothing to charge for, and the question should go back.
+    """
+    state, usage, quota, _ = _pieces()
+    state.retriever = _Retriever(below_floor=True)  # reports no usage
+
+    response = await chat(
+        user=AuthenticatedUser(id=USER, email="t@example.com", is_anonymous=False),
+        request=ChatRequest(document_id=DOCUMENT, question="Kedim koltuğu çizdi", language="tr"),
+        state=state,
+        settings=get_settings(),
+    )
+    _ = [event async for event in cast(Any, response.body_iterator)]
+
+    assert usage.records == []
+    assert quota.refunded == [USER]
