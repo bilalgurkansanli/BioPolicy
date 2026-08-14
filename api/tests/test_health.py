@@ -86,3 +86,33 @@ def test_embedding_dim_is_under_the_hnsw_ceiling() -> None:
     from api.constants import EMBEDDING_DIM
 
     assert EMBEDDING_DIM <= 2000
+
+
+def test_a_deployed_environment_does_not_name_its_missing_credentials() -> None:
+    """Defence in depth, and honestly labelled as that.
+
+    A deployed environment cannot boot with a credential missing — the validator
+    above refuses — so `missing` is empty there in practice and this was never a
+    live leak. What it was, was a property held up by a check in another file.
+    An unauthenticated route that would print `QUOTA_SUBJECT_PEPPER IS MISSING`
+    the moment that check moved is one rearrangement away from a map of which
+    safeguard is currently off.
+
+    `status: degraded` and the providers block still say that something is
+    wrong; only the list of names is withheld, and only where the reader cannot
+    act on it anyway.
+    """
+    deployed = Settings(
+        app_env="production",
+        supabase_url="https://example.supabase.co",
+        supabase_service_role_key="k",
+        supabase_anon_key="k",
+        anthropic_api_key="k",
+        google_api_key="k",
+        database_url="postgresql://u:p@localhost:5432/x",
+        purge_job_secret="s",
+        quota_subject_pepper="p",
+        _env_file=None,
+    )
+    assert deployed.is_deployed
+    assert Settings(app_env="development", _env_file=None).is_deployed is False

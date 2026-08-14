@@ -129,7 +129,18 @@ async def health(
         app_env=settings.app_env,
         providers=providers,
         retrieval=retrieval,
-        missing=[m.upper() for m in missing] or None,
+        # Named only where naming them helps somebody fix them.
+        #
+        # This route is unauthenticated, and it has to be — it is what a probe
+        # and a developer with a half-configured `.env` both read. In
+        # development that audience is the person who can act on the answer, so
+        # the list is worth its precision.
+        #
+        # On a deployed environment the audience is everyone, and
+        # `CREDENTIAL X IS MISSING` is a map of which capability is currently
+        # unguarded. `status` still says `degraded`, the providers block still
+        # says which ones are unconfigured, and the specifics stay in the logs.
+        missing=([m.upper() for m in missing] or None) if not settings.is_deployed else None,
         unpriced=unpriced or None,
         floor_mismatch=mismatch,
     )

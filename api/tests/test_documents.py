@@ -17,7 +17,14 @@ from __future__ import annotations
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+import pytest
+from asyncpg.exceptions import UniqueViolationError
+from fastapi import HTTPException
+
+from api.auth import AuthenticatedUser
+from api.config import Settings
 from api.documents import DocumentRepository
+from api.routers.documents import ConfirmRequest, confirm_upload
 from api.storage import upload_path
 from api.tests.fakes import FakePool
 
@@ -88,3 +95,56 @@ async def test_an_id_is_still_generated_when_none_is_supplied() -> None:
     _, args = pool.log[0]
     assert args[-1] is None  # coalesce() falls through to gen_random_uuid()
     assert record.id == generated
+
+
+# --- confirming the same upload twice -----------------------------------------
+
+
+class _Storage:
+    async def stat(self, path: str) -> Any:
+        from api.storage import StoredObject
+
+        return StoredObject(path=path, byte_size=1024)
+
+    async def remove(self, path: str) -> bool:
+        return True
+
+
+class _Quota:
+    async def ensure_can_upload(self, user_id: object) -> None: ...
+
+
+class _Colliding:
+    """A repository whose insert hits the primary key, as a repeat confirm does."""
+
+    async def create(self, **_: Any) -> Any:
+        raise UniqueViolationError("duplicate key value violates unique constraint")
+
+
+async def test_confirming_the_same_upload_twice_is_a_conflict_not_a_crash() -> None:
+    """`document_id` is the client's to send, so a confirm can arrive twice.
+
+    `create` is a plain INSERT rather than an upsert — which is what stops this
+    from being a way to overwrite somebody else's document — and without a
+    branch for the violation it was simply a 500.
+    """
+
+    class _State:
+        storage = _Storage()
+        quota = _Quota()
+        documents = _Colliding()
+
+    with pytest.raises(HTTPException) as excinfo:
+        await confirm_upload(
+            user=AuthenticatedUser(id=USER, email="t@example.com", is_anonymous=False),
+            request=ConfirmRequest(document_id=uuid4(), filename="policy.pdf"),
+            state=cast(Any, _State()),
+            settings=Settings(app_env="development", _env_file=None),
+        )
+
+    assert excinfo.value.status_code == 409
+    # The id is not confirmed or denied: an endpoint that answers "taken" or
+    # "free" about an identifier is an enumeration oracle.
+    detail = cast(dict[str, str], excinfo.value.detail)
+    assert "already been confirmed" in detail["message"]
+    assert str(excinfo.value.detail).count("-") < 4  # no UUID echoed back

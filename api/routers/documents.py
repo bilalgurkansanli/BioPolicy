@@ -24,14 +24,15 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Mapping
-from typing import Literal
+from collections.abc import Coroutine, Mapping
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
+from asyncpg.exceptions import UniqueViolationError
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
-from api.auth import CurrentUser, MaybeUser
+from api.auth import AuthenticatedUser, CurrentUser, MaybeUser
 from api.constants import PIPELINE_STAGES
 from api.deps import Config, State
 from api.generation.profile import PROFILE_MAX_CHUNKS, PolicyProfile
@@ -331,28 +332,55 @@ async def confirm_upload(
         await state.storage.remove(path)
         raise exc.as_http() from exc
 
-    record = await state.documents.create(
-        document_id=request.document_id,
-        user_id=user.id,
-        filename=request.filename,
-        storage_path=path,
-        byte_size=stored.byte_size,
-    )
+    try:
+        record = await state.documents.create(
+            document_id=request.document_id,
+            user_id=user.id,
+            filename=request.filename,
+            storage_path=path,
+            byte_size=stored.byte_size,
+        )
+    except UniqueViolationError as exc:
+        # The id is the client's to send — it names the object it just uploaded
+        # — so a confirm can arrive twice, or name a row that already exists.
+        # `create` is a plain INSERT rather than an upsert, which is what stops
+        # this from being a way to overwrite somebody's document; without this
+        # branch it was simply a 500.
+        #
+        # The message does not say whether the id exists. It cannot be guessed
+        # in practice, but an endpoint that answers "taken" or "free" about an
+        # identifier is an enumeration oracle, and there is no reason to build
+        # one here.
+        log.info("confirm_duplicate_id", document_id=str(request.document_id))
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "code": "already_confirmed",
+                "message": "That upload has already been confirmed. Please start a new one.",
+            },
+        ) from exc
     log.info("document_queued", document_id=str(record.id), byte_size=stored.byte_size)
 
     # The fast path. The row is already durable, so if this task dies with the
     # container the pg_cron watchdog picks the document up within a minute —
     # that is the whole point of ADR 007.
-    task = asyncio.create_task(state.worker.drain(max_documents=1))
-    _background.add(task)
-    task.add_done_callback(_background.discard)
+    _spawn(state.worker.drain(max_documents=1))
 
     return ConfirmedUpload(id=record.id, status=record.status)
 
 
 # asyncio holds only a weak reference to a running task, so a task nobody keeps
-# can be garbage collected mid-run. This set is what keeps the fast path alive.
-_background: set[asyncio.Task[int]] = set()
+# can be garbage collected mid-run. This set is what keeps such a task alive:
+# the ingestion fast path above, and the profile sweep below, which must finish
+# recording what it spent even if the caller has gone.
+_background: set[asyncio.Task[Any]] = set()
+
+
+def _spawn(coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
+    task = asyncio.create_task(coro)
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+    return task
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete now")
@@ -484,12 +512,10 @@ async def build_profile(document_id: UUID, user: CurrentUser, state: State) -> P
     keeps the sample documents affordable: the first signed-in visitor pays for
     the extraction and everyone after them reads the result.
 
-    **Not counted against the daily question allowance**, because it is not a
-    question — but it is gated by it, so somebody who has spent their questions
-    cannot open a new spending path. The real ceiling is arithmetic rather than
-    a counter: a profile is cached per document, samples are shared, and a user
-    may upload one document a day, so the number of extractions one account can
-    trigger is bounded by the document limit that already exists.
+    **Costs one question from the daily allowance**, and should: a sweep is
+    several provider calls where an answer is two. `ensure_can_ask` reserves the
+    slot up front, and `refund_question` hands it back when the sweep produced
+    nothing worth keeping — the same contract the answering route follows.
     """
     owner = await _profile_owner(document_id, user, state)
 
@@ -505,6 +531,26 @@ async def build_profile(document_id: UUID, user: CurrentUser, state: State) -> P
     except LimitExceededError as exc:
         raise exc.as_http() from exc
 
+    # Run as a task, and await that task rather than doing the work inline.
+    #
+    # This route spends money and then records it, and the recording must not
+    # depend on the caller still being there — the same failure the answering
+    # stream had, and worth pre-empting here rather than discovering it. A task
+    # is not cancelled when the request that started it is, so a browser that
+    # navigates away mid-sweep still leaves a ledger entry, a fed breaker and a
+    # cached profile nobody has to pay for twice.
+    #
+    # The lock lives inside the task for the same reason: held by the handler it
+    # would be released the moment the handler was cancelled, while the sweep it
+    # was guarding carried on.
+    profile: PolicyProfile = await _spawn(_extract_profile(document_id, owner, user, state))
+    return profile
+
+
+async def _extract_profile(
+    document_id: UUID, owner: UUID, user: AuthenticatedUser, state: State
+) -> PolicyProfile:
+    """The sweep itself, and everything that has to happen because of it."""
     # One extraction per document at a time. Two browsers opening the same
     # uncached sample together would otherwise both pay for it. Process-local,
     # so it does not help across instances — the waste it prevents is the common
@@ -518,6 +564,9 @@ async def build_profile(document_id: UUID, user: CurrentUser, state: State) -> P
     async with _profile_locks.setdefault(document_id, asyncio.Lock()):
         cached = await state.documents.get_profile(document_id)
         if cached:
+            # Somebody else did the work while this request waited on the lock,
+            # so the slot reserved for it was never spent.
+            await state.quota.refund_question(user.id)
             return PolicyProfile.model_validate(cached)
 
         chunks = await state.store.all_chunks(
@@ -533,8 +582,9 @@ async def build_profile(document_id: UUID, user: CurrentUser, state: State) -> P
         # size or "complete" means nothing.
         profile = outcome.profile.model_copy(update={"chunks_total": total})
 
-        cost = await state.usage.record(user_id=user.id, records=outcome.usage)
-        state.breaker.note_spend(cost)
+        if outcome.usage:
+            cost = await state.usage.record(user_id=user.id, records=outcome.usage)
+            state.breaker.note_spend(cost)
 
         # An extraction where every batch failed is a provider outage, not a
         # reading of the document. Caching it would make the outage permanent
@@ -547,6 +597,10 @@ async def build_profile(document_id: UUID, user: CurrentUser, state: State) -> P
                 document_id=str(document_id),
                 batches_failed=profile.batches_failed,
             )
+            # Nothing usable came back, so the day's allowance should not have
+            # paid for it. The provider calls that did land are still in the
+            # ledger above — the refund is of the *slot*, not of the money.
+            await state.quota.refund_question(user.id)
 
     return profile
 

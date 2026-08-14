@@ -26,6 +26,7 @@ export function Uploader({
   onUploaded,
   onFailure,
   compact = false,
+  disabledNote,
 }: {
   maxBytes: number;
   retentionHours: number;
@@ -38,6 +39,15 @@ export function Uploader({
    * another, and the space it gives back goes to the list of what is there.
    */
   compact?: boolean;
+  /**
+   * Why this is disabled, when the reason is the visitor's own allowance.
+   *
+   * `disabled` collapses three different situations — no credentials, no
+   * session, no uploads left today — and only the last one is the visitor's to
+   * understand. Given a note, the control says it instead of leaving a
+   * not-allowed cursor to be the entire explanation.
+   */
+  disabledNote?: string;
 }) {
   const { t } = useLocale();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -79,16 +89,17 @@ export function Uploader({
             message: t.account.signInBody,
           });
         } else if (error instanceof ApiError) {
-          onFailure({
-            title: error.isQuota
-              ? t.upload.quotaTitle
+          onFailure(
+            error.isQuota
+              ? { title: t.upload.quotaTitle, message: t.upload.quotaDocuments }
               : error.isBudget
-                ? t.upload.budgetTitle
-                : t.upload.failedTitle,
-            // The API's own message: it names the limit and when it resets, and
-            // is already written for a person to read.
-            message: error.message,
-          });
+                ? { title: t.upload.budgetTitle, message: t.upload.budgetBody }
+                : error.isBlocked
+                  ? { title: t.upload.blockedTitle, message: t.upload.blockedBody }
+                  : // Nothing recognised the code, so the API's own sentence is
+                    // the only thing left that describes what happened.
+                    { title: t.upload.failedTitle, message: error.message },
+          );
         } else {
           onFailure({ title: t.upload.failedTitle, message: t.workspace.errorBody });
         }
@@ -122,9 +133,11 @@ export function Uploader({
           dragging
             ? "border-accent bg-accent-soft"
             : "border-line-strong bg-surface"
-        } ${disabled ? "opacity-50" : ""}`}
+        } ${disabled && !disabledNote ? "opacity-50" : ""}`}
       >
-        {busy ? (
+        {disabledNote && !busy ? (
+          <p className="text-xs leading-5 text-ink-faint">{disabledNote}</p>
+        ) : busy ? (
           <div>
             <p className="text-xs text-ink-muted">
               {t.upload.uploading} {Math.round((progress ?? 0) * 100)}%

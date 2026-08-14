@@ -45,6 +45,11 @@ export class ApiError extends Error {
   get isBudget(): boolean {
     return this.code === "budget_exhausted";
   }
+
+  /** Banned, deleted, or anonymous: the account may not spend at all. */
+  get isBlocked(): boolean {
+    return this.code === "account_not_usable";
+  }
 }
 
 /**

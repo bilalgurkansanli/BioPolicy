@@ -405,15 +405,18 @@ export function Workspace() {
           // Stopped on purpose. Not a failure to report.
         } else if (
           error instanceof ApiError &&
-          (error.isQuota || error.isBudget)
+          (error.isQuota || error.isBudget || error.isBlocked)
         ) {
           setMessages((current) => [
             ...current,
             {
               kind: "refused",
               id: `${id}:l`,
-              title: error.isQuota ? t.upload.quotaTitle : t.upload.budgetTitle,
-              message: error.message,
+              ...(error.isQuota
+                ? { title: t.upload.quotaTitle, message: t.upload.quotaQuestions }
+                : error.isBudget
+                  ? { title: t.upload.budgetTitle, message: t.upload.budgetBody }
+                  : { title: t.upload.blockedTitle, message: t.upload.blockedBody }),
             },
           ]);
         } else if (error instanceof NotSignedInError) {
@@ -771,6 +774,15 @@ export function Workspace() {
                     maxBytes={capabilities?.max_upload_bytes ?? 25 * 1024 * 1024}
                     retentionHours={capabilities?.retention_hours ?? 24}
                     disabled={!configured || !signedIn || documentsLeft === 0}
+                    // Only the quota is explained here. Not signed in is
+                    // already answered by the gate below the composer, and a
+                    // deployment with no credentials is not the visitor's
+                    // problem to read about.
+                    disabledNote={
+                      signedIn && documentsLeft === 0
+                        ? t.upload.exhausted
+                        : undefined
+                    }
                     onUploaded={onUploaded}
                     onFailure={setUploadFailure}
                     compact={mine.length > 0}
@@ -1023,10 +1035,15 @@ export function Workspace() {
                   {t.account.exhaustedTitle}
                 </h3>
                 <p className="mt-1.5 text-sm leading-6 text-ink-muted">
-                  {t.account.exhaustedBody.replace(
-                    "{limit}",
-                    String(me?.allowance.questions_limit ?? 0),
-                  )}
+                  {t.account.exhaustedBody
+                    .replaceAll(
+                      "{limit}",
+                      String(me?.allowance.questions_limit ?? 0),
+                    )
+                    .replace(
+                      "{documents}",
+                      String(me?.allowance.documents_limit ?? 0),
+                    )}
                 </p>
               </div>
             ) : (
