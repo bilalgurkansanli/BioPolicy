@@ -2,11 +2,9 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 
 import { AccountMenu } from "@/components/AccountMenu";
 import { HeaderMenu } from "@/components/HeaderMenu";
-import { LeaveConfirm } from "@/components/LeaveConfirm";
 import { useLocale } from "@/components/LocaleProvider";
 import { SlideLink } from "@/components/SlideLink";
 import { LOCALES } from "@/lib/i18n";
@@ -24,7 +22,6 @@ const PROJECTS_URL = "https://projects.bilalgurkansanli.com";
 export function SiteHeader() {
   const { locale, setLocale, t } = useLocale();
   const pathname = usePathname();
-  const [leaving, setLeaving] = useState(false);
 
   const onWorkspace = pathname === "/app";
 
@@ -48,10 +45,12 @@ export function SiteHeader() {
           moved by the compositor instead of redrawn.
 
           One consequence to keep in mind: both of these make this element a
-          containing block for any `position: fixed` descendant. Nothing inside
-          is fixed today — the leave dialog is portalled to `document.body`
-          precisely because the blur already did this — and anything added later
-          must be too. */}
+          containing block for any `position: fixed` descendant, so a fixed
+          overlay rendered in here would be positioned against the 64px bar
+          rather than against the viewport. Nothing inside is fixed today. The
+          leave dialog that used to be — and that had to be portalled to
+          `document.body` for exactly this reason — went with the link's move to
+          a new tab; anything added later needs the same treatment. */}
       {/* `gap-2` below `sm`, not `gap-3`. The row had no room to spare on a
           phone, so adding anything to it has to take the space from somewhere,
           and four pixels of gap twice over is the cheapest thing in here to
@@ -86,10 +85,22 @@ export function SiteHeader() {
             origin would animate the page out and then sit on a blank frame
             while a full document load happens underneath.
 
-            Same tab, no `target="_blank"`. "Back to projects" is a departure,
-            and a departure that leaves the thing you departed from open behind
-            you is not one. The label folds away on a phone for the same reason
-            the wordmark does; the arrow keeps the meaning on its own. */}
+            Opens in a new tab. It used to navigate in place, on the reasoning
+            that a departure leaving the thing you departed from open behind you
+            is not a departure — and on a narrow screen it asked first, because
+            there the link is an unlabelled arrow. Both of those are gone
+            together: a new tab leaves nothing behind, so there is nothing to
+            confirm, and the dialog would have promised "BioPolicy will close in
+            this tab" and then not closed it.
+
+            `rel="noopener noreferrer"` is load-bearing rather than boilerplate.
+            Without `noopener` the opened page keeps a `window.opener` handle on
+            this one and can navigate it anywhere it likes — a tab showing
+            somebody's insurance policy is not a tab to leave steerable from
+            outside.
+
+            The label folds away on a phone for the same reason the wordmark
+            does; the arrow keeps the meaning on its own. */}
         {/* Pulled out to the true left edge on a wide screen.
             `-ml-*` cancels the container's own padding so the link sits against
             the viewport rather than against the centred column — on a large
@@ -99,16 +110,8 @@ export function SiteHeader() {
             phone the row needs every pixel of it. */}
         <a
           href={PROJECTS_URL}
-          onClick={(event) => {
-            // The dialog only exists on the narrow layout, and this is how it
-            // knows: the same media query the label uses, asked in JS. Wide
-            // screens keep the plain navigation — the sentence is right there,
-            // and confirming something a reader has already read is friction.
-            if (window.matchMedia("(max-width: 1023px)").matches) {
-              event.preventDefault();
-              setLeaving(true);
-            }
-          }}
+          target="_blank"
+          rel="noopener noreferrer"
           className="group -ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink sm:px-2.5"
         >
           <BackArrow />
@@ -122,6 +125,21 @@ export function SiteHeader() {
           <span className="hidden lg:inline xl:hidden">
             {t.nav.backToProjectsShort}
           </span>
+          {/* Below `lg` the two spans above are `display: none` and the arrow is
+              `aria-hidden`, which left this link with no accessible name at all
+              — a phone user reading by screen reader got "link" and nothing
+              else. This carries the name at exactly the widths where nothing
+              visible does.
+
+              Said with a hidden span rather than an `aria-label`, on purpose.
+              An `aria-label` replaces the visible text, and the visible text
+              here changes with the breakpoint: at `lg` the label would announce
+              "See my other projects" over a control reading "My projects",
+              which is the mismatch that breaks voice control ("click my
+              projects" matches nothing). Appending instead keeps whatever is on
+              screen inside the name at every width. */}
+          <span className="sr-only lg:hidden">{t.nav.backToProjects}</span>
+          <span className="sr-only">({t.nav.opensInNewTab})</span>
         </a>
 
         {/* The way out of the workspace, and the only one: the slide runs
@@ -321,16 +339,6 @@ export function SiteHeader() {
           )}
         </div>
       </div>
-
-      <LeaveConfirm
-        open={leaving}
-        onClose={() => setLeaving(false)}
-        href={PROJECTS_URL}
-        title={t.nav.leave.title}
-        body={t.nav.leave.body}
-        confirmLabel={t.nav.leave.confirm}
-        cancelLabel={t.nav.leave.cancel}
-      />
     </header>
   );
 }

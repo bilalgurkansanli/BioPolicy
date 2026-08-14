@@ -59,15 +59,10 @@ const tr = {
     backToProjects: "Diğer Projelerim için Tıklayınız",
     backToProjectsShort: "Diğer projelerim",
     menu: "Menü",
-    // Shown only on the narrow layout, where the link is an unlabelled arrow.
-    leave: {
-      title: "Siteden ayrılıyorsunuz",
-      body:
-        "Diğer projelerimin bulunduğu sayfaya gideceksiniz. BioPolicy bu " +
-        "sekmede kapanacak.",
-      confirm: "Evet, git",
-      cancel: "Hayır, kal",
-    },
+    // Read out as part of the link's name, never shown. A new tab is a change
+    // of context, and a reader who cannot see it happen has to be told before
+    // they follow the link — afterwards the back button no longer goes back.
+    opensInNewTab: "yeni sekmede açılır",
   },
   language: {
     label: "Dil",
@@ -295,7 +290,7 @@ const tr = {
     unlimited: "sınırsız",
     exhaustedTitle: "Günlük soru hakkınız bitti",
     exhaustedBody:
-      "Bugün {limit} sorunun tamamını kullandınız. Hak, UTC gece yarısı yenilenir. Belgeleri ve geçmiş sohbetlerinizi incelemeye devam edebilirsiniz.",
+      "Bugün {limit} sorunun tamamını kullandınız. Bu {limit} soru ve {documents} belge her gün yenilenir. Belgeleri ve geçmiş sohbetlerinizi incelemeye devam edebilirsiniz.",
     menu: "Hesabınız",
     deleteAccount: "Hesabımı sil",
     deleteTitle: "Hesabınız silinsin mi?",
@@ -441,34 +436,46 @@ const tr = {
       ready: "Hazır",
       failed: "Başarısız",
     },
+    exhausted: "Günlük belge yükleme hakkınızı kullandınız — her gün yenilenir.",
     quotaTitle: "Günlük sınıra ulaştınız",
+    // The API answers a limit in English, because it has no way of knowing who
+    // is asking. Its message is the fallback for anyone reading the API
+    // directly; what a visitor reads is written here, in their language.
+    quotaQuestions:
+      "Bugünkü soru hakkınızın tamamını kullandınız. Haklarınız her gün yenilenir.",
+    quotaDocuments:
+      "Bugünkü belge yükleme hakkınızı kullandınız. Haklarınız her gün yenilenir.",
     budgetTitle: "Demo şimdilik kapalı",
+    budgetBody:
+      "Demo harcama sınırına ulaştığı için şimdilik yeni soru yanıtlanmıyor. Sizden hiçbir ücret alınmadı.",
+    blockedTitle: "Bu hesap demoyu kullanamıyor",
+    blockedBody: "Devam etmek için Google hesabınızla giriş yapın.",
     retentionNote:
       "Yüklediğiniz belge {hours} saat sonra otomatik silinir; dilediğiniz an kendiniz de silebilirsiniz. O belgeyle yaptığınız sohbet de belgeyle birlikte gider.",
   },
   evaluation: {
     title: "Değerlendirme",
-    lede: "Bu sistemin iddiası ölçülebilir: cevap verebildiğinde maddeyi gösterir, veremediğinde reddeder. Aşağıdaki sayılar 70 soruluk bir sınavın sonucudur ve hiçbiri elle yazılmadı.",
+    lede: "Aşağıdaki sayıların hiçbirini elle yazmadım. Hepsini bir program üretti: 70 soruyu gerçek modellere sordu, gelen her cevabı tek tek denetledi. Sonuç hoşuma gitmediğinde de aynen yayımladım.",
     caveat:
-      "Bu sayılar, bu proje için yazılmış üç sentetik belge üzerinde ölçüldü. Gerçek bir poliçe derleminde ne olacağını göstermezler; raporun tamamı, neyi göstermediklerini de anlatıyor.",
+      "Şunu baştan söyleyeyim: bu sınav, bu proje için yazılmış üç sahte belge üzerinde yapıldı. Gerçek poliçelerde ne olacağını göstermez. Raporun tamamı, neyi ölçemediğini de tek tek sayıyor.",
     fullReport: "Raporun tamamı",
-    fullReportNote: "Bölüm bölüm. Neyi ölçmediğini söyleyen kısımla başlıyor.",
+    fullReportNote: "Sayılar nasıl çıktı, neyi ölçmüyor. İlk bölüm zaten bunu anlatıyor.",
     adversarialQuestions: "soru",
     adversarialFile: "Bu koşunun tamamı: report_hard.tr.md",
     adversarial: "Zor belgeler",
     adversarialNote:
-      "Kendisiyle çelişen bir poliçe ve iki sütun düzeninde yazılmış bir kasko. Ayrı derlem, ayrı sayılar.",
+      "Kendi kendisiyle çelişen bir poliçe. Bir de iki sütun hâlinde dizilmiş bir kasko. Ayrı sınav, ayrı sayılar.",
     cards: {
       refusalAccuracy: "Doğru ret",
-      refusalAccuracyNote: "Belgede cevabı olmayan sorularda uydurmadı.",
+      refusalAccuracyNote: "Cevabı belgede olmayan soruları uydurmadan reddetti.",
       falseRefusal: "Yanlış ret",
-      falseRefusalNote: "Cevabı belgede olduğu hâlde reddettikleri.",
-      recall: "Doğru bölümü buldu",
-      recallNote: "Cevabın dayandığı madde, getirilen 8 parçanın içindeydi.",
-      citationValidity: "Alıntı geçerliliği",
-      citationValidityNote: "Gösterilen her alıntı belgede gerçekten vardı.",
+      falseRefusalNote: "Cevap belgede vardı ama yine de reddetti. Düşük olması iyi.",
+      recall: "Doğru maddeyi buldu",
+      recallNote: "Aranan madde, getirilen 8 parçanın arasındaydı.",
+      citationValidity: "Alıntılar gerçek",
+      citationValidityNote: "Gösterilen her alıntı belgede birebir vardı.",
       footnote:
-        "{questions} soru · soru başına ${cost} · commit {commit}. İlk iki sayı birlikte okunmalı: her şeyi reddeden bir sistem birincisinden %100 alır.",
+        "{questions} soru · soru başına ${cost} · commit {commit}. İlk iki sayıyı birlikte okuyun: hiçbir soruya cevap vermeyen bir sistem birincisinden tam puan alır. İkincisi onu yakalar.",
     },
     missing:
       "Rapor bu derlemede bulunamadı. Depoda eval/report.md dosyasına bakabilirsiniz.",
@@ -481,10 +488,10 @@ const tr = {
     spendQuestions: "Cevaplanan soru",
     spendBudget: "Bütçe tavanı",
     spendCaveat:
-      "Anthropic ve Google çağrılarının tamamı fiyatlandırılıyor. Bu toplamın {share} kadarı fiyatlandırılmış çağrılardan geliyor; kalanı, Google fiyatları doğrulanmadan önce kaydedilmiş eski çağrılar ve sıfır maliyetle yazıldı. Yeni her çağrı tam olarak sayılıyor.",
+      "Her model çağrısı fiyatlanıp kaydediliyor. Bu toplamın {share} kadarı fiyatı doğrulanmış çağrılardan geliyor. Kalanı daha eski çağrılar: Google'ın fiyatları doğrulanmadan önce yapıldılar, o yüzden sıfır yazıldılar. Bugünden sonraki her çağrı tam sayılıyor.",
     historyTitle: "Sayılar zaman içinde",
     historyNote:
-      "Yayımlanan yapılandırma (katı prompt + mekanizmalar), 70 soruluk küme üzerinde. Her nokta bir koşum.",
+      "Yayımlanan yapılandırma, 70 soruluk küme. Her nokta bir koşum.",
     historyEmpty:
       "Henüz kayıt yok. Geçmiş, ölçüm koştukça birikir; ilk koşum bu özellikten sonra yapılacak.",
     historyTooShort: "Tek bir koşum var. İki nokta olmadan çizilecek bir eğilim yok.",
@@ -533,14 +540,7 @@ const en: Dictionary = {
     backToProjects: "See my other projects",
     backToProjectsShort: "My projects",
     menu: "Menu",
-    leave: {
-      title: "You are leaving this site",
-      body:
-        "This opens the page listing my other projects. BioPolicy will close " +
-        "in this tab.",
-      confirm: "Yes, go",
-      cancel: "No, stay",
-    },
+    opensInNewTab: "opens in a new tab",
   },
   language: {
     label: "Language",
@@ -762,7 +762,7 @@ const en: Dictionary = {
     unlimited: "unlimited",
     exhaustedTitle: "You have used today's questions",
     exhaustedBody:
-      "All {limit} of them. The allowance resets at midnight UTC. You can still read the documents and your earlier conversations.",
+      "All {limit} of them. The {limit} questions and {documents} upload renew every day. You can still read the documents and your earlier conversations.",
     menu: "Your account",
     deleteAccount: "Delete my account",
     deleteTitle: "Delete your account?",
@@ -908,34 +908,43 @@ const en: Dictionary = {
       ready: "Ready",
       failed: "Failed",
     },
+    exhausted: "Today's upload is used — the allowance renews every day.",
     quotaTitle: "You have reached the daily limit",
+    quotaQuestions:
+      "You have used today's questions. The allowance renews every day.",
+    quotaDocuments:
+      "You have used today's upload. The allowance renews every day.",
     budgetTitle: "The demo is paused",
+    budgetBody:
+      "The demo has reached its spending limit, so it is not answering new questions right now. You were not charged for anything.",
+    blockedTitle: "This account cannot use the demo",
+    blockedBody: "Sign in with your Google account to continue.",
     retentionNote:
       "Your document is deleted automatically after {hours} hours, and you can delete it yourself at any time. The conversation about it goes when it does.",
   },
   evaluation: {
     title: "Evaluation",
-    lede: "The claim this system makes is measurable: cite the clause when it can answer, refuse when it cannot. The numbers below come from a 70-question exam, and none of them were written by hand.",
+    lede: "I did not write a single number below. A program produced all of them: it put 70 questions to the real models and checked every answer that came back. When the result was unflattering, I published it unchanged.",
     caveat:
-      "These were measured on three synthetic documents written for this project. They do not tell you what happens on a real corpus of policies — and the full report is explicit about what else they do not show.",
+      "One thing up front: this exam was sat on three synthetic documents written for this project. It does not tell you what happens with real policies. The full report lists what else it cannot measure.",
     fullReport: "The full report",
-    fullReportNote: "Section by section. It opens with what it does not measure.",
+    fullReportNote: "How the numbers were produced, and what they miss. That is the opening section.",
     adversarialQuestions: "questions",
     adversarialFile: "The whole run: report_hard.md",
     adversarial: "Hard documents",
     adversarialNote:
-      "A policy that contradicts itself, and one typeset in two columns. A different corpus, so different numbers.",
+      "A policy that contradicts itself. And one typeset in two columns. A separate exam, separate numbers.",
     cards: {
       refusalAccuracy: "Correct refusals",
-      refusalAccuracyNote: "Questions the document cannot answer, refused.",
+      refusalAccuracyNote: "Questions the document cannot answer, refused instead of invented.",
       falseRefusal: "False refusals",
-      falseRefusalNote: "Answerable questions it refused anyway.",
-      recall: "Found the right passage",
-      recallNote: "The clause the answer needed was among the 8 retrieved.",
-      citationValidity: "Citation validity",
-      citationValidityNote: "Every quote shown was really in the document.",
+      falseRefusalNote: "The answer was in the document and it refused anyway. Lower is better.",
+      recall: "Found the right clause",
+      recallNote: "The clause the answer needed was among the 8 passages retrieved.",
+      citationValidity: "Quotes were real",
+      citationValidityNote: "Every quote shown appeared in the document, word for word.",
       footnote:
-        "{questions} questions · ${cost} per question · commit {commit}. Read the first two together: a system that refuses everything scores 100% on the first.",
+        "{questions} questions · ${cost} each · commit {commit}. Read the first two together: a system that refuses everything scores 100% on the first. The second is what catches it.",
     },
     missing:
       "The report was not found in this build. It lives at eval/report.md in the repository.",
@@ -948,10 +957,9 @@ const en: Dictionary = {
     spendQuestions: "Questions answered",
     spendBudget: "Budget ceiling",
     spendCaveat:
-      "Every Anthropic and Google call is priced. {share} of this total comes from priced calls; the rest are older ones, recorded at zero before Google's rates were verified. Every new call is counted in full.",
+      "Every model call is priced and recorded. {share} of this total comes from calls whose rate was verified. The rest are older ones, made before Google's rates were checked, so they were written down as zero. Every call from here on counts in full.",
     historyTitle: "The numbers over time",
-    historyNote:
-      "The shipped configuration (strict prompt + mechanisms) over the 70-question set. One point per run.",
+    historyNote: "The shipped configuration, over the 70-question set. One point per run.",
     historyEmpty:
       "Nothing recorded yet. History accrues as the evaluation runs; the first entry lands after this feature.",
     historyTooShort: "One run so far. Two points are needed before there is a trend to draw.",
