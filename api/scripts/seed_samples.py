@@ -187,9 +187,21 @@ async def run(*, force: bool, which: str) -> int:
             fixture = path.stem in FIXTURE_SLUGS
             record = await documents.find_by_path(storage_path)
             if record and record.status == STATUS_READY and not force:
+                # The chunk count decides, not the status column. `ready` says a
+                # pipeline finished once; chunks are what make the document
+                # answerable, and the two can disagree — migration 0012 deleted
+                # every vector in the database and left every status alone.
+                #
+                # This check used to read the count purely to print it and skip
+                # either way, so the one state that most needs re-ingesting was
+                # the one state this script refused to touch. The adversarial
+                # fixtures sat at `ready` with zero chunks from the Voyage
+                # migration until an evaluation run scored them 0% recall.
                 count = await store.chunk_count(record.id)
-                print(f"  {DIM}SKIP{RESET}     {path.name}  ({count} chunks already stored)")
-                continue
+                if count:
+                    print(f"  {DIM}SKIP{RESET}     {path.name}  ({count} chunks already stored)")
+                    continue
+                print(f"  {DIM}EMPTY{RESET}    {path.name}  (ready with no chunks — re-ingesting)")
 
             print(f"  ...      {path.name}")
             await upload(storage_path, data)

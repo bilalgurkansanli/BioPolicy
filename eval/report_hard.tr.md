@@ -6,9 +6,7 @@
 
 Sonuçlardan sonra değil önce duruyor, çünkü raporun altına yazılan çekince, kimsenin okumadığı çekincedir.
 
-- **1 soru sağlayıcı hatasıyla düştü ve ret olarak sayıldı.** Sağlayıcının hiç cevaplamadığı bir soru, buradaki her ölçütte sistemin reddettiği soruyla birebir aynı görünür — yani API'de kötü geçen bir öğleden sonra, yanlış ret oranı olarak karşımıza çıkar. Çıkarım kontrolünü taşıyan kollar soru başına ikisi yerine üç ardışık sağlayıcı çağrısı yapıyor ve hatalı olanlar da onlar: `naive_entailed` (1). Aşağıdaki her yanlış ret rakamını bu çıkarılmış hâliyle okuyun.
-
-- **Çıkarım kontrolü, yapılma amacını yerine getirmedi.** Bu raporun daha önceki bir koşusu, önceki mekanizmaların dayanaksız çıkarıma kör olduğunu saptadığı için eklendi ve soruyu gören tek aşama o. Bu derlemde ret doğruluğunu +0%, yanlış ret oranını +10% oynattı ve her sorunun maliyetine 14% ekledi. Yukarıdaki sağlayıcı hatalarını çıkarın, hiçbir kararı değiştirmemiş oluyor — kendinden önceki iki mekanizmayla aynı bulgu, aynı yoldan. Çekişmeli kümede (`report_hard.md`) bir şey yakalıyor, burada hiçbir şey; sürekli açık tutmak, bu derlemde bulunmayan belgelerde çalışan bir kontrol için her soruda ödeme yapmak olurdu.
+- **Çıkarım kontrolü, yapılma amacını yerine getirmedi.** Bu raporun daha önceki bir koşusu, önceki mekanizmaların dayanaksız çıkarıma kör olduğunu saptadığı için eklendi ve soruyu gören tek aşama o. Bu derlemde ret doğruluğunu +0%, yanlış ret oranını +0% oynattı ve her sorunun maliyetine 29% ekledi. Yukarıdaki sağlayıcı hatalarını çıkarın, hiçbir kararı değiştirmemiş oluyor — kendinden önceki iki mekanizmayla aynı bulgu, aynı yoldan. Çekişmeli kümede (`report_hard.md`) bir şey yakalıyor, burada hiçbir şey; sürekli açık tutmak, bu derlemde bulunmayan belgelerde çalışan bir kontrol için her soruda ödeme yapmak olurdu.
 
 - **%100'lük alıntı geçerliliğinin bir kısmı yapısal.** Cevap veren model, sağlayıcı tarafından dayatılan bir JSON şemasıyla kısıtlı ve bağlam küçük; yani bozuk ya da uydurma parça kimlikleri kuruluş gereği neredeyse imkânsız. Bağlamanın asıl ilginç yarısı — adını verdiği parçada geçmeyen bir *alıntıyı* yakalamak — burada hiç sınanmadı.
 
@@ -16,10 +14,10 @@ Sonuçlardan sonra değil önce duruyor, çünkü raporun altına yazılan çeki
 
 | | |
 |---|---|
-| Üretildi | 2026-08-05 23:15 UTC |
-| Commit | `30e9f68` |
+| Üretildi | 2026-08-14 17:00 UTC |
+| Commit | `8487513` |
 | Cevaplayan model | `claude-haiku-4-5-20251001` |
-| Gömme modeli | `gemini-embedding-001` (1536 boyut) |
+| Gömme modeli | `voyage-4-lite` (1024 boyut) |
 | İstemler | `answer_v2`, `verify_v1` |
 | Soru | 12 |
 | Cevabı belgede olmayan sorular | 2 (17%) |
@@ -32,10 +30,10 @@ Naif istem bir korkuluk değil. Doğruluk istiyor, alıntı talep ediyor ve ayn�
 
 | Kol | Ret doğruluğu | Yanlış ret | Dengeli | Alıntı geçerliliği | Bastırılan | $/soru |
 |---|---:|---:|---:|---:|---:|---:|
-| naif istem, mekanizmasız | 100% | 0% | 100% | 100% | 0 | $0.0028 |
-| naif istem + mekanizmalar | 100% | 10% | 95% | 100% | 1 | $0.0049 |
-| katı istem, mekanizmasız | 100% | 10% | 95% | 100% | 0 | $0.0036 |
-| katı istem + mekanizmalar **(yayımlanan)** | 100% | 10% | 95% | 100% | 0 | $0.0061 |
+| naif istem, mekanizmasız | 100% | 0% | 100% | 100% | 0 | $0.0029 |
+| naif istem + mekanizmalar | 100% | 10% | 95% | 100% | 1 | $0.0052 |
+| katı istem, mekanizmasız | 100% | 10% | 95% | 100% | 0 | $0.0043 |
+| katı istem + mekanizmalar **(yayımlanan)** | 100% | 10% | 95% | 100% | 0 | $0.0063 |
 
 **Başlangıçtan yayımlanana:** dengeli doğruluk 100% → 95%, ret doğruluğu 100% → 100%.
 
@@ -50,7 +48,7 @@ Yalnızca cevaplanabilir sorular üzerinden ölçülüyor — cevabı belgede ol
 | | |
 |---|---:|
 | Recall@8 | 100% |
-| MRR | 0.883 |
+| MRR | 0.850 |
 | Cevaplanabilir soru | 10 |
 
 ### Kategoriye göre
@@ -74,6 +72,22 @@ Yalnızca cevaplanabilir sorular üzerinden ölçülüyor — cevabı belgede ol
 | Ret doğruluğu | 100% |
 | Yanlış ret oranı | 10% |
 | Dengeli doğruluk | 95% |
+
+### Getirme eşiği
+
+Herhangi bir model çağrılmadan önce, getirilen en yakın bölüm bir kosinüs mesafesi eşiğine karşı denetlenir. Hiçbir şeyin yakın olmadığı bir soru bedelsiz reddedilir. Yeniden üretmek için: `uv run python -m eval.measure_floor`.
+
+Eşik **0.72**, `voyage-4-lite` uzayında ölçüldü. İkisi birlikte yazılıyor, çünkü biri olmadan diğeri bir şey ifade etmiyor: kosinüs mesafesi gömme modelleri arasında karşılaştırılabilir değil — tek başına verilen bir eşik denetlenemez, model değişirken yerinde kalan bir eşik ise fark edilemez.
+
+| Küme | n | min | median | max | Eşiğin reddettiği |
+|---|---:|---:|---:|---:|---:|
+| cevaplanabilir | 49 | 0.3603 | 0.4890 | 0.6967 | 0 / 49 |
+| konu içi, cevapsız | 21 | 0.5242 | 0.5891 | 0.7221 | 2 / 21 |
+| başka sigorta konusu | 18 | 0.4095 | 0.7184 | 0.8303 | 9 / 18 |
+| tümüyle alakasız | 18 | 0.7339 | 0.8559 | 0.9586 | 18 / 18 |
+| tanımlayıcı sorguları | 8 | 0.5832 | 0.7012 | 0.8010 | 3 / 8 |
+
+**Eşiğin yapmadığı şey asıl mesele.** Cevaplanabilir ve konuyla ilgili ama cevapsız kümeler neredeyse tümüyle örtüşüyor — cevapsızların en yakını, cevaplanabilirlerin medyanından daha yakın — dolayısıyla hiçbir eşik bu ikisini ayıramaz ve eşik bunu denemiyor. Aradaki boşluğun gerçek olduğu yerde, konu içi ile konu dışını ayırıyor; zor yargıyı prompt'a bırakıyor.
 
 ## Alıntılar ve dayanak
 
@@ -108,10 +122,10 @@ Ortalama yalnızca **gösterilen** cevapları kapsıyor. Bastırılanları da ka
 
 | | |
 |---|---:|
-| Soru başına maliyet | $0.0061 |
-| p50 gecikme | 5.9s |
-| p95 gecikme | 6.7s |
-| Bu koşunun toplamı | $0.36 |
+| Soru başına maliyet | $0.0063 |
+| p50 gecikme | 5.1s |
+| p95 gecikme | 6.9s |
+| Bu koşunun toplamı | $0.40 |
 
 Ortalama yerine p50 ve p95: tek bir soğuk başlangıç ortalamayı oynatır ve tipik deneyim hakkında hiçbir şey söylemez.
 

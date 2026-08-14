@@ -6,9 +6,7 @@
 
 Placed before the results rather than after them, because a caveat at the bottom of a report is a caveat nobody reads.
 
-- **1 question(s) failed with a provider error and are counted as refusals.** A question the provider never answered looks identical, in every metric here, to one the system declined — so a bad afternoon at the API arrives as a false-refusal rate. The arms carrying the entailment check make three serial provider calls per question instead of two, and they are the arms with errors: `naive_entailed` (1). Read every false-refusal figure below with that subtracted.
-
-- **The entailment check did not do what it was built to do.** It exists because an earlier run of this report diagnosed the previous mechanisms as blind to unwarranted inference, and it is the only pass that is shown the question. On this corpus it moved refusal accuracy by +0%, moved the false-refusal rate by +10%, and added 14% to the cost of every question. Subtract the provider errors above and it changed no decisions — the same finding as the two mechanisms before it, reached the same way. It does catch something on the adversarial set (`report_hard.md`), and nothing here; shipping it always would be paying on every question for a check that fires on documents this corpus does not contain.
+- **The entailment check did not do what it was built to do.** It exists because an earlier run of this report diagnosed the previous mechanisms as blind to unwarranted inference, and it is the only pass that is shown the question. On this corpus it moved refusal accuracy by +0%, moved the false-refusal rate by +0%, and added 29% to the cost of every question. Subtract the provider errors above and it changed no decisions — the same finding as the two mechanisms before it, reached the same way. It does catch something on the adversarial set (`report_hard.md`), and nothing here; shipping it always would be paying on every question for a check that fires on documents this corpus does not contain.
 
 - **Citation validity of 100% is partly structural.** The answering model is constrained by a provider-enforced JSON schema and the context is small, so malformed or invented chunk ids are close to impossible by construction. The interesting half of binding — catching a *quote* that does not appear in a chunk it names — was never exercised here.
 
@@ -16,10 +14,10 @@ Placed before the results rather than after them, because a caveat at the bottom
 
 | | |
 |---|---|
-| Generated | 2026-08-05 23:15 UTC |
-| Commit | `30e9f68` |
+| Generated | 2026-08-14 17:00 UTC |
+| Commit | `8487513` |
 | Answering model | `claude-haiku-4-5-20251001` |
-| Embedding model | `gemini-embedding-001` (1536 dimensions) |
+| Embedding model | `voyage-4-lite` (1024 dimensions) |
 | Prompts | `answer_v2`, `verify_v1` |
 | Questions | 12 |
 | Adversarial negatives | 2 (17%) |
@@ -32,10 +30,10 @@ The naive prompt is not a strawman. It asks for accuracy, requests citations and
 
 | Arm | Refusal accuracy | False-refusal | Balanced | Citation validity | Suppressed | $/question |
 |---|---:|---:|---:|---:|---:|---:|
-| naive prompt, no mechanisms | 100% | 0% | 100% | 100% | 0 | $0.0028 |
-| naive prompt + mechanisms | 100% | 10% | 95% | 100% | 1 | $0.0049 |
-| strict prompt, no mechanisms | 100% | 10% | 95% | 100% | 0 | $0.0036 |
-| strict prompt + mechanisms **(shipped)** | 100% | 10% | 95% | 100% | 0 | $0.0061 |
+| naive prompt, no mechanisms | 100% | 0% | 100% | 100% | 0 | $0.0029 |
+| naive prompt + mechanisms | 100% | 10% | 95% | 100% | 1 | $0.0052 |
+| strict prompt, no mechanisms | 100% | 10% | 95% | 100% | 0 | $0.0043 |
+| strict prompt + mechanisms **(shipped)** | 100% | 10% | 95% | 100% | 0 | $0.0063 |
 
 **Baseline to shipped:** balanced accuracy 100% → 95%, refusal accuracy 100% → 100%.
 
@@ -50,7 +48,7 @@ Measured over the answerable questions only — a negative has no correct chunk 
 | | |
 |---|---:|
 | Recall@8 | 100% |
-| MRR | 0.883 |
+| MRR | 0.850 |
 | Answerable questions | 10 |
 
 ### By category
@@ -74,6 +72,22 @@ Measured over the answerable questions only — a negative has no correct chunk 
 | Refusal accuracy | 100% |
 | False-refusal rate | 10% |
 | Balanced accuracy | 95% |
+
+### The retrieval floor
+
+Before any model is called, the nearest retrieved passage is checked against a cosine-distance threshold. A question nothing is close to is refused for free. Reproduce with `uv run python -m eval.measure_floor`.
+
+The threshold is **0.72**, measured in the space of `voyage-4-lite`. Both are stated because neither means anything without the other: cosine distance is not comparable across embedding models, so a threshold quoted on its own cannot be checked, and a threshold left behind when the model changes cannot be noticed.
+
+| Population | n | min | median | max | Refused by the floor |
+|---|---:|---:|---:|---:|---:|
+| answerable | 49 | 0.3603 | 0.4890 | 0.6967 | 0 / 49 |
+| on-topic, unanswerable | 21 | 0.5242 | 0.5891 | 0.7221 | 2 / 21 |
+| other insurance topic | 18 | 0.4095 | 0.7184 | 0.8303 | 9 / 18 |
+| unrelated entirely | 18 | 0.7339 | 0.8559 | 0.9586 | 18 / 18 |
+| identifier queries | 8 | 0.5832 | 0.7012 | 0.8010 | 3 / 8 |
+
+**What the floor does not do is the point.** The answerable and on-topic-unanswerable populations overlap almost completely — the nearest unanswerable question is closer than the median answerable one — so no threshold separates them and the floor does not try. It separates on-topic from off-topic, where the gap is real, and leaves the harder judgement to the prompt.
 
 ## Citations and groundedness
 
@@ -108,10 +122,10 @@ The mean covers **served** answers only. Including suppressed ones would mix “
 
 | | |
 |---|---:|
-| Cost per question | $0.0061 |
-| p50 latency | 5.9s |
-| p95 latency | 6.7s |
-| Total for this run | $0.36 |
+| Cost per question | $0.0063 |
+| p50 latency | 5.1s |
+| p95 latency | 6.9s |
+| Total for this run | $0.40 |
 
 p50 and p95 rather than a mean: one cold start moves a mean and says nothing about the typical experience.
 

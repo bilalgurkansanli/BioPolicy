@@ -7,13 +7,13 @@
     "answer_found": false,
     "decision_correct": false,
     "retrieval_hit": true,
-    "first_hit_rank": 1,
+    "first_hit_rank": 2,
     "citations_offered": 0,
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 5031,
-    "cost_usd": 0.004689,
+    "latency_ms": 6485,
+    "cost_usd": 0.005533,
     "error": null
   },
   {
@@ -29,8 +29,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3312,
-    "cost_usd": 0.003335,
+    "latency_ms": 3234,
+    "cost_usd": 0.003895,
     "error": null
   },
   {
@@ -46,8 +46,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 2953,
-    "cost_usd": 0.003695,
+    "latency_ms": 3547,
+    "cost_usd": 0.004355,
     "error": null
   },
   {
@@ -58,13 +58,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 3,
+    "first_hit_rank": 2,
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3312,
-    "cost_usd": 0.003388,
+    "latency_ms": 2703,
+    "cost_usd": 0.003904,
     "error": null
   },
   {
@@ -80,8 +80,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 5219,
-    "cost_usd": 0.004151,
+    "latency_ms": 4531,
+    "cost_usd": 0.004981,
     "error": null
   },
   {
@@ -97,8 +97,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 2719,
-    "cost_usd": 0.003103,
+    "latency_ms": 3109,
+    "cost_usd": 0.003953,
     "error": null
   },
   {
@@ -114,8 +114,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 13813,
-    "cost_usd": 0.003542,
+    "latency_ms": 3391,
+    "cost_usd": 0.004376,
     "error": null
   },
   {
@@ -131,8 +131,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 2859,
-    "cost_usd": 0.002854,
+    "latency_ms": 2110,
+    "cost_usd": 0.003573,
     "error": null
   },
   {
@@ -148,8 +148,8 @@
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3297,
-    "cost_usd": 0.004012,
+    "latency_ms": 3922,
+    "cost_usd": 0.004941,
     "error": null
   },
   {
@@ -160,13 +160,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 2,
+    "first_hit_rank": 1,
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 2735,
-    "cost_usd": 0.003131,
+    "latency_ms": 2859,
+    "cost_usd": 0.00376,
     "error": null
   },
   {
@@ -182,8 +182,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 9062,
-    "cost_usd": 0.003617,
+    "latency_ms": 3797,
+    "cost_usd": 0.004141,
     "error": null
   },
   {
@@ -194,13 +194,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 1,
+    "first_hit_rank": 2,
     "citations_offered": 2,
     "citations_kept": 2,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 2859,
-    "cost_usd": 0.00326,
+    "latency_ms": 3343,
+    "cost_usd": 0.004119,
     "error": null
   }
 ]

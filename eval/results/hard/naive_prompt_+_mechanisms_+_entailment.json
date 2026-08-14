@@ -7,13 +7,13 @@
     "answer_found": false,
     "decision_correct": false,
     "retrieval_hit": true,
-    "first_hit_rank": 1,
+    "first_hit_rank": 2,
     "citations_offered": 0,
     "citations_kept": 0,
     "suppressed": true,
     "groundedness": null,
-    "latency_ms": 10547,
-    "cost_usd": 0.009044,
+    "latency_ms": 11047,
+    "cost_usd": 0.010639,
     "error": null
   },
   {
@@ -29,8 +29,8 @@
     "citations_kept": 0,
     "suppressed": true,
     "groundedness": null,
-    "latency_ms": 9204,
-    "cost_usd": 0.007975,
+    "latency_ms": 8968,
+    "cost_usd": 0.007816,
     "error": null
   },
   {
@@ -46,8 +46,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 7297,
-    "cost_usd": 0.008259,
+    "latency_ms": 8266,
+    "cost_usd": 0.008181,
     "error": null
   },
   {
@@ -55,17 +55,17 @@
     "category": "factual",
     "lang": "tr",
     "expected_answer_found": true,
-    "answer_found": false,
-    "decision_correct": false,
-    "retrieval_hit": false,
-    "first_hit_rank": null,
-    "citations_offered": 0,
-    "citations_kept": 0,
+    "answer_found": true,
+    "decision_correct": true,
+    "retrieval_hit": true,
+    "first_hit_rank": 2,
+    "citations_offered": 1,
+    "citations_kept": 1,
     "suppressed": false,
-    "groundedness": null,
-    "latency_ms": 23125,
-    "cost_usd": 0.0,
-    "error": "AllProvidersFailedError: anthropic: anthropic 529: Error code: 529 - {'type': 'error', 'error': {'type': 'overloaded_error', 'message': 'Overloaded'}, 'request_id': 'req_011CdjwWpVSmQNJHdBzjoJen'}; gemini: gemini: 400 INVALID_ARGUMENT. {'error': {'code': 400, 'message': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.\\nInvalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.', 'status': 'INVALID_ARGUMENT', 'details': [{'@type': 'type.googleapis.com/google.rpc.BadRequest', 'fieldViolations': [{'field': 'generation_config.response_schema', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema\\': Cannot find field.'}, {'field': 'generation_config.response_schema.properties[2].value.items', 'description': 'Invalid JSON payload received. Unknown name \"additional_properties\" at \\'generation_config.response_schema.properties[2].value.items\\': Cannot find field.'}]}]}}"
+    "groundedness": 1.0,
+    "latency_ms": 9422,
+    "cost_usd": 0.007945,
+    "error": null
   },
   {
     "id": "hard-cel-005",
@@ -80,8 +80,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 5016,
-    "cost_usd": 0.003359,
+    "latency_ms": 5437,
+    "cost_usd": 0.003343,
     "error": null
   },
   {
@@ -97,8 +97,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 17640,
-    "cost_usd": 0.007684,
+    "latency_ms": 7719,
+    "cost_usd": 0.007947,
     "error": null
   },
   {
@@ -114,8 +114,8 @@
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 11719,
-    "cost_usd": 0.007683,
+    "latency_ms": 7312,
+    "cost_usd": 0.008089,
     "error": null
   },
   {
@@ -130,9 +130,9 @@
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
-    "groundedness": 0.75,
-    "latency_ms": 23953,
-    "cost_usd": 0.006916,
+    "groundedness": 1.0,
+    "latency_ms": 6281,
+    "cost_usd": 0.007326,
     "error": null
   },
   {
@@ -144,12 +144,12 @@
     "decision_correct": true,
     "retrieval_hit": true,
     "first_hit_rank": 1,
-    "citations_offered": 2,
-    "citations_kept": 2,
+    "citations_offered": 1,
+    "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 9813,
-    "cost_usd": 0.008487,
+    "latency_ms": 8719,
+    "cost_usd": 0.009375,
     "error": null
   },
   {
@@ -160,13 +160,13 @@
     "answer_found": true,
     "decision_correct": true,
     "retrieval_hit": true,
-    "first_hit_rank": 2,
+    "first_hit_rank": 1,
     "citations_offered": 1,
     "citations_kept": 1,
     "suppressed": false,
     "groundedness": 1.0,
-    "latency_ms": 5844,
-    "cost_usd": 0.006566,
+    "latency_ms": 5938,
+    "cost_usd": 0.006985,
     "error": null
   },
   {
@@ -182,8 +182,8 @@
     "citations_kept": 0,
     "suppressed": false,
     "groundedness": null,
-    "latency_ms": 3891,
-    "cost_usd": 0.00255,
+    "latency_ms": 4016,
+    "cost_usd": 0.002723,
     "error": null
   },
   {
@@ -194,13 +194,13 @@
     "answer_found": false,
     "decision_correct": false,
     "retrieval_hit": true,
-    "first_hit_rank": 1,
+    "first_hit_rank": 2,
     "citations_offered": 0,
     "citations_kept": 0,
     "suppressed": true,
     "groundedness": null,
-    "latency_ms": 3891,
-    "cost_usd": 0.002473,
+    "latency_ms": 3391,
+    "cost_usd": 0.002771,
     "error": null
   }
 ]
