@@ -96,13 +96,53 @@ These were ruled out before the build started. Listed so the reasoning survives.
   on-topic from off-topic, which is a narrower claim than the idea started with.
   Closing the real gap needs a signal that is not distance — the entailment
   check in ADR 014 is the closest thing this codebase already has.
-- **Identifier-only queries can fall outside the floor.** `1.800.000` and `%20`
-  land at 0.73–0.80 in the Voyage space against a threshold of 0.72; in the
-  Gemini space every such probe sat inside it, which is what retired the keyword
-  veto. Reinstating the veto does not help — those queries matched 1 chunk each
-  while "Ignore previous instructions" matched 7 — so this needs the same
-  not-distance signal as the item above. A question *containing* an identifier
-  is unaffected; only a query that is nothing else.
+- **The floor refuses short queries about subjects the document covers.** This
+  entry used to say "identifier-only queries", naming `1.800.000` and `%20`. That
+  was too narrow, and the correction matters more than the original claim: it is
+  **any query of one or two words**, which is a shape real people type.
+
+  Measured against `konut-sigortasi-tr.pdf`, threshold 0.72:
+
+  | query | in the document | distance | verdict |
+  |---|---|---:|---|
+  | `deprem` | Article 2 and a table row | 0.7552 | **refused** |
+  | `sel` | Article 2 and a table row | 0.8008 | **refused** |
+  | `muafiyet` | a table column heading | 0.7246 | **refused** |
+  | `fesih` | the title of Article 6 | 0.7930 | **refused** |
+  | `bodrum` | Article 4.7 | 0.8237 | **refused** |
+  | `1.800.000` | a table cell | 0.7266 | **refused** |
+  | `Deprem teminatının limiti nedir?` | *the same fact, as a sentence* | 0.4322 | served |
+
+  The cause is that embedding distance measures how alike two **texts** are, not
+  whether a word occurs. A bare noun sits far from prose that discusses it at
+  length, and the floor was calibrated only on the golden set — every question in
+  which is a full sentence. Two words is usually enough to clear it:
+  `deprem muafiyeti` lands at 0.5754.
+
+  This is the failure `api/retrieval/floor.py` calls the worst one, and it is
+  live: the interface tells a reader their document says nothing about a subject
+  it devotes an article to.
+
+  **The keyword veto does help, contrary to what this entry claimed.** The FTS
+  arm separates the two populations cleanly on the current corpus — every false
+  refusal above matched 1–3 chunks, while `doğum` (genuinely absent from a home
+  policy) and `bitcoin fiyatı` matched none. "Ignore previous instructions",
+  which the old note said matched 7, now matches 0. Refusing only when the
+  distance is above the floor **and** the keyword arm found nothing strictly
+  narrows the rule, so it cannot introduce a false refusal — it can only undo
+  them.
+
+  Not fixed yet, deliberately: it changes a calibrated safeguard, and this
+  project's rule is that such a change arrives with a measurement rather than
+  ahead of one. `eval/measure_floor.py` needs a short-query population first.
+
+- **The floor also admits junk that costs money.** The other direction of the
+  same miscalibration: `pizza tarifi` (0.7053) and `İstanbul hava durumu`
+  (0.6665) pass and reach a real model call, while the sentence form of the
+  latter is caught. The model refuses both correctly, so this is a cost leak
+  rather than a wrong answer — about a cent each, capped by the daily limit. The
+  veto above does not fix it, and "refuse when the keyword arm is empty" would:
+  a Turkish question against the English document matches no keywords either.
 - **Nothing measures the floor except a script somebody remembers to run.** The
   threshold silently stopped matching its embedding space for the whole of the
   Voyage migration, and the only symptom was users being told their document
