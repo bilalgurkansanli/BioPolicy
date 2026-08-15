@@ -297,13 +297,31 @@ is worse than leaving them to the dashboard:
   that project was created. The default is `iad1`; a database on another
   continent turns every query into a transatlantic round trip.
 
-**The Dockerfile is called `Dockerfile`**, and that is not cosmetic. It was
-`Dockerfile.vercel` from before the Container preset existed, and the preset
-looks for the plain name: on the first real deployment nothing built, every
-`/api/*` path answered 404 from Vercel's own router rather than from the
-application, and `/` returned `FUNCTION_INVOCATION_FAILED`. None of those
-mention a filename. If it is ever renamed again, `.github/workflows/ci.yml`
-builds it by name too and has to move with it.
+**The Dockerfile must be called `Dockerfile.vercel`, and that is now verified
+rather than assumed.** Vercel's own changelog for the feature says it plainly:
+
+> To use container images with your functions, create a project with a
+> `Dockerfile.vercel` (or `Containerfile.vercel`) file that starts an HTTP
+> server listening on `$PORT`.
+>
+> — [Bring your Dockerfile to Vercel Functions](https://vercel.com/changelog/bring-your-dockerfile-to-vercel-functions)
+
+This entry previously said the opposite — that the preset looks for a plain
+`Dockerfile` and ours was misnamed "from before that preset existed". That was a
+guess written as a fact, and it cost a deployment: the file was renamed to
+`Dockerfile`, which removed the one name Vercel actually looks for. Renaming it
+back is what this note now records.
+
+Two consequences worth keeping:
+
+* The image runs as an **OCI image on Fluid compute**, not as a standalone
+  container. It inherits function limits — capped memory and execution
+  duration — and scales to zero after five minutes idle. Nothing here holds
+  state between requests, so that is survivable, but a long ingest is bounded by
+  the function's duration rather than by the pipeline's own timeouts.
+* `.github/workflows/ci.yml` builds the image by name too. If it ever moves, the
+  CI job moves with it — and that job is the one that would catch a bad rename
+  before a deployment does.
 
 ### Environment variables
 
@@ -363,7 +381,7 @@ Two Vercel projects from one repository ([ADR 006](./adr/006-deployment-topology
 | Project | Root directory | Build | Domain |
 |---|---|---|---|
 | `biopolicy-web` | `web/` | Next.js | `biopolicy.bilalgurkansanli.com` |
-| `biopolicy-api` | `.` | `Dockerfile` | its own `*.vercel.app` |
+| `biopolicy-api` | `.` | `Dockerfile.vercel` | its own `*.vercel.app` |
 
 The web project needs `API_ORIGIN` set to the API project's hostname.
 
