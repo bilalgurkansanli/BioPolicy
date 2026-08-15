@@ -68,4 +68,17 @@ EXPOSE 8000
 # WHY exec form wrapped in sh: we need ${PORT} expanded at runtime, but we also
 # need uvicorn to be PID 1 so it receives SIGTERM directly and can drain
 # in-flight SSE streams instead of being killed mid-answer.
-CMD ["sh", "-c", "exec uvicorn api.main:app --host 0.0.0.0 --port ${PORT} --workers 1 --timeout-graceful-shutdown 20 --no-access-log"]
+#
+# WHY the absolute path rather than relying on PATH. `docker run` honours the
+# `ENV PATH` above, so `uvicorn` resolves and the image runs — which is what CI
+# tests and why CI stayed green. Vercel builds the container's environment from
+# the project's own variables, and the interpreter on the front of PATH did not
+# survive that: every request answered 500 with `Application exited with code
+# 127` in the runtime log, which is a shell saying "command not found" about
+# uvicorn. Naming the binary outright removes the dependency on an environment
+# we do not control.
+#
+# `${PORT:-8000}` for the same reason: the platform is documented to route to
+# port 80 unless PORT is set in the project settings, and a container that binds
+# nothing when the variable is absent fails in exactly the same unreadable way.
+CMD ["sh", "-c", "exec /app/.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --timeout-graceful-shutdown 20 --no-access-log"]
