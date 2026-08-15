@@ -63,6 +63,17 @@ const tr = {
     // of context, and a reader who cannot see it happen has to be told before
     // they follow the link — afterwards the back button no longer goes back.
     opensInNewTab: "yeni sekmede açılır",
+    // Shown only on the narrow layout, where the link is an unlabelled arrow
+    // beside the logo and reads as "back". `{domain}` is filled in from the
+    // link's own href, so the sentence cannot name somewhere it does not go.
+    leave: {
+      title: "Siteden ayrılıyorsunuz",
+      body:
+        "{domain} adresine gideceksiniz — diğer projelerimin bulunduğu sayfa. " +
+        "Yeni bir sekmede açılacak, BioPolicy bu sekmede açık kalacak.",
+      confirm: "Devam et",
+      cancel: "Vazgeç",
+    },
   },
   language: {
     label: "Dil",
@@ -567,6 +578,14 @@ const en: Dictionary = {
     backToProjectsShort: "My projects",
     menu: "Menu",
     opensInNewTab: "opens in a new tab",
+    leave: {
+      title: "You are leaving this site",
+      body:
+        "This goes to {domain}, the page listing my other projects. It opens in " +
+        "a new tab, so BioPolicy stays open here.",
+      confirm: "Continue",
+      cancel: "Cancel",
+    },
   },
   language: {
     label: "Language",

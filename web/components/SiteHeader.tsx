@@ -2,9 +2,11 @@
 
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 import { AccountMenu } from "@/components/AccountMenu";
 import { HeaderMenu } from "@/components/HeaderMenu";
+import { LeaveConfirm } from "@/components/LeaveConfirm";
 import { useLocale } from "@/components/LocaleProvider";
 import { SlideLink } from "@/components/SlideLink";
 import { LOCALES } from "@/lib/i18n";
@@ -22,6 +24,7 @@ const PROJECTS_URL = "https://projects.bilalgurkansanli.com";
 export function SiteHeader() {
   const { locale, setLocale, t } = useLocale();
   const pathname = usePathname();
+  const [leaving, setLeaving] = useState(false);
 
   const onWorkspace = pathname === "/app";
 
@@ -112,6 +115,20 @@ export function SiteHeader() {
           href={PROJECTS_URL}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(event) => {
+            // Only where the label is gone. Below `lg` the two spans below are
+            // `display: none` and the control is a bare arrow next to the logo,
+            // which reads as "back" — and back, here, is a different domain. The
+            // same media query the labels use, asked in JS so the two cannot
+            // drift apart.
+            //
+            // Above it the sentence is right there on screen; confirming
+            // something a reader has already read is friction, not care.
+            if (window.matchMedia("(max-width: 1023px)").matches) {
+              event.preventDefault();
+              setLeaving(true);
+            }
+          }}
           className="group -ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full px-1.5 py-1.5 text-sm text-ink-muted transition-colors hover:text-ink sm:px-2.5"
         >
           <BackArrow />
@@ -347,6 +364,22 @@ export function SiteHeader() {
           )}
         </div>
       </div>
+
+      {/* Rendered here but portalled to `document.body` — the header carries
+          `backdrop-blur-md`, which makes it a containing block for anything
+          `position: fixed`, and a dialog laid out inside a 64px bar is not a
+          dialog. See the note in the component. */}
+      <LeaveConfirm
+        open={leaving}
+        onClose={() => setLeaving(false)}
+        href={PROJECTS_URL}
+        title={t.nav.leave.title}
+        // The destination comes from the link's own href rather than the copy,
+        // so the sentence cannot name somewhere the button does not go.
+        body={t.nav.leave.body.replace("{domain}", new URL(PROJECTS_URL).host)}
+        confirmLabel={t.nav.leave.confirm}
+        cancelLabel={t.nav.leave.cancel}
+      />
     </header>
   );
 }
