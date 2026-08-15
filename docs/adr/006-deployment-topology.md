@@ -21,7 +21,7 @@ Two Vercel projects from the same repository:
 
 - **web** — root directory `web/`, standard Next.js build, owns the custom
   domain.
-- **api** — root directory `.`, built from `Dockerfile.vercel`, reachable at its
+- **api** — root directory `.`, built from `Dockerfile`, reachable at its
   own `*.vercel.app` hostname.
 
 `web/next.config.ts` rewrites `/api/:path*` to the API deployment. The browser

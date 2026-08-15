@@ -12,7 +12,7 @@ flowchart TB
 
     subgraph vercel["Vercel"]
         WEB["web project<br/>Next.js<br/>owns the domain"]
-        API["api project<br/>FastAPI in a container<br/>Dockerfile.vercel"]
+        API["api project<br/>FastAPI in a container<br/>Dockerfile"]
     end
 
     subgraph supabase["Supabase"]
