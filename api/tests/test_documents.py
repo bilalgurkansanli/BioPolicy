@@ -113,6 +113,8 @@ class _Storage:
 class _Quota:
     async def ensure_can_upload(self, user_id: object) -> None: ...
 
+    async def reserve_upload(self, user_id: object) -> None: ...
+
 
 class _Colliding:
     """A repository whose insert hits the primary key, as a repeat confirm does."""

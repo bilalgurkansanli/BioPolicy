@@ -339,7 +339,44 @@ async def test_a_fresh_account_still_carries_the_identitys_uploads() -> None:
     guard, _ = _identity_guard(reserved=False, ledger=0, documents=1)
 
     with pytest.raises(DailyQuotaExceededError):
-        await guard.ensure_can_upload(USER)
+        await guard.reserve_upload(USER)
+
+
+async def test_checking_an_upload_does_not_spend_it() -> None:
+    """One upload passes two guards, and only the second may take the slot.
+
+    The signed ticket is issued by one endpoint and the row created by another.
+    When both reserved, a brand-new account met "you have reached the daily
+    limit" on its very first upload — the ticket took the only slot and the
+    confirmation found none left. Seen in production as two identities holding
+    `documents = 1` on a day with no document rows at all.
+    """
+    # Rows in the order the checking path asks for them: the identity counter
+    # first, then the per-account count. The reserving path asks the other way
+    # round, which is why this test builds its own pool.
+    pool = FakePool(fetchrow=[{"questions": 0, "documents": 0}, {"n": 0}])
+    guard = QuotaGuard(
+        cast(Any, pool),
+        UsageRepository(cast(Any, pool)),
+        cast(Any, StubAccounts(False, subject=SUBJECT)),
+        daily_questions=3,
+        daily_documents=1,
+    )
+
+    await guard.ensure_can_upload(USER)
+
+    assert not any("insert into identity_quota" in q for q in pool.queries)
+
+
+async def test_reserving_an_upload_does_spend_it() -> None:
+    """The other half: the confirmation is where the allowance is charged."""
+    guard, pool = _identity_guard(ledger=0, documents=1)
+
+    await guard.reserve_upload(USER)
+
+    reserve = pool.queries[-1]
+    assert "insert into identity_quota" in reserve
+    assert "where identity_quota.documents < $2" in reserve
 
 
 async def test_the_slot_is_taken_in_the_same_statement_that_checks_it() -> None:

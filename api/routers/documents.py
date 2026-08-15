@@ -326,8 +326,11 @@ async def confirm_upload(
             detail={"code": "file_too_large", "message": f"The limit is {megabytes} MB."},
         )
 
+    # The slot is taken here rather than when the ticket was issued: this is the
+    # first point at which anything has actually been uploaded, and taking it in
+    # both places spent two of them on one document.
     try:
-        await state.quota.ensure_can_upload(user.id)
+        await state.quota.reserve_upload(user.id)
     except LimitExceededError as exc:
         await state.storage.remove(path)
         raise exc.as_http() from exc

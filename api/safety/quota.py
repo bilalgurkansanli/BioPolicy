@@ -354,14 +354,48 @@ class QuotaGuard:
         )
 
     async def ensure_can_upload(self, user_id: UUID) -> None:
+        """Refuse an upload that has no allowance left. **Takes nothing.**
+
+        One upload passes two guards — the signed ticket is issued by one
+        endpoint and the row created by another — and only the second of them
+        may spend. Reserving in both is what made a brand-new account meet
+        "you have reached the daily limit" on its first upload: the ticket took
+        the only slot and the confirmation found none left. The evidence was two
+        identities holding `documents = 1` on a day with no document rows at
+        all.
+
+        So this one only asks, and `reserve_upload` below is the one that takes.
+        """
         await self.ensure_usable(user_id)
         if await self._accounts.is_unlimited(user_id):
             return
 
-        # As above: the ledger decides, and the reserve makes it atomic. The
-        # slot is given back by `refund_document` if ingestion never produces a
-        # readable document, which is what keeps a failure on our side from
-        # spending somebody's one upload for the day.
+        uploaded = await self._documents_used(user_id)
+        if uploaded < self._daily_documents:
+            return
+
+        log.info("quota_exceeded", kind="documents", user_id=str(user_id), uploaded=uploaded)
+        raise DailyQuotaExceededError(
+            f"You have reached the daily limit of {self._daily_documents} documents "
+            f"for this demo. It resets at midnight UTC.",
+            retry_after_seconds=RETRY_AFTER_SECONDS,
+        )
+
+    async def reserve_upload(self, user_id: UUID) -> None:
+        """Take one upload from today's allowance, or refuse.
+
+        Called once per upload, at the point the document row is created — the
+        first moment anything has actually been spent. The ledger decides and
+        the reserve makes it atomic, the same shape as `ensure_can_ask`.
+
+        The slot comes back through `refund_document` when ingestion produces
+        nothing readable and the failure was ours, which is what keeps our own
+        bugs from costing somebody their one upload for the day.
+        """
+        await self.ensure_usable(user_id)
+        if await self._accounts.is_unlimited(user_id):
+            return
+
         uploaded = await self._documents_today(user_id)
         within_ledger = uploaded < self._daily_documents
         if within_ledger and await self._reserve(
