@@ -6,6 +6,7 @@ import { useLocale } from "@/components/LocaleProvider";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { SlideLink } from "@/components/SlideLink";
+import { SITE_NAME } from "@/lib/site";
 
 /**
  * The landing page has one job: get someone into the workspace. It leads with
@@ -50,8 +51,34 @@ export default function Home() {
                 written to break. Each line still balances internally, which is
                 what the Turkish second sentence needs at this size. */}
             <h1 className="mt-7 text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-ink sm:text-6xl">
+              {/* The name, inside the page's primary heading.
+
+                  Google's brand verification rejected this app twice for "the
+                  app name does not match the app name on your home page", and
+                  the heading is why: it read "Ask your document. Get the clause,
+                  not a guess" — a promise, with the name nowhere in it. The name
+                  was in the tab title, in a header wordmark that is
+                  `hidden sm:inline` and therefore absent on a phone, and in an
+                  `<h2>` further down. Somebody scanning the page for what the
+                  software is called had to hunt.
+
+                  Small and above the tagline rather than replacing it: the
+                  couplet below is still the thing worth reading, and this is a
+                  label. It also makes the heading read as "BioPolicy — Ask your
+                  document…" to anything that flattens the element to text.
+
+                  No `uppercase`. It was there for half a minute and rendered
+                  "BİOPOLİCY" — under `<html lang="tr">` the browser applies
+                  Turkish casing, where the capital of `i` is `İ`. A name that
+                  changes shape with the interface language is exactly what the
+                  verification is checking for, and it would have failed the same
+                  check a third time, in a way nobody reading the English page
+                  would ever have seen. */}
+              <span className="block text-sm font-semibold tracking-[0.2em] text-accent sm:text-base">
+                {SITE_NAME}
+              </span>
               {t.landing.thesis.map((line) => (
-                <span key={line} className="block">
+                <span key={line} className="mt-3 block sm:mt-4">
                   {line}
                 </span>
               ))}
