@@ -81,6 +81,32 @@ const tr = {
     ctaPrimary: "Örnek bir belgeyle deneyin",
     ctaSecondary: "Nasıl çalışıyor",
     ctaNote: "Örnekler hesapsız okunur · Soru sormak için Google ile giriş · Günde 3 soru",
+    // Bir pazarlama bölümü değil, bir tanım.
+    //
+    // Google'ın OAuth marka doğrulaması iki şey arıyor: ana sayfanın
+    // uygulamanın ne işe yaradığını anlatması ve rıza ekranındaki adın sayfada
+    // birebir geçmesi. Hero'nun tamamı çağrışımla çalışıyordu — "Poliçenize
+    // sorun" bir vaat, tanım değil — ve "BioPolicy" sayfada yalnızca header'daki
+    // kelime markasında geçiyordu, o da dar ekranda gizli. İkisi de burada
+    // düzeltiliyor: ilk cümle adı söyler, gerisi ne yaptığını.
+    //
+    // Giriş paragrafı ayrıca isteğe konu olan kapsamı gerekçelendiriyor, çünkü
+    // doğrulamada asıl sorulan soru budur.
+    about: {
+      title: "BioPolicy nedir?",
+      body:
+        "BioPolicy, sigorta poliçelerini ve hukuki sözleşmeleri okuyan bir web " +
+        "uygulamasıdır. Bir belge yükler ya da hazır örneklerden birini " +
+        "seçersiniz; sorduğunuz soru, cevabın dayandığı madde belgenin üzerinde " +
+        "işaretlenmiş halde yanıtlanır. Belge o soruyu yanıtlamıyorsa sistem " +
+        "uydurmaz, yanıtlamadığını söyler.",
+      signIn:
+        "Google ile giriş yalnızca günlük kullanım hakkının kime ait olduğunu " +
+        "belirlemek için istenir. Adınız, e-posta adresiniz ve profil " +
+        "fotoğrafınız okunur; hesabınızdaki başka hiçbir veriye erişilmez ve " +
+        "hiçbir bilgi üçüncü taraflarla paylaşılmaz. Yüklediğiniz belgeler 24 " +
+        "saat içinde kalıcı olarak silinir.",
+    },
     howTitle: "Üç adımda",
     how: [
       {
@@ -554,6 +580,20 @@ const en: Dictionary = {
     ctaPrimary: "Try it on a sample document",
     ctaSecondary: "How it works",
     ctaNote: "Samples readable without an account · Google sign-in to ask · 3 questions a day",
+    about: {
+      title: "What BioPolicy is",
+      body:
+        "BioPolicy is a web application that reads insurance policies and legal " +
+        "contracts. Upload a document or pick one of the bundled samples, ask a " +
+        "question, and the answer arrives with the clause it rests on marked in " +
+        "the document itself. When the document does not answer the question, it " +
+        "says so instead of inventing an answer.",
+      signIn:
+        "Signing in with Google is used for one thing: telling whose daily " +
+        "allowance is whose. It reads your name, email address and profile " +
+        "picture, reaches nothing else in your account, and shares nothing with " +
+        "anyone. Documents you upload are permanently deleted within 24 hours.",
+    },
     howTitle: "In three steps",
     how: [
       {

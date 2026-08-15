@@ -85,6 +85,30 @@ export default function Home() {
           </div>
         </section>
 
+        {/* The plain statement of what this is, above the fold's fold and
+            before the pipeline explainer.
+
+            It reads as ordinary copy, and it is also what an OAuth branding
+            review is looking for: the application's name and purpose in prose,
+            on the page the consent screen points at. Everything above this
+            works by implication — a tagline is a promise, not a definition —
+            and the only place the name appeared was a header wordmark that is
+            `hidden` below `sm`. */}
+        <section
+          id="about"
+          className="mx-auto w-full max-w-3xl scroll-mt-20 px-4 pb-10 pt-2 sm:px-6"
+        >
+          <h2 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">
+            {t.landing.about.title}
+          </h2>
+          <p className="mt-4 text-pretty text-[15px] leading-7 text-ink-muted">
+            {t.landing.about.body}
+          </p>
+          <p className="mt-3 text-pretty text-sm leading-6 text-ink-faint">
+            {t.landing.about.signIn}
+          </p>
+        </section>
+
         <section
           id="how"
           className="mx-auto w-full max-w-5xl scroll-mt-20 px-4 pb-4 pt-4 sm:px-6"

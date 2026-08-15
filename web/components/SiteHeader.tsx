@@ -171,7 +171,15 @@ export function SiteHeader() {
           />
           {/* The wordmark folds away on a phone: the mark still identifies the
               site, and the room it frees is what keeps the call-to-action from
-              being pushed off the row. */}
+              being pushed off the row.
+
+              Showing it at every width was tried, to put the application name
+              on the page for an OAuth branding review, and measured: the row
+              needs 362px with it and 360px is an ordinary Android width, so it
+              bought a second occurrence of the name at the cost of a header
+              that overflows on real phones. The `#about` section carries the
+              name in its heading and its first sentence at every width, which
+              is what that review is reading anyway. */}
           <span className="hidden text-[15px] font-semibold tracking-tight text-ink sm:inline">
             Bio<span className="text-accent">Policy</span>
           </span>
