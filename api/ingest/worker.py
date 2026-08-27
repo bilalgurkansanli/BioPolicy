@@ -1,10 +1,20 @@
 """Taking work off the queue and running it.
 
 Two callers, deliberately: the upload endpoint fires this in-process as the fast
-path, and pg_cron calls `/api/internal/process-queue` every minute as the
-watchdog. ADR 007 explains why both exist — a scale-to-zero container can be
-reclaimed the moment it returns its response, so an in-process task is an
-optimisation and never the durable mechanism.
+path, and pg_cron calls `/api/internal/process-queue` as the watchdog. ADR 007
+explains why both exist — a scale-to-zero container can be reclaimed the moment
+it returns its response, so an in-process task is an optimisation and never the
+durable mechanism.
+
+The watchdog no longer runs on a schedule at all. On Fluid compute a timed call
+is not a cheap poll — it wakes a container that is then billed for a five-minute
+minimum whether or not there was work — so migrations 0015 and 0016 moved the
+trigger off the clock and onto real traffic. `api/maintenance.py` drains the
+queue on a request that has already paid for the container.
+
+The consequence is that the in-process fast path does nearly all the work, and a
+document stranded by a killed instance waits for the next visitor rather than
+for a timer.
 
 They race, and that is fine. `claim_next_document()` uses `FOR UPDATE SKIP
 LOCKED`, so whichever transaction arrives first takes the row and the other

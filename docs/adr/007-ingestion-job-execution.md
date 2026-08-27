@@ -1,8 +1,21 @@
 # ADR 007 — The documents table is the queue; pg_cron is the watchdog
 
-- **Status:** accepted
+- **Status:** accepted, amended 2026-08-27
 - **Date:** 2026-08-04
 - **Phase:** 1
+
+> **Amended 2026-08-27.** The decision holds; the trigger does not. The
+> watchdog polled every minute, which was free on per-invocation serverless and
+> is not free on Vercel Fluid compute, where an instance is billed for its whole
+> lifetime and only scales down after five idle minutes. A minutely poll means
+> it never scales down: 684 GB-Hrs against a 360 GB-Hrs ceiling, and the project
+> was paused.
+>
+> Migration 0015 cut both HTTP jobs to one dispatch a week, and 0016 removed
+> them. `pg_cron` is no longer the watchdog — `api/maintenance.py` is, running
+> the same sweeps on request traffic that has already paid for the container.
+> The *Consequences* below are rewritten to match; the *Decision* — that the
+> `documents` table is the queue — is unchanged.
 
 ## Context
 
@@ -27,8 +40,11 @@ The `documents` table **is** the queue. No external queue service.
   This is the durable record; everything after it is recoverable.
 - It then fires a **best-effort** in-process task to start work immediately, so
   the common case has no added latency.
-- A `pg_cron` job runs every minute and calls `POST /api/internal/process-queue`
-  with `PURGE_JOB_SECRET`. That endpoint claims work with
+- `POST /api/internal/process-queue`, authorised with `PURGE_JOB_SECRET`, is
+  the watchdog. A `pg_cron` job called it every minute until migration 0015 cut
+  it to weekly and 0016 removed the schedule entirely; `api/maintenance.py` now
+  runs the same sweep on request traffic — see *Consequences*. The endpoint
+  remains, and claims work with
   `SELECT … FOR UPDATE SKIP LOCKED`, which makes concurrent workers safe without
   a lock service.
 - A row is claimable if it is `queued`, **or** if it is in a working state with
@@ -50,17 +66,31 @@ needing separate machinery. `SKIP LOCKED` means the immediate task and the cron
 sweep can race harmlessly — whoever claims the row first wins, the other gets
 nothing.
 
-**Cost:** worst-case recovery latency is the cron interval plus the stale
-threshold, so a document orphaned by an instance kill can sit for a couple of
-minutes before another worker picks it up. Acceptable — that is the *failure*
-path, and the happy path starts immediately. Polling also means a small constant
-trickle of no-op requests when the system is idle.
+**Cost:** worst-case recovery latency is no longer a number this ADR controls.
+It was the cron interval plus the stale threshold — a couple of minutes. It is
+now *whenever somebody next uses the site*, plus at most an hour of the gate in
+`api/maintenance.py`. On a site with visitors that is often better than a
+one-minute poll, because the sweep fires exactly when documents are being
+created. On a site with none it is unbounded.
+
+So the honest description of the watchdog today is *eventual cleanup*, not
+*recovery*, and what carries the happy path is the in-process fast path — which
+is exactly the thing this ADR called an optimisation and never the durable
+mechanism. That inversion is the real cost and it is worth naming: the durable
+mechanism still exists and still works, but nothing guarantees when it runs.
+
+What is *not* traded away is the deletion promise for the database.
+`purge_expired_rows()` still runs hourly inside Postgres, costs nothing on the
+meter that caused this, and needs no visitor. Rows expire on a clock; only the
+storage objects wait for traffic.
 
 The `attempts` ceiling means a genuinely malformed PDF fails after N tries
 rather than immediately, spending a little money to find that out.
 
-**Revisit if:** ingestion volume ever makes per-minute polling the wrong shape,
-or if the platform gains a first-class durable background primitive.
+**Revisit if:** ingestion volume grows enough that a week of stranded documents
+is visible to real users, if the API moves to a host that does not bill for idle
+time — which would make the original one-minute interval free again — or if the
+platform gains a first-class durable background primitive.
 
 ## Alternatives considered
 

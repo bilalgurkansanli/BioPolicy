@@ -43,8 +43,13 @@ from api.storage import DocumentStorage
 
 log = get_logger(__name__)
 
-# Sweeps run every 15 minutes, so a batch only has to cover a quarter hour of
-# expiries. Bounded so one sweep cannot run for minutes on a serverless clock.
+# A batch no longer covers a fixed interval. Migrations 0015 and 0016 removed the
+# scheduled sweep — it was billing a five-minute container wake per call — and
+# `api/maintenance.py` now runs one at most hourly, on whatever request happens
+# to arrive. The number survives unaltered because `USER_DAILY_DOCUMENT_LIMIT`
+# is 1, so reaching 100 expiries takes 100 separate identities uploading; but
+# the reason it is 100 is now headroom rather than arithmetic. Still bounded so
+# one sweep cannot run for minutes on a serverless clock.
 PURGE_BATCH_SIZE = 100
 
 # How long an `identity_quota` row is kept after its day is over. The limit only

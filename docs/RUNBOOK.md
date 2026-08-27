@@ -506,7 +506,11 @@ The 24-hour deletion promise is printed in the UI in two languages. If it fails,
 that is a broken promise, not a bug backlog item.
 
 1. Check the audit table for the last successful purge.
-2. Check the scheduled job is still scheduled: `select * from cron.job;`
+2. Since migration 0016 there is no scheduled purge — `cron.job` should hold
+   only `biopolicy-retention-fallback`. What to check instead is when traffic
+   last drove a sweep:
+   `select * from app_settings where key = 'opportunistic_maintenance';`
+   To run one by hand: `select run_retention_purge();`
 3. Verify `PURGE_JOB_SECRET` matches between the job and the API.
 4. Run a purge manually and confirm both the storage object **and** the chunk
    rows disappear. Deleting a row in `storage.objects` does not necessarily
@@ -565,6 +569,37 @@ select count(*) from storage.objects o
    and not exists (select 1 from documents d where d.storage_path = o.name);
 ```
 
-This must be zero. Anything else is a file outliving the promise printed on the
-workspace. Reconciliation now runs inside every purge sweep, so a non-zero count
-means the sweep itself is not running.
+**This used to have to be zero. Since migration 0015 it does not, and that
+change is the easiest way to misdiagnose this system.**
+
+Reconciliation runs inside every purge sweep, and since migration 0016 nothing
+schedules a sweep. `api/maintenance.py` runs one at most hourly, triggered by
+whatever request happens to arrive. The hourly database-side fallback keeps
+expiring rows in the meantime, and each one it expires leaves its PDF behind.
+
+So the steady state is a count that grows while the site is quiet and drops to
+zero shortly after somebody uses it. **On a site with no visitors it grows
+without bound, and that is the design, not a fault.**
+
+What indicates a real fault is the count not dropping *after* traffic:
+
+```sql
+select value::timestamptz as last_sweep,
+       now() - value::timestamptz as ago
+  from app_settings where key = 'opportunistic_maintenance';
+```
+
+If `ago` is under an hour and orphans are still present, a sweep ran and failed
+rather than never running — go to `retention_audit` and the `maintenance_failed`
+log line. If the row is absent or `ago` is long, no request has reached the API
+since then: check the site is actually up before looking any further.
+
+To force a sweep, clear the gate and then make any request to the API:
+
+```sql
+delete from app_settings where key = 'opportunistic_maintenance';
+```
+
+Files outliving the printed 24-hour promise while the site is idle is a known
+and deliberate consequence of 0016, written up in `docs/BACKLOG.md` under
+Operations. It is not something this runbook can fix by rerunning a job.

@@ -31,6 +31,7 @@ from api.config import get_settings
 from api.db import create_pool
 from api.deps import AppState, embedding_model
 from api.logging_config import configure_logging, get_logger
+from api.maintenance import schedule_if_due
 from api.pricing import unpriced_models
 from api.retrieval.floor import check_model
 from api.routers import (
@@ -188,6 +189,25 @@ def create_app() -> FastAPI:
         finally:
             structlog.contextvars.unbind_contextvars("request_id")
         response.headers[REQUEST_ID_HEADER] = request_id
+        return response
+
+    @app.middleware("http")
+    async def opportunistic_maintenance(
+        request: Request, call_next: Callable[[Request], Awaitable[JSONResponse]]
+    ) -> JSONResponse:
+        """Let real traffic drive the sweeps that a cron job used to drive.
+
+        See `api/maintenance.py`. Scheduling is what costs money on this
+        platform, not the work — a request that is already here has paid for the
+        container, so the sweep rides along inside a window that is billed
+        either way.
+
+        The task is started after `call_next` returns and is never awaited, so
+        it runs while the response is on its way out and adds nothing to the
+        latency the user sees.
+        """
+        response = await call_next(request)
+        schedule_if_due(getattr(app.state, "app_state", None), path=request.url.path)
         return response
 
     @app.exception_handler(Exception)

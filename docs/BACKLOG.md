@@ -241,6 +241,36 @@ adding ~55% to the cost.** These are the open threads from that.
   is a verified rate in `MODEL_PRICES` and a usage row at the end of the ingest.
   This moved from "blocked on a number nobody has" to "not done yet", which is a
   different entry in this file and should be read as one.
+- **Delete the storage object from Postgres, not from the API.** This is the
+  open end of migration 0015 and the only place where a sentence the product
+  shows a user is currently wider than what the system does.
+
+  The upload screen says documents are deleted "within 24 hours", in both
+  languages. `purge_expired_rows()` still runs hourly, so an expired document
+  stops being readable on time — but that function deletes rows and cannot
+  touch object storage, which is the entire argument in migration 0007. Only
+  the API deletes the file, and since 0016 the API only sweeps when a request
+  arrives. On a site nobody visits, the PDF outlives its promise indefinitely
+  while being unreachable through the product: unreferenced, unqueryable, and
+  still on disk.
+
+  The fix does not need the API at all. `pg_net` can `DELETE` against the
+  Supabase Storage REST endpoint directly — Postgres to Storage, inside the
+  same project, never touching the Vercel container and therefore free under
+  the billing model that caused 0015 in the first place. It needs the service
+  role key in `app_settings` beside the purge secret, and it needs the delete
+  to be ordered before the row delete for the reason `api/retention.py`
+  documents at length.
+
+  Doing this would close the gap completely: deletion would be on the hourly
+  clock for both halves, the traffic-driven sweep would go back to being what
+  0007 called it — a reconciler for orphans — and the promise would stop
+  depending on anyone visiting the site.
+
+  **Until it is built, the honest options are to build it or to soften the
+  copy.** Leaving the sentence as it is while the trigger is a visitor is the
+  one combination that is not defensible.
+
 - **Structured cost attribution per conversation**, not just per user. Would make
   the "cost per query" figure in the eval report a live metric rather than a
   measured one.
