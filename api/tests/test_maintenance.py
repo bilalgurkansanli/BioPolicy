@@ -126,6 +126,21 @@ async def test_internal_endpoints_do_not_trigger_a_sweep() -> None:
 
 
 @pytest.mark.asyncio
+async def test_scanner_paths_never_reach_the_database() -> None:
+    """The catch-all rewrite means `/.env` arrives here too.
+
+    A wake already happened and this process cannot undo it, but a scanner
+    walking a few hundred paths must not turn into a few hundred queries.
+    """
+    state = _State(due=True)
+    for path in ("/.env", "/wp-admin/setup-config.php", "/.git/config", "/"):
+        schedule_if_due(cast(Any, state), path=path)
+    await asyncio.sleep(0)
+    assert state.pool.calls == []
+    assert state.retention.ran == 0
+
+
+@pytest.mark.asyncio
 async def test_scheduling_returns_before_the_work_finishes() -> None:
     """Nothing here may be on the path a user waits for."""
     state = _State(due=True)

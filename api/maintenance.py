@@ -96,7 +96,20 @@ def schedule_if_due(state: Any | None, *, path: str) -> None:
     user waits for. The `path` guard keeps the internal endpoints out: they do
     this same work explicitly, and a sweep that schedules a sweep is a loop.
     """
-    if state is None or path.startswith("/api/internal/"):
+    # `/api/internal/` is excluded because those endpoints do this work
+    # explicitly and a sweep that schedules a sweep is a loop.
+    #
+    # Everything outside `/api/` is excluded for a different reason. The
+    # catch-all rewrite in `vercel.json` sends every request on this domain to
+    # this app, so a scanner walking `/wp-admin`, `/.env` and `/.git/config`
+    # arrives here too. Those already cost a container wake, which nothing in
+    # this process can undo; there is no reason for each of them to also cost a
+    # database round trip.
+    if (
+        state is None
+        or not path.startswith("/api/")
+        or path.startswith("/api/internal/")
+    ):
         return
 
     task = asyncio.create_task(_sweep(state))

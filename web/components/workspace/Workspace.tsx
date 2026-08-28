@@ -59,10 +59,30 @@ import type {
   RetrievalComplete,
 } from "@/lib/types";
 
-// How often an in-flight ingestion is re-checked. Ingestion of a native PDF
-// finishes in a few seconds and a scanned one in tens of seconds, so this is
-// frequent enough to feel live without polling a finished document to death.
-const STATUS_POLL_MS = 2000;
+// How often an in-flight ingestion is re-checked, and when to stop asking.
+//
+// This was a flat two-second interval with no ceiling. Two seconds is the right
+// feel for the common case — a native PDF is ready in a few seconds — and the
+// wrong shape for every other one, because on Fluid compute each poll is a
+// container invocation and the container is billed for staying awake to answer
+// it. A sixty-second ingest cost thirty round trips. A document that never
+// reached `ready` or `failed` cost them forever: one open tab asking 1,800
+// times an hour whether anything had changed, which is the same shape as the
+// minutely cron that migration 0015 was written to kill.
+//
+// It was survivable while `pg_cron` swept the queue every minute, because a
+// stranded document got rescued before anyone was left waiting on it. Migration
+// 0016 removed that sweep in favour of maintenance that rides on traffic, which
+// closed one hole and opened this one — the tab became the only thing still
+// running, waiting for something nothing was going to fix.
+//
+// So the gap grows and the asking ends. The first checks stay fast; the same
+// sixty seconds now costs nine round trips instead of thirty. The deadline is
+// the part that matters most: after it the document keeps whatever state it
+// reached and a reload is what asks again. An unbounded loop is not a progress
+// indicator.
+const POLL_BACKOFF_MS = [2000, 2000, 3000, 5000, 8000, 12000] as const;
+const POLL_DEADLINE_MS = 5 * 60_000;
 
 /** The panes the small-screen switcher moves between. */
 const PANES = ["documents", "chat", "viewer"] as const;
@@ -187,16 +207,37 @@ export function Workspace() {
     return () => controller.abort();
   }, [signedIn]);
 
+  // Survive the effect re-running: see the polling effect below.
+  const pollStartedAt = useRef(0);
+  const pollRound = useRef(0);
+
   // Poll anything still moving through the pipeline.
+  //
+  // The backoff lives in refs rather than in the effect body, because the
+  // effect re-runs on every answer — `setIngesting` replaces the object it
+  // depends on, and that is what schedules the next round. Locals would be
+  // rebuilt at their initial values each time, so the gap would never grow and
+  // the deadline would never arrive.
   useEffect(() => {
     const pending = mine.filter(
       (document) =>
         (ingesting[document.id]?.status ?? document.status) !== "ready" &&
         (ingesting[document.id]?.status ?? document.status) !== "failed",
     );
-    if (pending.length === 0) return;
+    if (pending.length === 0) {
+      pollStartedAt.current = 0;
+      pollRound.current = 0;
+      return;
+    }
 
-    const timer = setInterval(() => {
+    if (pollStartedAt.current === 0) pollStartedAt.current = Date.now();
+    if (Date.now() - pollStartedAt.current > POLL_DEADLINE_MS) return;
+
+    const delay =
+      POLL_BACKOFF_MS[Math.min(pollRound.current, POLL_BACKOFF_MS.length - 1)];
+
+    const timer = setTimeout(() => {
+      pollRound.current += 1;
       for (const document of pending) {
         void fetchDocumentStatus(document.id)
           .then((status) => {
@@ -217,10 +258,14 @@ export function Workspace() {
               );
             }
           })
-          .catch(() => undefined);
+          // A failed request still has to schedule the next round, and the
+          // only thing that schedules one is this object changing identity.
+          // Without the nudge a single dropped answer ends the polling
+          // silently, which looks exactly like a document that stopped moving.
+          .catch(() => setIngesting((current) => ({ ...current })));
       }
-    }, STATUS_POLL_MS);
-    return () => clearInterval(timer);
+    }, delay);
+    return () => clearTimeout(timer);
   }, [mine, ingesting]);
 
   useEffect(() => {
